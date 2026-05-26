@@ -20,6 +20,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
   final _lastNameController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  String _selectedRole = 'BUYER';
   bool _isLoginTab = true;
   bool _obscurePassword = true;
 
@@ -57,7 +58,12 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     if (_isLoginTab) {
       authNotifier.login(email: email, password: password);
     } else {
-      authNotifier.register(email: email, username: fullName, password: password);
+      authNotifier.register(
+        email: email,
+        username: fullName,
+        password: password,
+        role: _selectedRole,
+      );
     }
   }
 
@@ -208,6 +214,61 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                 }
                                 return null;
                               },
+                            ),
+                            const SizedBox(height: 16),
+                            // ── Role Selector ───────────────────────────────
+                            const Text(
+                              'Select Registration Role',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF5A413D),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: const Color(0xFFE0E0E0)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                children: [
+                                  RadioListTile<String>(
+                                    title: const Text(
+                                      'Student Buyer',
+                                      style: TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w600),
+                                    ),
+                                    subtitle: const Text(
+                                      'Browse products and make purchase inquiries',
+                                      style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFF5A413D)),
+                                    ),
+                                    value: 'BUYER',
+                                    groupValue: _selectedRole,
+                                    activeColor: TeknoyTheme.citMaroon,
+                                    onChanged: (val) {
+                                      if (val != null) setState(() => _selectedRole = val);
+                                    },
+                                  ),
+                                  const Divider(height: 1, indent: 16, endIndent: 16),
+                                  RadioListTile<String>(
+                                    title: const Text(
+                                      'Campus Vendor / Seller',
+                                      style: TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w600),
+                                    ),
+                                    subtitle: const Text(
+                                      'List products & manage orders (Requires Admin approval)',
+                                      style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFF5A413D)),
+                                    ),
+                                    value: 'SELLER',
+                                    groupValue: _selectedRole,
+                                    activeColor: TeknoyTheme.citMaroon,
+                                    onChanged: (val) {
+                                      if (val != null) setState(() => _selectedRole = val);
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
                             const SizedBox(height: 16),
                           ],

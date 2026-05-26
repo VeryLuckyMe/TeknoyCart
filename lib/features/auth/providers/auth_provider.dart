@@ -40,6 +40,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
     required String email,
     required String username,
     required String password,
+    required String role,
   }) async {
     state = const AsyncValue.loading();
     try {
@@ -47,6 +48,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
         email: email,
         username: username,
         password: password,
+        role: role,
       );
       state = AsyncValue.data(user);
     } catch (e, stackTrace) {

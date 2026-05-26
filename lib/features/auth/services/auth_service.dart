@@ -67,6 +67,7 @@ class AuthService {
     required String email,
     required String username,
     required String password,
+    required String role,
   }) async {
     if (!isValidCituEmail(email)) {
       throw const FormatException(
@@ -83,7 +84,7 @@ class AuthService {
     final response = await _client.auth.signUp(
       email: email.trim(),
       password: password,
-      data: {'username': username.trim()},
+      data: {'username': username.trim(), 'role': role},
     );
 
     final user = response.user;
@@ -97,8 +98,8 @@ class AuthService {
       'full_name': username.trim(),
       'email': email.trim(),
       'password_hash': 'SUPABASE_AUTH_MANAGED',
-      'role': 'BUYER',
-      'is_verified': false,
+      'role': role,
+      'is_verified': role == 'BUYER' ? true : false, // Buyers approved auto, Sellers pending
     });
 
     return _userToProfile(user);
