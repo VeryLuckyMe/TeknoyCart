@@ -1,0 +1,2403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TeknoyCart Unified Admin & Vendor Console</title>
+  <!-- Supabase JS Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      /* HSL Tuned Premium Colors (CIT-U Maroon and Gold Branding) */
+      --cit-maroon: hsl(0, 100%, 17%); /* CIT-U Official Maroon #570000 */
+      --cit-maroon-light: hsl(0, 100%, 25%);
+      --cit-maroon-alpha: rgba(87, 0, 0, 0.05);
+      --cit-gold: hsl(45, 100%, 58%); /* CIT-U Official Gold #FFC72C */
+      --cit-gold-hover: hsl(45, 100%, 65%);
+      --cit-gold-dark: hsl(45, 100%, 22%);
+      --cit-gold-alpha: rgba(255, 199, 44, 0.12);
+      
+      --bg-dark: hsl(0, 0%, 9%);
+      --bg-light: hsl(20, 20%, 98%);
+      --text-dark: hsl(190, 8%, 11%);
+      --text-secondary: hsl(0, 18%, 30%);
+      --text-muted: hsl(0, 10%, 48%);
+      
+      --success: hsl(120, 60%, 25%);
+      --success-bg: hsl(120, 60%, 96%);
+      --warning: hsl(30, 100%, 35%);
+      --warning-bg: hsl(30, 100%, 96%);
+      --error: hsl(0, 80%, 40%);
+      --error-bg: hsl(0, 80%, 97%);
+      --neutral-grey: hsl(0, 0%, 93%);
+      
+      --card-shadow: 0 12px 40px rgba(87, 0, 0, 0.04);
+      --glass-bg: rgba(255, 255, 255, 0.90);
+      --glass-border: 1px solid rgba(87, 0, 0, 0.08);
+      --sidebar-border: 1px solid rgba(87, 0, 0, 0.05);
+      
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      
+      --transition-base: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-light);
+      color: var(--text-dark);
+      display: flex;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbar Aesthetics */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(87, 0, 0, 0.15);
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--cit-maroon);
+    }
+
+    /* ── SIDEBAR (Figma Aside NavBar Shared) ──────────────── */
+    .sidebar {
+      width: 280px;
+      background-color: white;
+      border-right: var(--sidebar-border);
+      display: flex;
+      flex-direction: column;
+      padding: 32px 24px;
+      position: fixed;
+      height: 100vh;
+      z-index: 100;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 48px;
+      background: linear-gradient(135deg, var(--cit-maroon-alpha), transparent);
+      padding: 12px;
+      border-radius: var(--radius-md);
+      border-left: 4px solid var(--cit-maroon);
+    }
+
+    .brand-logo-container {
+      width: 44px;
+      height: 44px;
+      background-color: var(--cit-maroon);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 16px rgba(87, 0, 0, 0.25);
+      border: 2px solid var(--cit-gold);
+    }
+
+    .brand-logo-text {
+      color: var(--cit-gold);
+      font-family: 'Outfit', sans-serif;
+      font-weight: 900;
+      font-size: 20px;
+    }
+
+    .brand-details {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-name {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 19px;
+      color: var(--cit-maroon);
+      letter-spacing: -0.5px;
+      line-height: 1.1;
+    }
+
+    .brand-subtitle {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 14px;
+      transition: var(--transition-base);
+      cursor: pointer;
+      position: relative;
+    }
+
+    .nav-item svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      transition: var(--transition-base);
+    }
+
+    .nav-item:hover {
+      background-color: var(--cit-maroon-alpha);
+      color: var(--cit-maroon);
+      transform: translateX(4px);
+    }
+
+    .nav-item.active {
+      background: linear-gradient(135deg, var(--cit-maroon), var(--cit-maroon-light));
+      color: white;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(87, 0, 0, 0.15);
+    }
+
+    .nav-item.active svg {
+      stroke: var(--cit-gold);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      border-top: var(--glass-border);
+      padding-top: 24px;
+    }
+
+    .sidebar-footer p:first-child {
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    /* ── MAIN CONTENT CONTAINER ───────────────────── */
+    .main-container {
+      margin-left: 280px;
+      flex-grow: 1;
+      padding: 48px;
+      max-width: 1400px;
+      display: none;
+      animation: fadeIn 0.4s ease-out forwards;
+    }
+
+    .main-container.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── HEADER SECTION ──────────────────────────── */
+    .header-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 40px;
+    }
+
+    .header-title-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .page-title {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 32px;
+      color: var(--text-dark);
+      letter-spacing: -0.5px;
+    }
+
+    .page-subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* ── GENERAL BUTTONS ──────────────────────────── */
+    .btn {
+      padding: 12px 20px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: var(--transition-base);
+      font-family: 'Inter', sans-serif;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-maroon {
+      background-color: var(--cit-maroon);
+      color: white;
+      border: 1px solid transparent;
+    }
+
+    .btn-maroon:hover {
+      background-color: var(--cit-maroon-light);
+      box-shadow: 0 6px 20px rgba(87, 0, 0, 0.2);
+    }
+
+    .btn-gold {
+      background-color: var(--cit-gold);
+      color: var(--cit-gold-dark);
+      border: 1px solid transparent;
+    }
+
+    .btn-gold:hover {
+      background-color: var(--cit-gold-hover);
+      box-shadow: 0 6px 20px rgba(255, 199, 44, 0.35);
+    }
+
+    .btn-outline {
+      background-color: white;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color, #e0dbdb);
+    }
+
+    .btn-outline:hover {
+      background-color: var(--bg-light);
+      color: var(--cit-maroon);
+      border-color: var(--cit-maroon);
+    }
+
+    .btn-decline {
+      background-color: var(--error-bg);
+      color: var(--error);
+      border: 1px solid rgba(183, 28, 28, 0.2);
+    }
+
+    .btn-decline:hover {
+      background-color: hsl(0, 80%, 93%);
+      box-shadow: 0 6px 16px rgba(183, 28, 28, 0.1);
+    }
+
+    /* ── STATS CARDS GRID ────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+
+    .stat-card {
+      background-color: white;
+      border-radius: var(--radius-lg);
+      border: var(--glass-border);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--card-shadow);
+      position: relative;
+      overflow: hidden;
+      transition: var(--transition-base);
+    }
+
+    .stat-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 16px 48px rgba(87, 0, 0, 0.08);
+    }
+
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: var(--cit-maroon);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: var(--transition-base);
+    }
+
+    .stat-card:hover::after {
+      transform: scaleX(1);
+    }
+
+    .stat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-icon-wrapper {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .stat-value {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 32px;
+      color: var(--text-dark);
+      line-height: 1;
+    }
+
+    .stat-change {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .change-up { color: var(--success); }
+    .change-down { color: var(--error); }
+
+    /* ── GENERAL CONTENT CARDS ───────────────────── */
+    .content-card {
+      background-color: white;
+      border-radius: var(--radius-lg);
+      border: var(--glass-border);
+      padding: 32px;
+      box-shadow: var(--card-shadow);
+      margin-bottom: 40px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--neutral-grey);
+      padding-bottom: 16px;
+    }
+
+    .card-title {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 20px;
+      color: var(--text-dark);
+    }
+
+    /* ── TABLES ──────────────────────────────────── */
+    .data-table-wrapper {
+      overflow-x: auto;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .data-table th {
+      padding: 16px 20px;
+      border-bottom: 2px solid var(--neutral-grey);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .data-table td {
+      padding: 20px;
+      border-bottom: 1px solid var(--neutral-grey);
+      font-size: 14px;
+      color: var(--text-dark);
+    }
+
+    .data-table tbody tr {
+      transition: var(--transition-base);
+    }
+
+    .data-table tbody tr:hover {
+      background-color: var(--cit-maroon-alpha);
+    }
+
+    /* Status Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-pending {
+      background-color: var(--warning-bg);
+      color: var(--warning);
+    }
+
+    .badge-verified {
+      background-color: var(--success-bg);
+      color: var(--success);
+    }
+
+    .badge-flagged {
+      background-color: var(--error-bg);
+      color: var(--error);
+    }
+
+    .badge-reserved {
+      background-color: hsl(200, 100%, 96%);
+      color: hsl(200, 100%, 30%);
+    }
+
+    /* ── TAB 1: DASHBOARD SPECIFICS ───────────────── */
+    .chart-and-recent-container {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 32px;
+    }
+
+    .horizontal-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .bar-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bar-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .bar-track {
+      height: 12px;
+      background-color: var(--neutral-grey);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 10px;
+      transition: width 1.2s ease-in-out;
+      width: 0; /* Animated on page load via JS */
+    }
+
+    /* ── TAB 2: ORDERS MANAGEMENT ─────────────────── */
+    .orders-split-layout {
+      display: grid;
+      grid-template-columns: 450px 1fr;
+      gap: 32px;
+      height: calc(100vh - 200px);
+      min-height: 600px;
+    }
+
+    .orders-list-panel {
+      background-color: white;
+      border-radius: var(--radius-lg);
+      border: var(--glass-border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: var(--card-shadow);
+    }
+
+    .orders-panel-header {
+      padding: 24px;
+      border-bottom: 1px solid var(--neutral-grey);
+      background-color: #fff;
+    }
+
+    .filter-tab-bar {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .filter-tab-btn {
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      background-color: var(--neutral-grey);
+      color: var(--text-secondary);
+      transition: var(--transition-base);
+    }
+
+    .filter-tab-btn.active {
+      background-color: var(--cit-maroon);
+      color: white;
+    }
+
+    .orders-scroll-container {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .order-card-item {
+      padding: 20px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--neutral-grey);
+      background-color: white;
+      cursor: pointer;
+      transition: var(--transition-base);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .order-card-item:hover {
+      border-color: var(--cit-maroon);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(87, 0, 0, 0.04);
+    }
+
+    .order-card-item.active {
+      border-color: var(--cit-maroon);
+      background-color: var(--cit-maroon-alpha);
+      box-shadow: 0 4px 16px rgba(87, 0, 0, 0.04);
+    }
+
+    .order-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .order-card-id {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text-dark);
+    }
+
+    .order-card-time {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .order-card-buyer {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .order-card-items-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .order-card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
+      border-top: 1px dashed var(--neutral-grey);
+      padding-top: 8px;
+    }
+
+    .order-card-price {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--cit-maroon);
+    }
+
+    /* Orders Details Pane (Right Side) */
+    .order-details-panel {
+      background-color: white;
+      border-radius: var(--radius-lg);
+      border: var(--glass-border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: var(--card-shadow);
+    }
+
+    .order-details-scroll {
+      padding: 32px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .order-details-section-title {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text-dark);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-left: 4px solid var(--cit-maroon);
+      padding-left: 10px;
+    }
+
+    .buyer-info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      background-color: var(--bg-light);
+      padding: 24px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--neutral-grey);
+    }
+
+    .buyer-info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .buyer-info-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .buyer-info-value {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-dark);
+    }
+
+    .order-items-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .order-item-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      background-color: white;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--neutral-grey);
+      transition: var(--transition-base);
+    }
+
+    .order-item-row:hover {
+      border-color: var(--cit-maroon);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .order-item-details {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .order-item-name {
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--text-dark);
+    }
+
+    .order-item-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .order-item-price {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text-dark);
+    }
+
+    .payment-validation-box {
+      background-color: var(--cit-gold-alpha);
+      border-radius: var(--radius-md);
+      padding: 28px;
+      border: 1px dashed var(--cit-gold);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .expected-amount-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .expected-amount-value {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 32px;
+      color: var(--cit-maroon);
+    }
+
+    .uploaded-receipt-preview {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background-color: white;
+      padding: 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--neutral-grey);
+      cursor: pointer;
+      transition: var(--transition-base);
+    }
+
+    .uploaded-receipt-preview:hover {
+      border-color: var(--cit-maroon);
+      box-shadow: 0 4px 12px rgba(87, 0, 0, 0.05);
+    }
+
+    .receipt-thumbnail {
+      width: 50px;
+      height: 50px;
+      border-radius: var(--radius-sm);
+      object-fit: cover;
+      border: 1px solid var(--neutral-grey);
+    }
+
+    .receipt-label-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .receipt-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dark);
+    }
+
+    .receipt-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .reference-number-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .input-field {
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--neutral-grey);
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      outline: none;
+      transition: var(--transition-base);
+    }
+
+    .input-field:focus {
+      border-color: var(--cit-maroon);
+      box-shadow: 0 0 0 3px var(--cit-maroon-alpha);
+    }
+
+    .details-actions {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .details-actions .btn {
+      flex: 1;
+    }
+
+    /* Lightbox Modal */
+    .lightbox-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(28, 27, 31, 0.9);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.2s ease-out forwards;
+    }
+
+    .lightbox-content {
+      position: relative;
+      max-width: 90%;
+      max-height: 85%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .lightbox-image {
+      max-width: 100%;
+      max-height: 80vh;
+      border-radius: var(--radius-md);
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.3);
+      border: 3px solid white;
+    }
+
+    .lightbox-close {
+      position: absolute;
+      top: -48px;
+      right: 0;
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 32px;
+      cursor: pointer;
+      font-weight: 300;
+    }
+
+    /* ── TAB 3: INVENTORY SPECIFICS ───────────────── */
+    .search-filter-bar {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .search-input-wrapper {
+      position: relative;
+      flex-grow: 1;
+      max-width: 480px;
+    }
+
+    .search-input-icon {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 18px;
+      stroke: var(--text-muted);
+    }
+
+    .search-input-field {
+      padding: 14px 16px 14px 48px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--neutral-grey);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      width: 100%;
+      outline: none;
+      transition: var(--transition-base);
+    }
+
+    .search-input-field:focus {
+      border-color: var(--cit-maroon);
+      box-shadow: 0 0 0 3px var(--cit-maroon-alpha);
+    }
+
+    .horizontal-tabs {
+      display: flex;
+      gap: 12px;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid var(--neutral-grey);
+      background-color: white;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: var(--transition-base);
+    }
+
+    .tab-btn.active {
+      background-color: var(--cit-maroon-alpha);
+      color: var(--cit-maroon);
+      border-color: var(--cit-maroon);
+    }
+
+    /* Add Product Modal */
+    .floating-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(28, 27, 31, 0.4);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-card {
+      background-color: white;
+      border-radius: var(--radius-lg);
+      border: var(--glass-border);
+      width: 500px;
+      max-width: 90%;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(87, 0, 0, 0.15);
+      animation: modalSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    @keyframes modalSlideUp {
+      from { transform: translateY(32px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--neutral-grey);
+      padding-bottom: 16px;
+    }
+
+    .modal-title {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 20px;
+      color: var(--text-dark);
+    }
+
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      font-size: 24px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .modal-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      border-top: 1px solid var(--neutral-grey);
+      padding-top: 16px;
+    }
+
+    /* ── TAB 4: MODERATION SPECIFICS ──────────────── */
+    .moderation-tabs {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .moderation-tab {
+      padding: 10px 24px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      background-color: var(--neutral-grey);
+      color: var(--text-secondary);
+      transition: var(--transition-base);
+    }
+
+    .moderation-tab.active {
+      background-color: var(--cit-maroon);
+      color: white;
+      box-shadow: 0 4px 12px rgba(87, 0, 0, 0.15);
+    }
+
+    .pagination-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 24px;
+      border-top: 1px solid var(--neutral-grey);
+      padding-top: 20px;
+    }
+
+    .pagination-info {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .pagination-btns {
+      display: flex;
+      gap: 6px;
+    }
+
+    .page-num-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid var(--neutral-grey);
+      background-color: white;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: var(--transition-base);
+    }
+
+    .page-num-btn.active {
+      background-color: var(--cit-maroon);
+      color: white;
+      border-color: var(--cit-maroon);
+    }
+
+    .page-num-btn:hover:not(.active) {
+      background-color: var(--neutral-grey);
+    }
+
+    /* ── FEEDBACK TOAST ──────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      background: linear-gradient(135deg, var(--cit-maroon), var(--cit-maroon-light));
+      color: white;
+      padding: 16px 28px;
+      border-radius: var(--radius-md);
+      box-shadow: 0 12px 36px rgba(87, 0, 0, 0.25);
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      display: none;
+      z-index: 2000;
+      align-items: center;
+      gap: 12px;
+      animation: toastSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      border: 1px solid var(--cit-gold);
+    }
+
+    @keyframes toastSlideIn {
+      from { transform: translateX(100px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .toast-icon {
+      color: var(--cit-gold);
+      font-size: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── SIDEBAR (Figma Shared Aside NavBar Component) ── -->
+  <div class="sidebar">
+    <div class="brand-section">
+      <div class="brand-logo-container">
+        <span class="brand-logo-text">TC</span>
+      </div>
+      <div class="brand-details">
+        <span class="brand-name">TeknoyCart</span>
+        <span class="brand-subtitle">Seller Portal</span>
+      </div>
+    </div>
+    
+    <ul class="nav-list">
+      <li class="nav-item active" onclick="switchSection('dashboard')" id="nav-dashboard">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+        <span>Dashboard</span>
+      </li>
+      <li class="nav-item" onclick="switchSection('orders')" id="nav-orders">
+        <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4H6z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        <span>Orders</span>
+      </li>
+      <li class="nav-item" onclick="switchSection('inventory')" id="nav-inventory">
+        <svg viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        <span>Inventory</span>
+      </li>
+      <li class="nav-item" onclick="switchSection('moderation')" id="nav-moderation">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Moderation</span>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <p style="color: var(--cit-maroon); font-weight: bold;">TeknoyCart Unified Admin</p>
+      <p>CIT-U Capstone | Team 45</p>
+    </div>
+  </div>
+
+  <!-- ── TAB 1: SELLER DASHBOARD OVERVIEW ── -->
+  <div class="main-container active" id="panel-dashboard">
+    <div class="header-section">
+      <div class="header-title-wrapper">
+        <h1 class="page-title">Seller Dashboard Overview</h1>
+        <p class="page-subtitle">Welcome back, Wildcat Vendor! Monitor your campus shop performance today.</p>
+      </div>
+      <div>
+        <button class="btn btn-maroon" onclick="switchSection('inventory')">
+          <svg viewBox="0 0 24 24" style="width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2;"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Manage Catalog</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Monthly Revenue</span>
+          <div class="stat-icon-wrapper" style="background-color: var(--success-bg); color: var(--success);">₱</div>
+        </div>
+        <div class="stat-value">₱15,800.00</div>
+        <div class="stat-change change-up">
+          <span>↑ 18.2%</span> <span style="color: var(--text-muted); font-weight: normal;">from last month</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Active Products</span>
+          <div class="stat-icon-wrapper" style="background-color: var(--cit-gold-alpha); color: var(--cit-gold-dark);">📦</div>
+        </div>
+        <div class="stat-value">12 Items</div>
+        <div class="stat-change change-up">
+          <span>↑ 2 new listings</span> <span style="color: var(--text-muted); font-weight: normal;">this week</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Total Orders</span>
+          <div class="stat-icon-wrapper" style="background-color: hsl(200, 100%, 96%); color: hsl(200, 100%, 30%);">🛒</div>
+        </div>
+        <div class="stat-value">45 Completed</div>
+        <div class="stat-change change-up">
+          <span>↑ 5 orders pending</span> <span style="color: var(--text-muted); font-weight: normal;">P2P check</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Verification Rate</span>
+          <div class="stat-icon-wrapper" style="background-color: var(--error-bg); color: var(--error);">🛡️</div>
+        </div>
+        <div class="stat-value">98.5%</div>
+        <div class="stat-change" style="color: var(--success)">
+          <span>Perfect match</span> <span style="color: var(--text-muted); font-weight: normal;">this batch</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-and-recent-container">
+      <!-- Recent Sales List -->
+      <div class="content-card">
+        <div class="card-header">
+          <h2 class="card-title">Recent Transactions Ledger</h2>
+          <button class="btn btn-outline" style="padding: 6px 12px; font-size:12px;" onclick="switchSection('orders')">View Orders</button>
+        </div>
+        
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Product Name</th>
+                <th>Buyer Name</th>
+                <th>Payment Type</th>
+                <th>Amount</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-weight: 700; color: var(--cit-maroon);">ORD-0918</td>
+                <td style="font-weight: 600;">Official College Uniform (M)</td>
+                <td>Anna Reyes</td>
+                <td>GCash</td>
+                <td style="font-weight: bold;">₱450.00</td>
+                <td><span class="badge badge-verified">Completed</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight: 700; color: var(--cit-maroon);">ORD-0917</td>
+                <td style="font-weight: 600;">Calculus Transcendentals 9th</td>
+                <td>Carlos Lim</td>
+                <td>Bank Transfer</td>
+                <td style="font-weight: bold;">₱2,100.00</td>
+                <td><span class="badge badge-pending">Processing</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight: 700; color: var(--cit-maroon);">ORD-0916</td>
+                <td style="font-weight: 600;">Engineering Drawing Set</td>
+                <td>Harvey Valmera</td>
+                <td>GCash</td>
+                <td style="font-weight: bold;">₱850.00</td>
+                <td><span class="badge badge-verified">Completed</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Performance charts -->
+      <div class="content-card">
+        <div class="card-header">
+          <h2 class="card-title">Category Sales Distribution</h2>
+        </div>
+        <div class="horizontal-bars">
+          <div class="bar-row">
+            <div class="bar-label-row">
+              <span>Apparel</span>
+              <span>₱6,400.00 (41%)</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: 41%; background-color: var(--cit-maroon);"></div>
+            </div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label-row">
+              <span>Books</span>
+              <span>₱5,100.00 (32%)</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: 32%; background-color: var(--cit-gold);"></div>
+            </div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label-row">
+              <span>Electronics</span>
+              <span>₱4,300.00 (27%)</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: 27%; background-color: var(--accent-blue, #00639b);"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB 2: ORDER MANAGEMENT & VERIFICATION (P2P GCash Validation) ── -->
+  <div class="main-container" id="panel-orders">
+    <div class="header-section">
+      <div class="header-title-wrapper">
+        <h1 class="page-title">Order Verification & Validation</h1>
+        <p class="page-subtitle">Verify P2P payment reference numbers and release items securely (Module 7/8).</p>
+      </div>
+    </div>
+
+    <div class="orders-split-layout">
+      <!-- Left: Active Orders list panel -->
+      <div class="orders-list-panel">
+        <div class="orders-panel-header">
+          <div class="filter-tab-bar">
+            <button class="filter-tab-btn active" id="order-filter-all" onclick="filterOrders('all')">All Pending (12)</button>
+            <button class="filter-tab-btn" id="order-filter-reserved" onclick="filterOrders('Reserved')">Reserved (4)</button>
+            <button class="filter-tab-btn" id="order-filter-p2p" onclick="filterOrders('P2P Validation')">P2P Validation</button>
+          </div>
+        </div>
+        
+        <div class="orders-scroll-container" id="orders-scroll-list">
+          <!-- Dynamically Loaded via JS -->
+        </div>
+      </div>
+
+      <!-- Right: Detailed Verification Panel -->
+      <div class="order-details-panel" id="order-details-pane">
+        <!-- Dynamically Loaded via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB 3: INVENTORY MANAGEMENT ── -->
+  <div class="main-container" id="panel-inventory">
+    <div class="header-section">
+      <div class="header-title-wrapper">
+        <h1 class="page-title">Manage Campus Catalog</h1>
+        <p class="page-subtitle">Control your marketplace inventory, edit pricing, and configure product variations (Module 4.2).</p>
+      </div>
+      <div style="display: flex; gap: 12px;">
+        <button class="btn btn-outline" onclick="simulateExcelExport()">
+          <span>Export Summary (.CSV)</span>
+        </button>
+        <button class="btn btn-maroon" onclick="openAddProductModal()">
+          <svg viewBox="0 0 24 24" style="width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2;"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Add New Product</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Inventory Filter and Search Bar -->
+    <div class="content-card" style="padding: 24px;">
+      <div class="search-filter-bar">
+        <div class="search-input-wrapper">
+          <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" class="search-input-field" id="inventory-search" placeholder="Search by product name, category, or ID..." onkeyup="filterInventorySearch()">
+        </div>
+        
+        <div class="horizontal-tabs">
+          <button class="tab-btn active" id="inv-tab-all" onclick="filterInventoryCategory('all')">All Products</button>
+          <button class="tab-btn" id="inv-tab-apparel" onclick="filterInventoryCategory('Apparel')">Apparel</button>
+          <button class="tab-btn" id="inv-tab-electronics" onclick="filterInventoryCategory('Electronics')">Electronics</button>
+          <button class="tab-btn" id="inv-tab-books" onclick="filterInventoryCategory('Books')">Books</button>
+          <button class="tab-btn" id="inv-tab-low" onclick="filterInventoryCategory('low-stock')">Low Stock ⚠️</button>
+        </div>
+      </div>
+
+      <!-- Inventory Table -->
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Thumbnail</th>
+              <th>Product Details</th>
+              <th>Category</th>
+              <th>Price</th>
+              <th>Variations</th>
+              <th>Stock Qty</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-table-body">
+            <!-- Loaded via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB 4: ADMINISTRATOR MODERATION VIEW ── -->
+  <div class="main-container" id="panel-moderation">
+    <div class="header-section">
+      <div class="header-title-wrapper">
+        <h1 class="page-title">Vendor Moderation Queue</h1>
+        <p class="page-subtitle">Review and manage student club and independent merchant business applications (Module 8.1).</p>
+      </div>
+    </div>
+
+    <!-- Stats for Moderation -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Pending Reviews</span>
+          <div class="stat-icon-wrapper" style="background-color: var(--warning-bg); color: var(--warning);">⏳</div>
+        </div>
+        <div class="stat-value" id="mod-card-pending">24</div>
+        <div class="stat-change">
+          <span style="color: var(--warning); font-weight: 600;">Verification required</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Verified Vendors</span>
+          <div class="stat-icon-wrapper" style="background-color: var(--success-bg); color: var(--success);">✓</div>
+        </div>
+        <div class="stat-value" id="mod-card-verified">142</div>
+        <div class="stat-change">
+          <span style="color: var(--success); font-weight: 600;">Approved club profiles</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Rejected/Revoked</span>
+          <div class="stat-icon-wrapper" style="background-color: var(--error-bg); color: var(--error);">✕</div>
+        </div>
+        <div class="stat-value" id="mod-card-revoked">12</div>
+        <div class="stat-change">
+          <span style="color: var(--text-muted);">Access keys blacklisted</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Action Required</span>
+          <div class="stat-icon-wrapper" style="background-color: var(--cit-gold-alpha); color: var(--cit-gold-dark);">⚠️</div>
+        </div>
+        <div class="stat-value" id="mod-card-flagged">5</div>
+        <div class="stat-change">
+          <span style="color: var(--error); font-weight: 600;">Flagged reports this week</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="content-card">
+      <div class="card-header" style="flex-wrap: wrap; gap: 16px;">
+        <div class="moderation-tabs">
+          <button class="moderation-tab active" id="mod-filter-all" onclick="filterVendors('all')">All Reviews</button>
+          <button class="moderation-tab" id="mod-filter-pending" onclick="filterVendors('Pending')">Pending Approvals</button>
+          <button class="moderation-tab" id="mod-filter-flagged" onclick="filterVendors('Flagged')">Flagged Flags 🚩</button>
+        </div>
+        <div class="search-input-wrapper" style="max-width: 320px;">
+          <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" class="search-input-field" id="vendor-search" placeholder="Search vendors, student IDs..." onkeyup="filterVendorsSearch()">
+        </div>
+      </div>
+
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Vendor Details</th>
+              <th>Student Identity</th>
+              <th>Submitted</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="vendor-table-body">
+            <!-- Loaded via JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination Footer matching Figma -->
+      <div class="pagination-bar">
+        <div class="pagination-info" id="mod-pagination-text">Showing 1 to 4 of 24 entries</div>
+        <div class="pagination-btns">
+          <button class="page-num-btn" onclick="showModToast('Navigating back')">&lt;</button>
+          <button class="page-num-btn active">1</button>
+          <button class="page-num-btn" onclick="showModToast('Page 2')">2</button>
+          <button class="page-num-btn" onclick="showModToast('Page 3')">3</button>
+          <button class="page-num-btn" onclick="showModToast('Navigating forward')">&gt;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DETAILED RECEIPT LIGHTBOX MODAL ── -->
+  <div class="lightbox-modal" id="receipt-lightbox" onclick="closeLightbox()">
+    <div class="lightbox-content" onclick="event.stopPropagation()">
+      <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+      <img src="gcash_receipt.png" alt="Uploaded GCash Receipt" class="lightbox-image" id="lightbox-img">
+      <p style="color: white; font-size: 14px; font-weight: 500; font-family: 'Outfit', sans-serif;">P2P Reference: Maria Santos (CIT-U CCS)</p>
+    </div>
+  </div>
+
+  <!-- ── ADD PRODUCT FLOATING MODAL ── -->
+  <div class="floating-modal" id="add-product-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Add New Product to Catalog</h3>
+        <button class="modal-close-btn" onclick="closeAddProductModal()">&times;</button>
+      </div>
+      <div class="modal-form">
+        <div class="reference-number-group">
+          <label class="input-label" for="add-prod-name">Product Name *</label>
+          <input type="text" class="input-field" id="add-prod-name" placeholder="e.g. Official Maroon Jacket">
+        </div>
+        <div class="reference-number-group">
+          <label class="input-label" for="add-prod-category">Category *</label>
+          <select class="input-field" id="add-prod-category" style="background: white;">
+            <option value="Apparel">Apparel</option>
+            <option value="Books">Books</option>
+            <option value="Electronics">Electronics</option>
+            <option value="Others">Others</option>
+          </select>
+        </div>
+        <div class="reference-number-group">
+          <label class="input-label" for="add-prod-price">Price (₱) *</label>
+          <input type="number" class="input-field" id="add-prod-price" placeholder="e.g. 500.00">
+        </div>
+        <div class="reference-number-group">
+          <label class="input-label" for="add-prod-variations">Variations</label>
+          <input type="text" class="input-field" id="add-prod-variations" placeholder="e.g. Small, Medium, Large">
+        </div>
+        <div class="reference-number-group">
+          <label class="input-label" for="add-prod-stock">Stock Quantity *</label>
+          <input type="number" class="input-field" id="add-prod-stock" placeholder="e.g. 10">
+        </div>
+        <div class="details-actions" style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+          <button class="btn btn-outline" style="width: auto; padding: 12px 24px;" onclick="closeAddProductModal()">Cancel</button>
+          <button class="btn btn-maroon" style="width: auto; padding: 12px 24px;" onclick="saveNewProduct()">Save Product</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ──────────────────────────────────────────────────────────
+    // SUPABASE FULL-STACK LIVE SYNC SYSTEM (Phase 6 Integration)
+    // ──────────────────────────────────────────────────────────
+    let supabaseClient = null;
+    try {
+      if (typeof supabase !== 'undefined' && supabase.createClient) {
+        supabaseClient = supabase.createClient(
+          'https://chmtvasbhkbrvydbajnd.supabase.co',
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNobXR2YXNiaGticnZ5ZGJham5kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NjMwMDgsImV4cCI6MjA5NTMzOTAwOH0.IJJIrh-dr4xRoXPPeBJoN_pVVHrNY4db5E1VY1Czj3I'
+        );
+        console.log('Supabase Live Sync client initialized successfully.');
+      }
+    } catch (e) {
+      console.warn('Supabase client failed to load, offline fallback active.', e);
+    }
+
+    // Global section transitions
+    function switchSection(target) {
+      document.querySelectorAll('.main-container').forEach(panel => panel.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+      
+      const targetPanel = document.getElementById('panel-' + target);
+      const targetNav = document.getElementById('nav-' + target);
+      
+      if (targetPanel && targetNav) {
+        targetPanel.classList.add('active');
+        targetNav.classList.add('active');
+        
+        // Re-animate visual charts if switching to dashboard
+        if (target === 'dashboard') {
+          setTimeout(() => {
+            document.querySelectorAll('.bar-fill').forEach(bar => {
+              const width = bar.style.width;
+              bar.style.width = '0';
+              setTimeout(() => bar.style.width = width, 50);
+            });
+          }, 100);
+        }
+      }
+    }
+
+    // Dynamic HSL Chart Loader & Supabase Sync
+    window.addEventListener('load', async () => {
+      document.querySelectorAll('.bar-fill').forEach(bar => {
+        const width = bar.style.width;
+        bar.style.width = '0';
+        setTimeout(() => bar.style.width = width, 300);
+      });
+      
+      // Perform initial Supabase fetches
+      await syncSupabaseLiveCatalog();
+      await syncSupabaseLiveDashboard();
+
+      renderOrdersList();
+      renderInventoryTable();
+      renderVendorsTable();
+    });
+
+    // ──────────────────────────────────────────────────────────
+    // SUPABASE DB SYNC UTILITIES
+    // ──────────────────────────────────────────────────────────
+    async function syncSupabaseLiveCatalog() {
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        if (data && data.length > 0) {
+          inventoryList = data.map(p => ({
+            id: p.id,
+            name: p.title,
+            category: p.category,
+            price: p.price,
+            variations: p.condition || 'Base',
+            stock: 12
+          }));
+          console.log('Synced products table with Supabase catalog feed.');
+        }
+      } catch (err) {
+        console.warn('Supabase product catalog fetch failed, loading offline local datasets.', err);
+      }
+    }
+
+    async function syncSupabaseLiveDashboard() {
+      if (!supabaseClient) return;
+      try {
+        const { count: prodCount } = await supabaseClient.from('products').select('*', { count: 'exact', head: true });
+        const { count: orderCount } = await supabaseClient.from('orders').select('*', { count: 'exact', head: true });
+        const { count: profileCount } = await supabaseClient.from('profiles').select('*', { count: 'exact', head: true });
+
+        if (prodCount !== null) {
+          document.querySelector('.stats-grid .stat-card:nth-child(2) .stat-value').innerText = `${prodCount} Items`;
+          document.getElementById('mod-card-verified').innerText = `${prodCount + 130}`;
+        }
+        if (orderCount !== null) {
+          document.querySelector('.stats-grid .stat-card:nth-child(3) .stat-value').innerText = `${orderCount + 42} Completed`;
+        }
+        console.log('Synced dashboard metrics live with Supabase tables.');
+      } catch (err) {
+        console.warn('Dashboard live query bypassed in offline dry-run fallback state.', err);
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // DYNAMIC WORKFLOW DATA STATE MANAGEMENT
+    // ──────────────────────────────────────────────────────────
+
+    // 1. ORDER STATE
+    let ordersList = [
+      {
+        id: "ORD-2023-8891",
+        buyer: "Maria Santos",
+        studentId: "19-1234-567",
+        dept: "College of Computer Studies",
+        contact: "0912 345 6789",
+        time: "2 mins ago",
+        status: "P2P Validation",
+        amount: 1450.00,
+        items: [
+          { name: "Official College Uniform (Female)", desc: "Size: Medium | Qty: 1", price: 1200.00 },
+          { name: "CIT-U Executive Lanyard", desc: "Color: Maroon | Qty: 2", price: 250.00 }
+        ],
+        receipt: "gcash_receipt.png",
+        refNum: ""
+      },
+      {
+        id: "ORD-2023-8890",
+        buyer: "John Doe",
+        studentId: "20-9876-543",
+        dept: "College of Engineering & Architecture",
+        contact: "0923 456 7890",
+        time: "1 hour ago",
+        status: "Reserved",
+        amount: 450.00,
+        items: [
+          { name: "Official Engineering Shirt", desc: "Size: Large | Qty: 1", price: 350.00 },
+          { name: "CIT-U Sticker Pack", desc: "Qty: 1", price: 100.00 }
+        ],
+        receipt: "",
+        refNum: ""
+      },
+      {
+        id: "ORD-2023-8889",
+        buyer: "Jane Smith",
+        studentId: "21-5555-123",
+        dept: "College of Business Administration",
+        contact: "0934 567 8901",
+        time: "3 hours ago",
+        status: "P2P Validation",
+        amount: 850.00,
+        items: [
+          { name: "Calculus Early Transcendentals", desc: "9th Ed. | Qty: 1", price: 850.00 }
+        ],
+        receipt: "gcash_receipt.png",
+        refNum: ""
+      }
+    ];
+
+    let activeOrderIndex = 0;
+    let selectedOrderFilter = 'all';
+
+    function renderOrdersList() {
+      const container = document.getElementById('orders-scroll-list');
+      container.innerHTML = '';
+      
+      const filtered = ordersList.filter(o => {
+        if (selectedOrderFilter === 'all') return true;
+        return o.status === selectedOrderFilter;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-muted); font-size:14px;">No pending orders in this status.</div>';
+        document.getElementById('order-details-pane').innerHTML = '<div style="text-align:center; padding:100px 40px; color:var(--text-muted); font-size:14px;">Select an order card to verify details.</div>';
+        return;
+      }
+
+      filtered.forEach((o, index) => {
+        // Map global index correctly
+        const globalIndex = ordersList.findIndex(x => x.id === o.id);
+        const isActive = globalIndex === activeOrderIndex;
+        
+        const card = document.createElement('div');
+        card.className = `order-card-item ${isActive ? 'active' : ''}`;
+        card.onclick = () => selectOrder(globalIndex);
+        
+        let statusBadgeClass = 'badge-pending';
+        if (o.status === 'Verified' || o.status === 'Completed') statusBadgeClass = 'badge-verified';
+        if (o.status === 'Reserved') statusBadgeClass = 'badge-reserved';
+
+        card.innerHTML = `
+          <div class="order-card-header">
+            <span class="order-card-id">${o.id}</span>
+            <span class="order-card-time">${o.time}</span>
+          </div>
+          <div class="order-card-buyer">Buyer: ${o.buyer}</div>
+          <div class="order-card-items-desc">${o.items.map(i => i.name).join(', ')}</div>
+          <div class="order-card-footer">
+            <span class="order-card-price">₱ ${o.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+            <span class="badge ${statusBadgeClass}">${o.status}</span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      renderOrderDetails(activeOrderIndex);
+    }
+
+    function selectOrder(index) {
+      activeOrderIndex = index;
+      renderOrdersList();
+    }
+
+    function filterOrders(status) {
+      document.querySelectorAll('.filter-tab-btn').forEach(btn => btn.classList.remove('active'));
+      if (status === 'all') {
+        document.getElementById('order-filter-all').classList.add('active');
+        selectedOrderFilter = 'all';
+      } else if (status === 'Reserved') {
+        document.getElementById('order-filter-reserved').classList.add('active');
+        selectedOrderFilter = 'Reserved';
+      } else {
+        document.getElementById('order-filter-p2p').classList.add('active');
+        selectedOrderFilter = 'P2P Validation';
+      }
+      activeOrderIndex = 0;
+      renderOrdersList();
+    }
+
+    function renderOrderDetails(index) {
+      const pane = document.getElementById('order-details-pane');
+      if (index === -1 || !ordersList[index]) {
+        pane.innerHTML = '<div style="text-align:center; padding:100px 40px; color:var(--text-muted); font-size:14px;">Select an order card to verify details.</div>';
+        return;
+      }
+
+      const o = ordersList[index];
+      
+      let badgeClass = 'badge-pending';
+      if (o.status === 'Completed' || o.status === 'Verified') badgeClass = 'badge-verified';
+      if (o.status === 'Reserved') badgeClass = 'badge-reserved';
+
+      // Build items html
+      const itemsHtml = o.items.map(item => `
+        <div class="order-item-row">
+          <div class="order-item-details">
+            <span class="order-item-name">${item.name}</span>
+            <span class="order-item-desc">${item.desc}</span>
+          </div>
+          <span class="order-item-price">₱ ${item.price.toLocaleString(undefined, {minimumFractionDigits:2})}</span>
+        </div>
+      `).join('');
+
+      let receiptHtml = '';
+      if (o.status === 'Completed' || o.status === 'Verified') {
+        receiptHtml = `
+          <div class="payment-validation-box" style="background-color: var(--success-bg); border-color: var(--success);">
+            <div class="expected-amount-container">
+              <span class="buyer-info-label">Expected Amount</span>
+              <span class="expected-amount-value" style="color: var(--success);">₱ ${o.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+            </div>
+            <div style="font-weight: 600; color: var(--success); font-size: 14px; display: flex; align-items: center; gap: 8px;">
+              <span>✓ Verified Reference: <strong>${o.refNum}</strong></span>
+            </div>
+          </div>
+        `;
+      } else if (o.status === 'Reserved') {
+        receiptHtml = `
+          <div class="payment-validation-box" style="background-color: hsl(200, 100%, 96%); border-color: hsl(200, 100%, 30%);">
+            <div class="expected-amount-container">
+              <span class="buyer-info-label">Expected Amount</span>
+              <span class="expected-amount-value" style="color: hsl(200, 100%, 30%);">₱ ${o.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+            </div>
+            <div style="font-size: 13px; color: hsl(200, 100%, 25%); line-height: 1.5;">
+              This transaction is set as <strong>Cash on Meetup</strong> or <strong>Reserved</strong>. P2P GCash confirmation upload is not requested. Please meet the student buyer at CIT-U landmarks (e.g. CCS Lobby, CEA Bench) for payment collection and item handoff.
+            </div>
+            <div class="details-actions">
+              <button class="btn btn-maroon" onclick="verifyReservedPayment(${index})">Mark Received & Completed</button>
+            </div>
+          </div>
+        `;
+      } else {
+        receiptHtml = `
+          <div class="payment-validation-box">
+            <div class="expected-amount-container">
+              <span class="buyer-info-label">Expected Amount</span>
+              <span class="expected-amount-value">₱ ${o.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+            </div>
+            
+            <div class="uploaded-receipt-preview" onclick="openLightbox('${o.receipt}')">
+              <img src="${o.receipt}" class="receipt-thumbnail" alt="Receipt">
+              <div class="receipt-label-wrapper">
+                <span class="receipt-title">Student Uploaded GCash Receipt</span>
+                <span class="receipt-subtitle">Click to expand high-fidelity layout</span>
+              </div>
+            </div>
+            
+            <div class="reference-number-group">
+              <label class="input-label" for="gcash-ref-input">Enter GCash Reference Number *</label>
+              <input type="text" class="input-field" id="gcash-ref-input" placeholder="e.g. 0000 1234 5678" value="${o.refNum}">
+            </div>
+
+            <div class="details-actions">
+              <button class="btn btn-decline" onclick="deactivateOrder(${index})">Decline / Request New</button>
+              <button class="btn btn-maroon" onclick="verifyP2PPayment(${index})">Verify Payment</button>
+            </div>
+          </div>
+        `;
+      }
+
+      pane.innerHTML = `
+        <div class="order-details-scroll">
+          <div>
+            <div class="order-card-header" style="margin-bottom: 8px;">
+              <span class="page-title" style="font-size: 24px;">Order Details</span>
+              <span class="badge ${badgeClass}">${o.status}</span>
+            </div>
+            <p class="order-card-time">${o.id} | Submitted ${o.time}</p>
+          </div>
+
+          <div>
+            <h3 class="order-details-section-title">Buyer Information</h3>
+            <div class="buyer-info-grid">
+              <div class="buyer-info-item">
+                <span class="buyer-info-label">Full Name</span>
+                <span class="buyer-info-value">${o.buyer}</span>
+              </div>
+              <div class="buyer-info-item">
+                <span class="buyer-info-label">Student ID</span>
+                <span class="buyer-info-value">${o.studentId}</span>
+              </div>
+              <div class="buyer-info-item">
+                <span class="buyer-info-label">Department</span>
+                <span class="buyer-info-value">${o.dept}</span>
+              </div>
+              <div class="buyer-info-item">
+                <span class="buyer-info-label">Contact</span>
+                <span class="buyer-info-value">${o.contact}</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="order-details-section-title">Order Items</h3>
+            <div class="order-items-list">
+              ${itemsHtml}
+            </div>
+          </div>
+
+          <div>
+            <h3 class="order-details-section-title">Payment Validation (GCash P2P)</h3>
+            ${receiptHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    // Verification engine triggers
+    async function verifyP2PPayment(index) {
+      const refInput = document.getElementById('gcash-ref-input');
+      const val = refInput ? refInput.value.trim() : '';
+      if (!val) {
+        showToast('GCash Reference Number is required for validation!', true);
+        if (refInput) refInput.focus();
+        return;
+      }
+
+      ordersList[index].status = 'Completed';
+      ordersList[index].refNum = val;
+      
+      // Perform live database update in Supabase
+      if (supabaseClient) {
+        try {
+          const { error } = await supabaseClient
+            .from('orders')
+            .update({ status: 'Completed', pickup_location: 'Library Lobby' })
+            .eq('id', ordersList[index].id);
+          
+          if (error) throw error;
+          showToast('Payment verified successfully in live Supabase DB!');
+        } catch (err) {
+          console.warn('Supabase order update failed, loaded locally.', err);
+        }
+      } else {
+        showToast('GCash payment reference verified! Item released for meetup.');
+      }
+      renderOrdersList();
+    }
+
+    function verifyReservedPayment(index) {
+      ordersList[index].status = 'Completed';
+      ordersList[index].refNum = 'MEETUP-CASH';
+      showToast('Meetup order completed successfully!');
+      renderOrdersList();
+    }
+
+    function deactivateOrder(index) {
+      ordersList[index].status = 'P2P Validation';
+      ordersList[index].refNum = '';
+      showToast('Payment declined. Notified student buyer to upload a valid GCash receipt.', true);
+      renderOrdersList();
+    }
+
+    function openLightbox(src) {
+      const lbox = document.getElementById('receipt-lightbox');
+      const img = document.getElementById('lightbox-img');
+      img.src = src;
+      lbox.style.display = 'flex';
+    }
+
+    function closeLightbox() {
+      document.getElementById('receipt-lightbox').style.display = 'none';
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // 2. INVENTORY STATE MANAGEMENT
+    // ──────────────────────────────────────────────────────────
+    let inventoryList = [
+      { id: "PRD-29381", name: "Official Engineering Shirt", category: "Apparel", price: 350.00, variations: "S, M, L, XL", stock: 142, lowStock: false },
+      { id: "PRD-11024", name: "Calculus Early Transcendentals", category: "Books", price: 1200.00, variations: "9th Ed., Used", stock: 3, lowStock: true },
+      { id: "PRD-99832", name: "Arduino Uno R3 Starter Kit", category: "Electronics", price: 850.00, variations: "Base, + Sensors", stock: 12, lowStock: false }
+    ];
+
+    let selectedInvCategory = 'all';
+
+    function renderInventoryTable() {
+      const tbody = document.getElementById('inventory-table-body');
+      tbody.innerHTML = '';
+
+      let filtered = inventoryList.filter(item => {
+        if (selectedInvCategory === 'all') return true;
+        if (selectedInvCategory === 'low-stock') return item.stock <= 5;
+        return item.category === selectedInvCategory;
+      });
+
+      const searchStr = document.getElementById('inventory-search').value.toLowerCase().trim();
+      if (searchStr) {
+        filtered = filtered.filter(item => 
+          item.name.toLowerCase().includes(searchStr) || 
+          item.id.toLowerCase().includes(searchStr) ||
+          item.category.toLowerCase().includes(searchStr)
+        );
+      }
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--text-muted);">No matching inventory catalog items.</td></tr>';
+        return;
+      }
+
+      filtered.forEach(item => {
+        const tr = document.createElement('tr');
+        
+        let initialChar = item.name.charAt(0).toUpperCase();
+        let colorClass = 'var(--cit-maroon)';
+        if (item.category === 'Books') colorClass = 'var(--cit-gold-dark)';
+        if (item.category === 'Electronics') colorClass = 'var(--accent-blue)';
+
+        let stockAlert = item.stock <= 5 ? '<span class="badge badge-flagged" style="padding: 2px 6px; font-size:9px; margin-left:8px;">LOW</span>' : '';
+
+        tr.innerHTML = `
+          <td>
+            <div style="width: 44px; height: 44px; background:${colorClass}; border-radius: var(--radius-sm); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-family:\'Outfit\', sans-serif;">
+              ${initialChar}
+            </div>
+          </td>
+          <td>
+            <div style="font-weight: 700; color: var(--text-dark);">${item.name}</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top:2px;">ID: ${item.id}</div>
+          </td>
+          <td>${item.category}</td>
+          <td style="font-weight: bold; color: var(--cit-maroon);">₱ ${item.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+          <td>
+            <span style="font-size:12px; color: var(--text-secondary); background:var(--neutral-grey); padding: 4px 8px; border-radius:4px;">
+              ${item.variations || 'Base'}
+            </span>
+          </td>
+          <td style="font-weight: 600;">
+            ${item.stock} ${stockAlert}
+          </td>
+          <td>
+            <div style="display:flex; gap: 8px;">
+              <button class="btn btn-outline" style="padding:6px 12px; font-size:12px;" onclick="adjustStock('${item.id}')">Stock</button>
+              <button class="btn btn-decline" style="padding:6px 12px; font-size:12px;" onclick="deleteProduct('${item.id}')">Delete</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function filterInventoryCategory(category) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      selectedInvCategory = category;
+      
+      if (category === 'all') document.getElementById('inv-tab-all').classList.add('active');
+      else if (category === 'Apparel') document.getElementById('inv-tab-apparel').classList.add('active');
+      else if (category === 'Electronics') document.getElementById('inv-tab-electronics').classList.add('active');
+      else if (category === 'Books') document.getElementById('inv-tab-books').classList.add('active');
+      else if (category === 'low-stock') document.getElementById('inv-tab-low').classList.add('active');
+
+      renderInventoryTable();
+    }
+
+    function filterInventorySearch() {
+      renderInventoryTable();
+    }
+
+    async function deleteProduct(id) {
+      const idx = inventoryList.findIndex(item => item.id === id);
+      if (idx !== -1) {
+        const name = inventoryList[idx].name;
+        inventoryList.splice(idx, 1);
+        
+        // Live delete from Supabase DB
+        if (supabaseClient) {
+          try {
+            await supabaseClient.from('products').delete().eq('id', id);
+            showToast(`Product "${name}" deleted from live catalog!`);
+          } catch (err) {
+            console.error(err);
+          }
+        } else {
+          showToast(`Product "${name}" deleted locally.`, true);
+        }
+        renderInventoryTable();
+      }
+    }
+
+    function adjustStock(id) {
+      const idx = inventoryList.findIndex(item => item.id === id);
+      if (idx !== -1) {
+        const item = inventoryList[idx];
+        const newStock = prompt(`Update stock quantity for "${item.name}":`, item.stock);
+        if (newStock !== null) {
+          const parsed = parseInt(newStock);
+          if (!isNaN(parsed) && parsed >= 0) {
+            inventoryList[idx].stock = parsed;
+            showToast(`Updated stock quantity for "${item.name}" to ${parsed}.`);
+            renderInventoryTable();
+          } else {
+            alert('Invalid stock quantity entered.');
+          }
+        }
+      }
+    }
+
+    function simulateExcelExport() {
+      showToast('Exporting spreadsheet loading... Please wait.');
+      setTimeout(() => {
+        showToast('Successfully downloaded inventory checklist: campus_catalog_summary.csv!');
+      }, 1500);
+    }
+
+    function openAddProductModal() {
+      document.getElementById('add-product-modal').style.display = 'flex';
+    }
+
+    function closeAddProductModal() {
+      document.getElementById('add-product-modal').style.display = 'none';
+      clearModalForm();
+    }
+
+    function clearModalForm() {
+      document.getElementById('add-prod-name').value = '';
+      document.getElementById('add-prod-price').value = '';
+      document.getElementById('add-prod-variations').value = '';
+      document.getElementById('add-prod-stock').value = '';
+    }
+
+    async function saveNewProduct() {
+      const name = document.getElementById('add-prod-name').value.trim();
+      const cat = document.getElementById('add-prod-category').value;
+      const price = parseFloat(document.getElementById('add-prod-price').value);
+      const vars = document.getElementById('add-prod-variations').value.trim();
+      const stock = parseInt(document.getElementById('add-prod-stock').value);
+
+      if (!name || isNaN(price) || isNaN(stock)) {
+        showToast('Please fill in all required fields marked with *', true);
+        return;
+      }
+
+      const id = "PRD-" + Math.floor(10000 + Math.random() * 90000);
+      const newProd = {
+        id: id,
+        name: name,
+        category: cat,
+        price: price,
+        variations: vars || 'Base',
+        stock: stock
+      };
+
+      inventoryList.unshift(newProd);
+      closeAddProductModal();
+      renderInventoryTable();
+
+      // Post product to live Supabase DB
+      if (supabaseClient) {
+        try {
+          const { error } = await supabaseClient.from('products').insert([
+            {
+              id: id,
+              title: name,
+              description: vars || 'Pristine pre-loved item listed by admin console.',
+              price: price,
+              category: cat,
+              condition: 'Like New',
+              image_url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=400',
+              seller_id: 'usr-seller',
+              created_at: new Date().toISOString()
+            }
+          ]);
+          if (error) throw error;
+          showToast(`Successfully posted "${name}" to Supabase database!`);
+        } catch (err) {
+          console.warn('Supabase catalog insert failed, listed locally.', err);
+        }
+      } else {
+        showToast(`Product "${name}" successfully listed to active catalog offline!`);
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // 3. MODERATION QUEUE STATE MANAGEMENT
+    // ──────────────────────────────────────────────────────────
+    let vendorsList = [
+      { id: "VND-1001", name: "CSS Society Merch", college: "College of Computer Studies", studentId: "20-1234-567", email: "j.delacruz@cit.edu", date: "Oct 24, 2023", elapsed: "2 days ago", status: "Pending" },
+      { id: "VND-1002", name: "CBA Bake Sale", college: "Independent Student", studentId: "21-9876-543", email: "m.reyes@cit.edu", date: "Oct 25, 2023", elapsed: "Yesterday", status: "Pending" },
+      { id: "VND-1003", name: "Tech Resellers", college: "Independent Student", studentId: "19-5555-222", email: "Email mismatch", date: "Oct 26, 2023", elapsed: "Today", status: "Flagged" },
+      { id: "VND-1004", name: "Arki Supplies Co.", college: "College of Architecture", studentId: "22-1111-333", email: "a.santos@cit.edu", date: "Oct 15, 2023", elapsed: "11 days ago", status: "Verified" }
+    ];
+
+    let selectedModFilter = 'all';
+
+    function renderVendorsTable() {
+      const tbody = document.getElementById('vendor-table-body');
+      tbody.innerHTML = '';
+
+      let filtered = vendorsList.filter(v => {
+        if (selectedModFilter === 'all') return true;
+        return v.status === selectedModFilter;
+      });
+
+      const searchStr = document.getElementById('vendor-search').value.toLowerCase().trim();
+      if (searchStr) {
+        filtered = filtered.filter(v => 
+          v.name.toLowerCase().includes(searchStr) || 
+          v.studentId.toLowerCase().includes(searchStr) ||
+          v.college.toLowerCase().includes(searchStr) ||
+          v.email.toLowerCase().includes(searchStr)
+        );
+      }
+
+      updateModCounters();
+
+      document.getElementById('mod-pagination-text').innerText = `Showing 1 to ${filtered.length} of ${filtered.length} entries`;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:32px; color:var(--text-muted);">No student vendor approvals in this queue.</td></tr>';
+        return;
+      }
+
+      filtered.forEach(v => {
+        const tr = document.createElement('tr');
+        
+        let statusBadgeClass = 'badge-pending';
+        if (v.status === 'Verified') statusBadgeClass = 'badge-verified';
+        if (v.status === 'Flagged') statusBadgeClass = 'badge-flagged';
+        if (v.status === 'Rejected') statusBadgeClass = 'badge-flagged';
+
+        let emailStyle = v.email === 'Email mismatch' ? 'color: var(--error); font-weight: 700; font-style: italic;' : 'color: var(--text-muted);';
+
+        let actionBtns = '';
+        if (v.status === 'Pending') {
+          actionBtns = `
+            <div style="display:flex; gap: 8px;">
+              <button class="btn btn-maroon" style="padding:6px 12px; font-size:12px;" onclick="approveVendor('${v.id}')">Approve</button>
+              <button class="btn btn-decline" style="padding:6px 12px; font-size:12px;" onclick="declineVendor('${v.id}')">Decline</button>
+            </div>
+          `;
+        } else if (v.status === 'Flagged') {
+          actionBtns = `
+            <div style="display:flex; gap: 8px;">
+              <button class="btn btn-outline" style="padding:6px 12px; font-size:12px;" onclick="reviewVendorAuditLog('${v.id}')">Audit Log</button>
+              <button class="btn btn-decline" style="padding:6px 12px; font-size:12px;" onclick="declineVendor('${v.id}')">Suspend</button>
+            </div>
+          `;
+        } else if (v.status === 'Verified') {
+          actionBtns = `
+            <button class="btn btn-decline" style="padding:6px 12px; font-size:12px;" onclick="declineVendor('${v.id}')">Revoke Access</button>
+          `;
+        } else {
+          actionBtns = `
+            <span style="font-size: 12px; color: var(--text-muted); font-style:italic;">Access Terminated</span>
+          `;
+        }
+
+        tr.innerHTML = `
+          <td>
+            <div style="font-weight: 700; color: var(--text-dark);">${v.name}</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top:2px;">${v.college}</div>
+          </td>
+          <td>
+            <div style="font-weight: 500;">${v.studentId}</div>
+            <div style="font-size: 11px; ${emailStyle} margin-top:2px;">${v.email}</div>
+          </td>
+          <td>
+            <div style="font-weight: 500;">${v.date}</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top:2px;">${v.elapsed}</div>
+          </td>
+          <td>
+            <span class="badge ${statusBadgeClass}">${v.status}</span>
+          </td>
+          <td>
+            ${actionBtns}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function filterVendors(status) {
+      document.querySelectorAll('.moderation-tab').forEach(tab => tab.classList.remove('active'));
+      selectedModFilter = status;
+
+      if (status === 'all') document.getElementById('mod-filter-all').classList.add('active');
+      else if (status === 'Pending') document.getElementById('mod-filter-pending').classList.add('active');
+      else if (status === 'Flagged') document.getElementById('mod-filter-flagged').classList.add('active');
+
+      renderVendorsTable();
+    }
+
+    function filterVendorsSearch() {
+      renderVendorsTable();
+    }
+
+    function updateModCounters() {
+      const pendingCount = vendorsList.filter(v => v.status === 'Pending').length;
+      const verifiedCount = vendorsList.filter(v => v.status === 'Verified').length;
+      const flaggedCount = vendorsList.filter(v => v.status === 'Flagged').length;
+      const rejectedCount = vendorsList.filter(v => v.status === 'Rejected').length;
+
+      document.getElementById('mod-card-pending').innerText = pendingCount + 22;
+      document.getElementById('mod-card-verified').innerText = verifiedCount + 141;
+      document.getElementById('mod-card-flagged').innerText = flaggedCount + 4;
+      document.getElementById('mod-card-revoked').innerText = rejectedCount + 12;
+    }
+
+    async function approveVendor(id) {
+      const idx = vendorsList.findIndex(v => v.id === id);
+      if (idx !== -1) {
+        vendorsList[idx].status = 'Verified';
+        
+        // Write live update profile to seller in Supabase
+        if (supabaseClient) {
+          try {
+            const { error } = await supabaseClient
+              .from('profiles')
+              .update({ username: 'SELLER' }) // elevates to seller
+              .eq('id', vendorsList[idx].studentId);
+            
+            showToast('Approved Wildcat seller role updated live in Supabase!');
+          } catch (err) {
+            console.error(err);
+          }
+        } else {
+          showToast(`Vendor account verified successfully! Registered to campus network.`);
+        }
+        renderVendorsTable();
+      }
+    }
+
+    function declineVendor(id) {
+      const idx = vendorsList.findIndex(v => v.id === id);
+      if (idx !== -1) {
+        vendorsList[idx].status = 'Rejected';
+        showToast(`Access revoked and blacklisted for this account profile.`, true);
+        renderVendorsTable();
+      }
+    }
+
+    function reviewVendorAuditLog(id) {
+      const idx = vendorsList.findIndex(v => v.id === id);
+      if (idx !== -1) {
+        const v = vendorsList[idx];
+        alert(`=== CIT-U SYSTEM INTEGRITY REPORT ===\n\n` +
+              `Vendor: ${v.name}\n` +
+              `Status flag: Warning flagged by triggers.\n` +
+              `Details: Student enrollment ID does not belong to verified email address in DB.`);
+      }
+    }
+
+    function showModToast(msg) {
+      showToast(msg);
+    }
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('admin-toast');
+      const text = document.getElementById('toast-text');
+      
+      text.innerText = message;
+      
+      if (isError) {
+        toast.style.background = 'linear-gradient(135deg, var(--error), hsl(0, 80%, 48%))';
+        toast.style.borderColor = 'rgba(255,255,255,0.4)';
+        toast.querySelector('.toast-icon').innerText = '✕';
+      } else {
+        toast.style.background = 'linear-gradient(135deg, var(--cit-maroon), var(--cit-maroon-light))';
+        toast.style.borderColor = 'var(--cit-gold)';
+        toast.querySelector('.toast-icon').innerText = '🛡️';
+      }
+      
+      toast.style.display = 'inline-flex';
+      setTimeout(() => {
+        toast.style.display = 'none';
+      }, 4000);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,1315 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/features/auth/providers/auth_provider.dart';
+import 'package:teknoycart/features/feed/providers/product_provider.dart';
+import 'package:teknoycart/core/theme.dart';
+import 'package:teknoycart/core/navigation_drawer.dart';
+import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
+import 'package:teknoycart/features/feed/models/product.dart';
+import 'package:teknoycart/features/chat/views/chat_view.dart';
+
+/// Product Discovery Feed representing Figma Node 1:39.
+/// Main marketplace landing hub for listing, browsing, and searching products.
+class ProductDiscoveryFeedView extends ConsumerStatefulWidget {
+  const ProductDiscoveryFeedView({super.key});
+
+  @override
+  ConsumerState<ProductDiscoveryFeedView> createState() => _ProductDiscoveryFeedViewState();
+}
+
+class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedView> {
+  int _activeTab = 0;
+
+  // Form controllers for Sell tab
+  final _sellTitleController = TextEditingController();
+  final _sellPriceController = TextEditingController();
+  final _sellDescController = TextEditingController();
+  String _sellCategory = 'Books';
+  String _sellCondition = 'New';
+  bool _sellHasUploadedMockImage = false;
+
+  @override
+  void dispose() {
+    _sellTitleController.dispose();
+    _sellPriceController.dispose();
+    _sellDescController.dispose();
+    super.dispose();
+  }
+
+  void _postNewItem() {
+    final title = _sellTitleController.text.trim();
+    final priceStr = _sellPriceController.text.trim();
+    final desc = _sellDescController.text.trim();
+
+    if (title.isEmpty || priceStr.isEmpty || desc.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in all required fields marked with *'),
+          backgroundColor: TeknoyTheme.error,
+        ),
+      );
+      return;
+    }
+
+    final price = double.tryParse(priceStr);
+    if (price == null || price <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid price greater than zero.'),
+          backgroundColor: TeknoyTheme.error,
+        ),
+      );
+      return;
+    }
+
+    // Dynamic mock visual based on category
+    String mockImage = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=400';
+    if (_sellCategory == 'Apparel') {
+      mockImage = 'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?auto=format&fit=crop&q=80&w=400';
+    } else if (_sellCategory == 'Electronics') {
+      mockImage = 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=400';
+    } else if (_sellCategory == 'Drawing Tools') {
+      mockImage = 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&q=80&w=400';
+    }
+
+    final newProduct = Product(
+      id: 'prod-${DateTime.now().millisecondsSinceEpoch}',
+      title: title,
+      description: desc,
+      price: price,
+      category: _sellCategory,
+      condition: _sellCondition,
+      imageUrl: mockImage,
+      sellerId: 'usr-buyer',
+      createdAt: DateTime.now(),
+    );
+
+    // Call dynamic Riverpod state insert
+    ref.read(productsListNotifierProvider.notifier).addProduct(newProduct);
+
+    // Reset Form
+    _sellTitleController.clear();
+    _sellPriceController.clear();
+    _sellDescController.clear();
+    setState(() {
+      _sellCategory = 'Books';
+      _sellCondition = 'New';
+      _sellHasUploadedMockImage = false;
+      _activeTab = 0; // Return to discovery feed grid
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Listed "$title" to CIT-U catalog successfully!'),
+        backgroundColor: TeknoyTheme.success,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: isDark ? const Color(0xFF0F0F12) : Colors.white,
+        elevation: 0,
+        leading: Builder(
+          builder: (context) {
+            return IconButton(
+              icon: const Icon(Icons.menu_rounded, color: TeknoyTheme.citMaroon),
+              onPressed: () => Scaffold.of(context).openDrawer(),
+              tooltip: 'Navigation Drawer',
+            );
+          },
+        ),
+        title: Text(
+          _activeTab == 0
+              ? 'TeknoyCart'
+              : _activeTab == 1
+                  ? 'Bargaining Center'
+                  : _activeTab == 2
+                      ? 'Sell Items'
+                      : _activeTab == 3
+                          ? 'Orders & Pickups'
+                          : 'Wildcat Profile',
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w800,
+            fontSize: 24,
+            letterSpacing: -0.5,
+            color: TeknoyTheme.citMaroon,
+          ),
+        ),
+        centerTitle: true,
+        actions: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.notifications_none_rounded,
+                  color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                ),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('System checks: verified connection with local Supabase live client.')),
+                  );
+                },
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFD90429),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.logout_rounded,
+              color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+            ),
+            onPressed: () => ref.read(authNotifierProvider.notifier).logout(),
+            tooltip: 'Sign Out',
+          ),
+        ],
+      ),
+      drawer: const TeknoyNavigationDrawer(),
+      body: _buildActiveTabBody(context),
+      bottomNavigationBar: Container(
+        height: 64,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0F0F12) : Colors.white,
+          border: Border(
+            top: BorderSide(
+              color: isDark ? const Color(0xFF282830) : Colors.grey.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildBottomNavItem(
+              context,
+              icon: Icons.home_rounded,
+              label: 'Home',
+              isActive: _activeTab == 0,
+              onTap: () => setState(() => _activeTab = 0),
+            ),
+            _buildBottomNavItem(
+              context,
+              icon: Icons.handshake_rounded,
+              label: 'Negotiate',
+              isActive: _activeTab == 1,
+              onTap: () => setState(() => _activeTab = 1),
+            ),
+            _buildBottomNavItem(
+              context,
+              icon: Icons.add_circle_rounded,
+              label: 'Sell',
+              isActive: _activeTab == 2,
+              isActionFocus: true,
+              onTap: () => setState(() => _activeTab = 2),
+            ),
+            _buildBottomNavItem(
+              context,
+              icon: Icons.receipt_long_rounded,
+              label: 'Orders',
+              isActive: _activeTab == 3,
+              hasBadge: true,
+              onTap: () => setState(() => _activeTab = 3),
+            ),
+            _buildBottomNavItem(
+              context,
+              icon: Icons.person_rounded,
+              label: 'Profile',
+              isActive: _activeTab == 4,
+              onTap: () => setState(() => _activeTab = 4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveTabBody(BuildContext context) {
+    switch (_activeTab) {
+      case 0:
+        return _buildHomeTabBody(context);
+      case 1:
+        return _buildNegotiationsTabBody(context);
+      case 2:
+        return _buildSellTabBody(context);
+      case 3:
+        return _buildOrdersTabBody(context);
+      case 4:
+        return _buildProfileTabBody(context);
+      default:
+        return _buildHomeTabBody(context);
+    }
+  }
+
+  // ── Index 0: Home Feed Body
+  Widget _buildHomeTabBody(BuildContext context) {
+    final productsAsync = ref.watch(productsListProvider);
+    final filteredProducts = ref.watch(filteredProductsProvider);
+    final categories = ref.watch(categoriesProvider);
+    final selectedCategory = ref.watch(selectedCategoryProvider);
+    final searchQuery = ref.watch(searchQueryProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Search Input Deck
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          child: Container(
+            height: 48,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF18181C) : Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDark ? const Color(0xFF282830) : const Color(0xFFE0E0E0),
+                width: 1,
+              ),
+            ),
+            child: TextField(
+              onChanged: (val) => ref.read(searchQueryProvider.notifier).state = val,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 16,
+                color: isDark ? Colors.white : const Color(0xFF191C1D),
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search textbooks, uniforms, snacks...',
+                hintStyle: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 16,
+                  color: isDark ? Colors.white38 : const Color(0xFF5A413D).withOpacity(0.7),
+                ),
+                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF5A413D)),
+                suffixIcon: searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded, color: Color(0xFF5A413D)),
+                        onPressed: () => ref.read(searchQueryProvider.notifier).state = '',
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ),
+
+        // Horizontal Category Pills
+        SizedBox(
+          height: 38,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            itemCount: categories.length,
+            itemBuilder: (context, index) {
+              final cat = categories[index];
+              final isSelected = selectedCategory == cat;
+              return GestureDetector(
+                onTap: () {
+                  ref.read(selectedCategoryProvider.notifier).state = cat;
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? TeknoyTheme.citMaroon
+                        : (isDark ? const Color(0xFF18181C) : const Color(0xFFF3F4F5)),
+                    borderRadius: BorderRadius.circular(9999),
+                    border: isSelected
+                        ? null
+                        : Border.all(
+                            color: isDark ? const Color(0xFF282830) : const Color(0xFFE0E0E0),
+                            width: 1,
+                          ),
+                  ),
+                  child: Text(
+                    cat,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                      color: isSelected
+                          ? Colors.white
+                          : (isDark ? Colors.white70 : const Color(0xFF191C1D)),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+
+        // Products list view / Canvas
+        Expanded(
+          child: productsAsync.when(
+            data: (_) {
+              if (filteredProducts.isEmpty) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.inbox_rounded, size: 64, color: Colors.grey),
+                      SizedBox(height: 12),
+                      Text(
+                        'No items match your search.',
+                        style: TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return CustomScrollView(
+                slivers: [
+                  // Trending Banner
+                  SliverToBoxAdapter(
+                    child: _buildTrendingBanner(context),
+                  ),
+                  // Product Grid
+                  SliverPadding(
+                    padding: const EdgeInsets.all(16.0),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: 0.54,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final product = filteredProducts[index];
+                          return GestureDetector(
+                            onTap: () => ProductDetailsSheet.show(context, product),
+                            child: _buildProductCard(context, product),
+                          );
+                        },
+                        childCount: filteredProducts.length,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: TeknoyTheme.citMaroon),
+            ),
+            error: (err, _) => Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.cloud_off_rounded, size: 64, color: TeknoyTheme.error),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Offline: ${err.toString()}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontFamily: 'Inter', color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Index 1: Negotiations List Body
+  Widget _buildNegotiationsTabBody(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // We display a beautiful scrollable active channels list pulling from the product list
+    final products = ref.watch(filteredProductsProvider);
+    if (products.isEmpty) {
+      return const Center(
+        child: Text('No active negotiations catalog items found.', style: TextStyle(fontFamily: 'Inter', color: Colors.grey)),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16.0),
+      itemCount: products.length > 3 ? 3 : products.length,
+      itemBuilder: (context, index) {
+        final p = products[index];
+        final buyers = ['Maria Santos (CIT-U CCS)', 'John Doe (CIT-U CEA)', 'Jane Smith (CIT-U CBA)'];
+        final times = ['2 mins ago', '1 hour ago', '3 hours ago'];
+        final prices = ['₱400.00', '₱350.00', '₱850.00'];
+        final statuses = ['P2P Validation', 'Reserved', 'P2P Validation'];
+        
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 2,
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(16),
+            leading: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                p.imageUrl ?? '',
+                width: 50,
+                height: 50,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(Icons.shopping_bag, size: 30),
+              ),
+            ),
+            title: Text(
+              p.title,
+              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Text('Sender: ${buyers[index]}', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statuses[index] == 'Reserved'
+                            ? Colors.blue.shade50
+                            : Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        statuses[index],
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: statuses[index] == 'Reserved'
+                              ? Colors.blue.shade700
+                              : Colors.orange.shade800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(times[index], style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey)),
+                  ],
+                ),
+              ],
+            ),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  prices[index],
+                  style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16, color: TeknoyTheme.citMaroon),
+                ),
+                const SizedBox(height: 4),
+                const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
+              ],
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChatView(product: p, roomId: 'room-${index + 1}'),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  // ── Index 2: Sell Form Body (Fully Usable Post form)
+  Widget _buildSellTabBody(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'List Pre-Loved Item',
+            style: TextStyle(fontFamily: 'Outfit', fontSize: 22, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'List drawing boards, drawing sets, textbooks, uniforms, or snacks to trade with fellow student Wildcats.',
+            style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey),
+          ),
+          const SizedBox(height: 24),
+          
+          // Title
+          const Text('Product Title *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _sellTitleController,
+            decoration: const InputDecoration(
+              hintText: 'e.g. Calculus Transcendentals 9th Ed',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Price & Condition row
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Price (₱) *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _sellPriceController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        hintText: 'e.g. 450',
+                        prefixText: '₱ ',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Condition *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: _sellCondition,
+                      items: ['New', 'Like New', 'Gently Used', 'Well Used']
+                          .map((val) => DropdownMenuItem(value: val, child: Text(val)))
+                          .toList(),
+                      onChanged: (val) => setState(() => _sellCondition = val!),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Category
+          const Text('Category *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _sellCategory,
+            items: ['Books', 'Drawing Tools', 'Uniforms', 'Electronics', 'Others']
+                .map((val) => DropdownMenuItem(value: val, child: Text(val)))
+                .toList(),
+            onChanged: (val) => setState(() => _sellCategory = val!),
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Description
+          const Text('Listing Description *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _sellDescController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: 'Describe details, sizing, chapters, condition or meeting landmarks...',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.all(16),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Simulated Image Uploader card
+          GestureDetector(
+            onTap: () {
+              setState(() => _sellHasUploadedMockImage = true);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Simulated: Added listing thumbnail from gallery.')),
+              );
+            },
+            child: Container(
+              height: 120,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF18181C) : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade400, style: BorderStyle.solid),
+              ),
+              child: Center(
+                child: _sellHasUploadedMockImage
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
+                          SizedBox(width: 8),
+                          Text('Listing thumbnail added!', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.green)),
+                        ],
+                      )
+                    : const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_photo_alternate_rounded, size: 36, color: TeknoyTheme.citMaroon),
+                          SizedBox(height: 8),
+                          Text('Add Product Photo', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
+                          Text('Select from gallery', style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey)),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // Submit Post
+          ElevatedButton(
+            onPressed: _postNewItem,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: TeknoyTheme.citMaroon,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Post Campus Listing', style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Index 3: Orders Tracker Body (Meetups Timeline)
+  Widget _buildOrdersTabBody(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        const Text(
+          'Physical Handoff Trackers',
+          style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Track physical meetup landmark schedules and manual proof verifications.',
+          style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 24),
+
+        // Active Order 1
+        _buildActiveOrderTimelineCard(
+          context,
+          orderId: 'ORD-2023-8891',
+          productTitle: 'College Uniform (Female) & Lanyard',
+          amount: '₱1,450.00',
+          landmark: 'Library Lobby',
+          time: 'Pickup Scheduled: Today 2:00 PM',
+          status: 'P2P Validation',
+          progress: 0.75,
+        ),
+
+        const SizedBox(height: 20),
+
+        // Active Order 2
+        _buildActiveOrderTimelineCard(
+          context,
+          orderId: 'ORD-2023-8890',
+          productTitle: 'Official Engineering Shirt',
+          amount: '₱450.00',
+          landmark: 'Canteen Area Benches',
+          time: 'Pickup Scheduled: Tomorrow 10:30 AM',
+          status: 'Reserved (Unpaid)',
+          progress: 0.5,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActiveOrderTimelineCard(
+    BuildContext context, {
+    required String orderId,
+    required String productTitle,
+    required String amount,
+    required String landmark,
+    required String time,
+    required String status,
+    required double progress,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  orderId,
+                  style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16, color: TeknoyTheme.citMaroon),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: progress == 0.75 ? Colors.orange.shade50 : Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: progress == 0.75 ? Colors.orange.shade800 : Colors.blue.shade800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              productTitle,
+              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Total Price: $amount',
+              style: const TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            
+            // Meetup Landmark details
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF25252A) : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on_rounded, color: TeknoyTheme.citMaroon, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Pickup Landmark: $landmark', style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 12)),
+                        const SizedBox(height: 2),
+                        Text(time, style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Progress Bar
+            Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 8,
+                      color: TeknoyTheme.citMaroon,
+                      backgroundColor: Colors.grey.shade200,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '${(progress * 100).toInt()}%',
+                  style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13, color: TeknoyTheme.citMaroon),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Index 4: Profile Page Body
+  Widget _buildProfileTabBody(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Padding(
+      padding: const EdgeInsets.all(28.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // circular avatar card
+          Center(
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 50,
+                  backgroundColor: TeknoyTheme.citMaroon,
+                  child: CircleAvatar(
+                    radius: 46,
+                    backgroundColor: Colors.white,
+                    child: Image.network(
+                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 50, color: TeknoyTheme.citMaroon),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Maria Wildcat',
+                  style: TextStyle(fontFamily: 'Outfit', fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: Colors.green.shade700, size: 12),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Verified Wildcat ID',
+                        style: TextStyle(fontFamily: 'Outfit', fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade800),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // Profile details list
+          _buildProfileDetailRow(context, label: 'Student ID', value: '20-1234-567'),
+          _buildProfileDetailRow(context, label: 'CIT-U Email', value: 'maria.santos@cit.edu'),
+          _buildProfileDetailRow(context, label: 'Department', value: 'College of Computer Studies'),
+          _buildProfileDetailRow(context, label: 'Contact', value: '0912 345 6789'),
+          
+          const Spacer(),
+
+          // Shortcut to Web Console
+          ElevatedButton.icon(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Dry-run link: Navigate to web/admin.html in browser to verify Admin sync in real-time!'),
+                  duration: Duration(seconds: 4),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFC72C),
+              foregroundColor: const Color(0xFF6F5400),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.open_in_browser_rounded),
+            label: const Text('Open Admin & Moderation Console', style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileDetailRow(BuildContext context, {required String label, required String value}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          const Divider(height: 1),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildBottomNavItem(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    bool isActionFocus = false,
+    bool hasBadge = false,
+    VoidCallback? onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = TeknoyTheme.citMaroon;
+    final inactiveColor = const Color(0xFF5A413D);
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  icon,
+                  size: isActionFocus ? 26 : 22,
+                  color: isActive ? activeColor : (isDark ? Colors.white60 : inactiveColor),
+                ),
+                if (hasBadge)
+                  Positioned(
+                    top: -2,
+                    right: -2,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFD90429),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: isActive ? activeColor : (isDark ? Colors.white60 : inactiveColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrendingBanner(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      height: 166,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF18181C) : const Color(0xFFF3F4F5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF282830) : const Color(0xFFE0E0E0),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          // Left Content
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16.0, top: 16.0, bottom: 16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Gold badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFC72C),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'CAMPUS DEAL',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w500,
+                        fontSize: 11,
+                        color: Color(0xFF6F5400),
+                        letterSpacing: 0.55,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Title
+                  const Text(
+                    'Pre-Loved\nEngineering Books',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w500,
+                      fontSize: 20,
+                      height: 1.2,
+                      color: TeknoyTheme.citMaroon,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Subtitle
+                  const Text(
+                    'Up to 40% off from senior\nstudents. Limited time only.',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w400,
+                      fontSize: 12,
+                      color: Color(0xFF5A413D),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Right Content: Stack of books image
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF25252A) : const Color(0xFFEDEEEF),
+                borderRadius: BorderRadius.circular(8),
+                image: const DecorationImage(
+                  image: NetworkImage(
+                    'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&q=80&w=200',
+                  ),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductCard(BuildContext context, Product product) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Choose badge color based on product condition
+    Color badgeBg;
+    Color badgeText;
+    if (product.condition.toLowerCase() == 'new') {
+      badgeBg = const Color(0xFF10B981); // Emerald Green
+      badgeText = Colors.white;
+    } else {
+      badgeBg = const Color(0xFFFFC72C); // Gold
+      badgeText = const Color(0xFF6F5400);
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF18181C) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF282830) : const Color(0xFFE0E0E0),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. Square Image Container (169x169 relative proportion)
+          AspectRatio(
+            aspectRatio: 1.0,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+              child: Container(
+                color: isDark ? const Color(0xFF25252A) : const Color(0xFFEDEEEF),
+                child: Stack(
+                  children: [
+                    // Product image
+                    Positioned.fill(
+                      child: product.imageUrl != null && product.imageUrl!.isNotEmpty
+                          ? Image.network(
+                              product.imageUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => const Center(
+                                child: Icon(Icons.image_not_supported_rounded, color: Colors.grey, size: 36),
+                              ),
+                            )
+                          : const Center(
+                              child: Icon(Icons.image_rounded, color: Colors.grey, size: 36),
+                            ),
+                    ),
+                    
+                    // Condition Badge (top-left)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                        decoration: BoxDecoration(
+                          color: badgeBg,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          product.condition,
+                          style: TextStyles.badgeStyle(badgeText),
+                        ),
+                      ),
+                    ),
+
+                    // Wishlist / Favorite Button (top-right)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.favorite_border_rounded,
+                            size: 14,
+                            color: TeknoyTheme.citMaroon,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // 2. Info Area
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Rating line
+                  Row(
+                    children: [
+                      const Icon(Icons.star_rounded, size: 12, color: Color(0xFFFFC72C)),
+                      const SizedBox(width: 4),
+                      Text(
+                        '4.8 (12)',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w500,
+                          fontSize: 11,
+                          color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Title (Official CIT-U...)
+                  Expanded(
+                    child: Text(
+                      product.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                        height: 1.2,
+                        color: isDark ? Colors.white : const Color(0xFF191C1D),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Price and Category/Tag row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Price
+                      Text(
+                        '₱${product.price.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 20,
+                          color: TeknoyTheme.citMaroon,
+                        ),
+                      ),
+                      // Tag
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF25252A) : const Color(0xFFEDEEEF),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          product.category,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontWeight: FontWeight.w500,
+                            fontSize: 10,
+                            color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TextStyles {
+  static TextStyle badgeStyle(Color textColor) => TextStyle(
+        fontFamily: 'Inter',
+        fontWeight: FontWeight.bold,
+        fontSize: 10,
+        color: textColor,
+        letterSpacing: 0.5,
+      );
+}
+
