@@ -16,7 +16,8 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  final _usernameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _isLoginTab = true;
@@ -38,7 +39,8 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
   @override
   void dispose() {
     _emailController.dispose();
-    _usernameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _passwordController.dispose();
     _fadeCtrl.dispose();
     super.dispose();
@@ -48,12 +50,14 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     if (!_formKey.currentState!.validate()) return;
     final email = _emailController.text.trim();
     final password = _passwordController.text;
-    final username = _usernameController.text.trim();
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    final fullName = '$firstName $lastName';
     final authNotifier = ref.read(authNotifierProvider.notifier);
     if (_isLoginTab) {
       authNotifier.login(email: email, password: password);
     } else {
-      authNotifier.register(email: email, username: username, password: password);
+      authNotifier.register(email: email, username: fullName, password: password);
     }
   }
 
@@ -180,15 +184,27 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                           ),
                           const SizedBox(height: 24),
 
-                          // ── Username (register only) ───────────────────
+                          // ── First Name & Last Name (register only) ───────
                           if (!_isLoginTab) ...[
                             _buildInputField(
-                              controller: _usernameController,
-                              label: 'Username',
+                              controller: _firstNameController,
+                              label: 'First Name',
                               icon: Icons.person_outline_rounded,
                               validator: (val) {
                                 if (val == null || val.trim().isEmpty) {
-                                  return 'Please enter a username';
+                                  return 'Please enter your first name';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            _buildInputField(
+                              controller: _lastNameController,
+                              label: 'Last Name',
+                              icon: Icons.person_outline_rounded,
+                              validator: (val) {
+                                if (val == null || val.trim().isEmpty) {
+                                  return 'Please enter your last name';
                                 }
                                 return null;
                               },
@@ -204,7 +220,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                             keyboardType: TextInputType.emailAddress,
                             validator: (val) {
                               if (val == null || val.trim().isEmpty) {
-                                return 'Please enter your email';
+                                  return 'Please enter your email';
                               }
                               final email = val.trim().toLowerCase();
                               if (!email.endsWith('@cit.edu') &&
@@ -306,37 +322,6 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                     ),
                             ),
                           ),
-                          if (_isLoginTab) ...[
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              height: 48,
-                              child: OutlinedButton.icon(
-                                onPressed: authState.isLoading
-                                    ? null
-                                    : () {
-                                        _emailController.text = 'capstone.team45@cit.edu';
-                                        _passwordController.text = 'teknoycart2026';
-                                        _submitForm();
-                                      },
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: Color(0xFF570000), width: 1.2),
-                                  foregroundColor: const Color(0xFF570000),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                icon: const Icon(Icons.bolt_rounded, size: 20),
-                                label: const Text(
-                                  'Presentation Auto-Login',
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),
