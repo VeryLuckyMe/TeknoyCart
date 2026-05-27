@@ -219,6 +219,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                             // ── Role Selector Dropdown ──────────────────────
                             DropdownButtonFormField<String>(
                               value: _selectedRole,
+                              dropdownColor: Colors.white,
                               style: const TextStyle(
                                 fontFamily: 'Inter',
                                 fontSize: 14,
@@ -252,11 +253,17 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                               items: const [
                                 DropdownMenuItem(
                                   value: 'BUYER',
-                                  child: Text('Student Buyer (Browse & Inquire)'),
+                                  child: Text(
+                                    'Student Buyer (Browse & Inquire)',
+                                    style: TextStyle(color: Color(0xFF191C1D)),
+                                  ),
                                 ),
                                 DropdownMenuItem(
                                   value: 'SELLER',
-                                  child: Text('Campus Vendor / Seller (List & Sell)'),
+                                  child: Text(
+                                    'Campus Vendor / Seller (List & Sell)',
+                                    style: TextStyle(color: Color(0xFF191C1D)),
+                                  ),
                                 ),
                               ],
                               onChanged: (val) {
