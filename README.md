@@ -21,7 +21,7 @@ Ensure you have the following installed:
 
 1. Open your terminal and navigate to the project directory:
    ```bash
-   cd TeknoCart
+   cd TeknoyCart
    ```
 
 2. Fetch all required packages and dependencies:
