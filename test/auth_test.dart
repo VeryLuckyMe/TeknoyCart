@@ -40,6 +40,7 @@ void main() {
           email: 'user@gmail.com',
           username: 'hacker',
           password: 'password123',
+          role: 'BUYER',
         ),
         throwsA(isA<FormatException>()),
       );
@@ -51,6 +52,7 @@ void main() {
           email: 'student@cit.edu',
           username: '',
           password: 'password123',
+          role: 'BUYER',
         ),
         throwsA(isA<FormatException>()),
       );
@@ -62,6 +64,7 @@ void main() {
           email: 'student@cit.edu',
           username: 'wildcat',
           password: '123',
+          role: 'BUYER',
         ),
         throwsA(isA<FormatException>()),
       );

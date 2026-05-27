@@ -339,7 +339,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                     fontFamily: 'Inter',
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
-                                    color: Color(0xFF570000),
+                                    color: TeknoyTheme.citMaroon,
                                     letterSpacing: 0.1,
                                   ),
                                 ),
@@ -356,7 +356,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                               key: const Key('auth-submit-btn'),
                               onPressed: authState.isLoading ? null : _submitForm,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF570000),
+                                backgroundColor: TeknoyTheme.citMaroon,
                                 foregroundColor: Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
@@ -414,7 +414,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                           fontFamily: 'Inter',
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: Color(0xFF570000),
+                          color: TeknoyTheme.citMaroon,
                           letterSpacing: 0.15,
                         ),
                       ),
@@ -467,7 +467,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(4),
-          borderSide: const BorderSide(color: Color(0xFF570000), width: 1.5),
+          borderSide: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(4),

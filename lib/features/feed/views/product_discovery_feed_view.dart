@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/navigation_drawer.dart';
+import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
 import 'package:teknoycart/features/feed/models/product.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
@@ -80,7 +82,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       category: _sellCategory,
       condition: _sellCondition,
       imageUrl: mockImage,
-      sellerId: 'usr-buyer',
+      sellerId: ref.read(authStateProvider).valueOrNull?.id ?? 'usr-buyer',
       createdAt: DateTime.now(),
     );
 
@@ -436,8 +438,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
 
   // ── Index 1: Negotiations List Body
   Widget _buildNegotiationsTabBody(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
     // We display a beautiful scrollable active channels list pulling from the product list
     final products = ref.watch(filteredProductsProvider);
     if (products.isEmpty) {
@@ -536,26 +536,150 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     );
   }
 
+  Future<Map<String, dynamic>?> _getUserRoleAndStatus(String userId) async {
+    try {
+      final res = await SupabaseConfig.client
+          .from('users')
+          .select('role, is_verified')
+          .eq('user_id', userId)
+          .single();
+      return res;
+    } catch (e) {
+      return null;
+    }
+  }
+
   // ── Index 2: Sell Form Body (Fully Usable Post form)
   Widget _buildSellTabBody(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'List Pre-Loved Item',
-            style: TextStyle(fontFamily: 'Outfit', fontSize: 22, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
+    final authState = ref.watch(authStateProvider).valueOrNull;
+
+    if (authState == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Text(
+            'Please sign in to list items.',
+            style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'List drawing boards, drawing sets, textbooks, uniforms, or snacks to trade with fellow student Wildcats.',
-            style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey),
-          ),
-          const SizedBox(height: 24),
+        ),
+      );
+    }
+
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _getUserRoleAndStatus(authState.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon));
+        }
+
+        final data = snapshot.data;
+        final role = data?['role'] as String? ?? 'BUYER';
+        final isVerified = data?['is_verified'] as bool? ?? false;
+
+        if (role == 'BUYER') {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.storefront_rounded, size: 80, color: Colors.grey),
+                const SizedBox(height: 24),
+                const Text(
+                  'Campus Vendor Account Required',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'To list and sell pre-loved books, uniforms, or drawing sets, you must register as a Campus Vendor.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey, height: 1.5),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      await SupabaseConfig.client
+                          .from('users')
+                          .update({'role': 'SELLER', 'is_verified': false})
+                          .eq('user_id', authState.id);
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Seller upgrade request submitted! Admin will review your account.')),
+                      );
+                      setState(() {}); // Refresh the builder
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to submit request: $e')),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: TeknoyTheme.citMaroon,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  ),
+                  child: const Text('Apply for Campus Vendor Role', style: TextStyle(fontFamily: 'Outfit', fontSize: 14, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (role == 'SELLER' && !isVerified) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.pending_actions_rounded, size: 80, color: TeknoyTheme.citGold),
+                const SizedBox(height: 24),
+                const Text(
+                  'Vendor Verification Pending',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Your campus vendor application is currently in the admin verification queue.\nOnce the administrator reviews your CIT student credentials, your store listing tools will open immediately!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey, height: 1.5),
+                ),
+                const SizedBox(height: 24),
+                OutlinedButton(
+                  onPressed: () => setState(() {}),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: TeknoyTheme.citMaroon,
+                    side: const BorderSide(color: TeknoyTheme.citMaroon),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  ),
+                  child: const Text('Check Review Status', style: TextStyle(fontFamily: 'Outfit', fontSize: 14, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Verified seller or admin: List Pre-Loved Item Form
+        return SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'List Pre-Loved Item',
+                style: TextStyle(fontFamily: 'Outfit', fontSize: 22, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'List drawing boards, drawing sets, textbooks, uniforms, or snacks to trade with fellow student Wildcats.',
+                style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
           
           // Title
           const Text('Product Title *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
@@ -699,51 +823,203 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         ],
       ),
     );
+      },
+    );
+  }
+
+  Future<Map<String, List<Map<String, dynamic>>>> _getUserOrdersAndSales(String userId) async {
+    const selectQuery = '''
+      order_id,
+      total_amount,
+      pickup_location,
+      status,
+      created_at,
+      buyer_id,
+      seller_id,
+      product_variants (
+        products (
+          name,
+          base_price
+        )
+      )
+    ''';
+    try {
+      // Buyer orders
+      final buyRes = await SupabaseConfig.client
+          .from('orders')
+          .select(selectQuery)
+          .eq('buyer_id', userId)
+          .order('created_at', ascending: false);
+      final buyOrders = List<Map<String, dynamic>>.from(buyRes as List);
+
+      // Seller (incoming) orders
+      final sellRes = await SupabaseConfig.client
+          .from('orders')
+          .select(selectQuery)
+          .eq('seller_id', userId)
+          .order('created_at', ascending: false);
+      final sellOrders = List<Map<String, dynamic>>.from(sellRes as List);
+
+      return {'buy': buyOrders, 'sell': sellOrders};
+    } catch (e) {
+      return {'buy': [], 'sell': []};
+    }
   }
 
   // ── Index 3: Orders Tracker Body (Meetups Timeline)
   Widget _buildOrdersTabBody(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final authState = ref.watch(authStateProvider).valueOrNull;
+
+    if (authState == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Text(
+            'Please sign in to track orders.',
+            style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    }
+
+    return FutureBuilder<Map<String, List<Map<String, dynamic>>>>(
+      future: _getUserOrdersAndSales(authState.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon));
+        }
+
+        final data = snapshot.data ?? {'buy': [], 'sell': []};
+        final buyOrders = data['buy'] ?? [];
+        final sellOrders = data['sell'] ?? [];
+
+        return DefaultTabController(
+          length: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Tab Bar
+              Container(
+                color: Colors.white,
+                child: TabBar(
+                  labelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
+                  unselectedLabelStyle: const TextStyle(fontFamily: 'Outfit', fontSize: 13),
+                  labelColor: TeknoyTheme.citMaroon,
+                  unselectedLabelColor: Colors.grey,
+                  indicatorColor: TeknoyTheme.citMaroon,
+                  tabs: [
+                    Tab(text: 'My Purchases (${buyOrders.length})'),
+                    Tab(text: 'Incoming Orders (${sellOrders.length})'),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _buildOrdersList(context, buyOrders, isBuyer: true),
+                    _buildOrdersList(context, sellOrders, isBuyer: false),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOrdersList(BuildContext context, List<Map<String, dynamic>> orders, {required bool isBuyer}) {
+    if (orders.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isBuyer ? Icons.shopping_bag_rounded : Icons.storefront_rounded,
+              size: 80,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              isBuyer ? 'No Active Purchases' : 'No Incoming Orders',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isBuyer
+                  ? 'Explore the marketplace, chat with campus sellers, and confirm a deal to see your orders tracked here!'
+                  : 'When buyers send you purchase inquiries via chat, confirmed deals will appear here for tracking.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey, height: 1.5),
+            ),
+          ],
+        ),
+      );
+    }
 
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       children: [
-        const Text(
-          'Physical Handoff Trackers',
-          style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
+        Text(
+          isBuyer ? 'Purchase Trackers' : 'Incoming Deal Requests',
+          style: const TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
         ),
-        const SizedBox(height: 6),
-        const Text(
-          'Track physical meetup landmark schedules and manual proof verifications.',
-          style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey),
+        const SizedBox(height: 4),
+        Text(
+          isBuyer
+              ? 'Track your campus meetup handoffs and payment verifications.'
+              : 'Buyers who have confirmed a deal with you. Complete meetup to mark as done.',
+          style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey),
         ),
-        const SizedBox(height: 24),
-
-        // Active Order 1
-        _buildActiveOrderTimelineCard(
-          context,
-          orderId: 'ORD-2023-8891',
-          productTitle: 'College Uniform (Female) & Lanyard',
-          amount: '₱1,450.00',
-          landmark: 'Library Lobby',
-          time: 'Pickup Scheduled: Today 2:00 PM',
-          status: 'P2P Validation',
-          progress: 0.75,
-        ),
-
         const SizedBox(height: 20),
+        ...orders.map((o) {
+          final String status = o['status'] as String? ?? 'INQUIRY_SENT';
+          final double price = double.tryParse(o['total_amount']?.toString() ?? '0') ?? 0;
 
-        // Active Order 2
-        _buildActiveOrderTimelineCard(
-          context,
-          orderId: 'ORD-2023-8890',
-          productTitle: 'Official Engineering Shirt',
-          amount: '₱450.00',
-          landmark: 'Canteen Area Benches',
-          time: 'Pickup Scheduled: Tomorrow 10:30 AM',
-          status: 'Reserved (Unpaid)',
-          progress: 0.5,
-        ),
+          // product_variants can be null if variant_id FK is null (e.g. locally-added product)
+          String productTitle = 'Campus Merchandise';
+          final variantRaw = o['product_variants'];
+          if (variantRaw is Map) {
+            final productRaw = variantRaw['products'];
+            if (productRaw is Map) {
+              productTitle = productRaw['name'] as String? ?? 'Campus Merchandise';
+            }
+          }
+
+          final String rawId = o['order_id'] as String? ?? '';
+          final String displayId = rawId.length >= 8
+              ? 'ORD-${rawId.substring(0, 8).toUpperCase()}'
+              : 'ORD-${rawId.toUpperCase()}';
+
+          double progress = 0.2;
+          String statusDisplay = 'Inquiry Sent';
+          switch (status) {
+            case 'INQUIRY_SENT': progress = 0.2; statusDisplay = 'Inquiry Sent — Awaiting Seller'; break;
+            case 'APPROVED':     progress = 0.4; statusDisplay = 'Approved — Awaiting Payment'; break;
+            case 'REJECTED':     progress = 0.1; statusDisplay = 'Offer Declined'; break;
+            case 'PAYMENT_SUBMITTED': progress = 0.6; statusDisplay = 'GCash Proof Submitted'; break;
+            case 'PAYMENT_VERIFIED':  progress = 0.8; statusDisplay = 'Payment Verified — Ready'; break;
+            case 'READY_FOR_PICKUP':  progress = 0.9; statusDisplay = 'Ready for Campus Meetup'; break;
+            case 'COMPLETED':    progress = 1.0; statusDisplay = 'Meetup Completed ✓'; break;
+            case 'CANCELLED':    progress = 0.0; statusDisplay = 'Deal Cancelled'; break;
+          }
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: _buildActiveOrderTimelineCard(
+              context,
+              orderId: displayId,
+              productTitle: productTitle,
+              amount: '₱${price.toStringAsFixed(2)}',
+              landmark: o['pickup_location'] as String? ?? 'Library Lobby',
+              time: 'Confirm meetup at agreed campus landmark',
+              status: statusDisplay,
+              progress: progress,
+            ),
+          );
+        }),
       ],
     );
   }
@@ -858,115 +1134,300 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       ),
     );
   }
+  // ── Index 4: Profile Page Body Helpers ──
+  Future<Map<String, dynamic>> _getUserRoleAndVerification(String userId) async {
+    try {
+      final res = await SupabaseConfig.client
+          .from('users')
+          .select('role, is_verified')
+          .eq('user_id', userId)
+          .single();
+      return {
+        'role': res['role'] as String? ?? 'BUYER',
+        'is_verified': res['is_verified'] as bool? ?? false,
+      };
+    } catch (e) {
+      return {'role': 'BUYER', 'is_verified': false};
+    }
+  }
+
+  Future<void> _updateProfileMetadata(String dept, String contact) async {
+    try {
+      await SupabaseConfig.client.auth.updateUser(
+        UserAttributes(
+          data: {
+            'department': dept,
+            'contact': contact,
+          },
+        ),
+      );
+      ref.invalidate(authStateProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Profile details updated live in Supabase!'),
+          backgroundColor: TeknoyTheme.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update profile: $e'),
+          backgroundColor: TeknoyTheme.error,
+        ),
+      );
+    }
+  }
+
+  void _showEditProfileRowDialog(BuildContext context, {required String label, required String currentValue, required Function(String) onSave}) {
+    final controller = TextEditingController(text: currentValue);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Edit $label', style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: label,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              onSave(controller.text.trim());
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.citMaroon),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
 
   // ── Index 4: Profile Page Body
   Widget _buildProfileTabBody(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    return Padding(
-      padding: const EdgeInsets.all(28.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // circular avatar card
-          Center(
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 50,
-                  backgroundColor: TeknoyTheme.citMaroon,
-                  child: CircleAvatar(
-                    radius: 46,
-                    backgroundColor: Colors.white,
-                    child: Image.network(
-                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-                      width: 80,
+    final authStateAsync = ref.watch(authStateProvider);
+    final user = authStateAsync.valueOrNull;
+    final name = user?.username ?? 'Wildcat Student';
+    final email = user?.email ?? 'Pending verification';
+    final rawId = user?.id ?? '';
+    final studentId = rawId.isNotEmpty 
+        ? 'CIT-${rawId.substring(0, 8).toUpperCase()}'
+        : 'Pending';
+    final dept = user?.department ?? 'College of Computer Studies';
+    final contact = user?.contact ?? '0912 345 6789';
+
+    return FutureBuilder<Map<String, dynamic>>(
+      future: rawId.isNotEmpty ? _getUserRoleAndVerification(rawId) : Future.value({'role': 'BUYER', 'is_verified': false}),
+      builder: (context, snapshot) {
+        final roleInfo = snapshot.data ?? {'role': 'BUYER', 'is_verified': false};
+        final String role = roleInfo['role'] as String;
+        final bool isVerified = roleInfo['is_verified'] as bool;
+        final isSeller = role == 'SELLER';
+
+        // High-fidelity background illustration or banner
+        final String bannerUrl = isSeller 
+            ? 'https://images.unsplash.com/photo-1513829096900-ce04159e1094?auto=format&fit=crop&q=80&w=400' 
+            : 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&q=80&w=400';
+
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header Card matching premium branding guidelines
+              Card(
+                clipBehavior: Clip.antiAlias,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 3,
+                child: Column(
+                  children: [
+                    Container(
                       height: 80,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 50, color: TeknoyTheme.citMaroon),
+                      decoration: BoxDecoration(
+                        image: DecorationImage(
+                          image: NetworkImage(bannerUrl),
+                          fit: BoxFit.cover,
+                          opacity: 0.7,
+                        ),
+                      ),
                     ),
-                  ),
+                    Transform.translate(
+                      offset: const Offset(0, -40),
+                      child: Column(
+                        children: [
+                          CircleAvatar(
+                            radius: 44,
+                            backgroundColor: TeknoyTheme.citMaroon,
+                            child: CircleAvatar(
+                              radius: 40,
+                              backgroundColor: Colors.white,
+                              child: Text(
+                                name.isNotEmpty ? name[0].toUpperCase() : 'W',
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: TeknoyTheme.citMaroon,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            name,
+                            style: const TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isVerified ? Colors.green.shade50 : Colors.amber.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: isVerified ? Colors.green.shade200 : Colors.amber.shade200),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isVerified ? Icons.check_circle_rounded : Icons.pending_actions_rounded, 
+                                  color: isVerified ? Colors.green.shade700 : Colors.amber.shade700, 
+                                  size: 12
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isSeller 
+                                      ? (isVerified ? 'VERIFIED CAMPUS VENDOR' : 'PENDING SELLER APPLICATION')
+                                      : 'STUDENT BUYER',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit', 
+                                    fontSize: 9, 
+                                    fontWeight: FontWeight.bold, 
+                                    color: isVerified ? Colors.green.shade800 : Colors.amber.shade900
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Maria Wildcat',
-                  style: TextStyle(fontFamily: 'Outfit', fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green.shade200),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+              ),
+              const SizedBox(height: 12),
+
+              // Profile details list
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
                     children: [
-                      Icon(Icons.check_circle_rounded, color: Colors.green.shade700, size: 12),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Verified Wildcat ID',
-                        style: TextStyle(fontFamily: 'Outfit', fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade800),
+                      _buildInteractiveProfileDetailRow(
+                        context, 
+                        label: 'Student ID', 
+                        value: studentId,
+                        isEditable: false,
+                        onSave: (_) {},
+                      ),
+                      _buildInteractiveProfileDetailRow(
+                        context, 
+                        label: 'CIT-U Email', 
+                        value: email,
+                        isEditable: false,
+                        onSave: (_) {},
+                      ),
+                      _buildInteractiveProfileDetailRow(
+                        context, 
+                        label: 'Department', 
+                        value: dept,
+                        isEditable: true,
+                        onSave: (newDept) => _updateProfileMetadata(newDept, contact),
+                      ),
+                      _buildInteractiveProfileDetailRow(
+                        context, 
+                        label: 'Contact', 
+                        value: contact,
+                        isEditable: true,
+                        onSave: (newContact) => _updateProfileMetadata(dept, newContact),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 32),
+              ),
+              const SizedBox(height: 12),
 
-          // Profile details list
-          _buildProfileDetailRow(context, label: 'Student ID', value: '20-1234-567'),
-          _buildProfileDetailRow(context, label: 'CIT-U Email', value: 'maria.santos@cit.edu'),
-          _buildProfileDetailRow(context, label: 'Department', value: 'College of Computer Studies'),
-          _buildProfileDetailRow(context, label: 'Contact', value: '0912 345 6789'),
-          
-          const Spacer(),
-
-          // Shortcut to Web Console
-          ElevatedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Dry-run link: Navigate to web/admin.html in browser to verify Admin sync in real-time!'),
-                  duration: Duration(seconds: 4),
+              // Shortcut to Web Console
+              ElevatedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Dry-run link: Navigate to web/admin.html in browser to verify Admin sync in real-time!'),
+                      duration: Duration(seconds: 4),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: TeknoyTheme.citGold,
+                  foregroundColor: const Color(0xFF6F5400),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFC72C),
-              foregroundColor: const Color(0xFF6F5400),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            icon: const Icon(Icons.open_in_browser_rounded),
-            label: const Text('Open Admin & Moderation Console', style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.open_in_browser_rounded),
+                label: const Text('Open Admin & Moderation Console', style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.bold)),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildProfileDetailRow(BuildContext context, {required String label, required String value}) {
+  Widget _buildInteractiveProfileDetailRow(
+    BuildContext context, {
+    required String label, 
+    required String value,
+    required bool isEditable,
+    required Function(String) onSave,
+  }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          const Divider(height: 1),
-        ],
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: InkWell(
+        onTap: isEditable 
+            ? () => _showEditProfileRowDialog(context, label: label, currentValue: value, onSave: onSave)
+            : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(label, style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+                  if (isEditable)
+                    const Icon(Icons.edit_rounded, size: 14, color: TeknoyTheme.citMaroon),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(value, style: const TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              const Divider(height: 1),
+            ],
+          ),
+        ),
       ),
     );
   }
-
-
   Widget _buildBottomNavItem(
     BuildContext context, {
     required IconData icon,
@@ -977,8 +1438,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     VoidCallback? onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final activeColor = TeknoyTheme.citMaroon;
-    final inactiveColor = const Color(0xFF5A413D);
+    const activeColor = TeknoyTheme.citMaroon;
+    const inactiveColor = Color(0xFF5A413D);
 
     return InkWell(
       onTap: onTap,
@@ -1053,7 +1514,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFC72C),
+                      color: TeknoyTheme.citGold,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
@@ -1127,7 +1588,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       badgeBg = const Color(0xFF10B981); // Emerald Green
       badgeText = Colors.white;
     } else {
-      badgeBg = const Color(0xFFFFC72C); // Gold
+      badgeBg = TeknoyTheme.citGold; // Gold
       badgeText = const Color(0xFF6F5400);
     }
 
@@ -1228,7 +1689,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   // Rating line
                   Row(
                     children: [
-                      const Icon(Icons.star_rounded, size: 12, color: Color(0xFFFFC72C)),
+                      const Icon(Icons.star_rounded, size: 12, color: TeknoyTheme.citGold),
                       const SizedBox(width: 4),
                       Text(
                         '4.8 (12)',

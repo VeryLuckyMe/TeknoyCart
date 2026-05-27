@@ -4,6 +4,7 @@ import 'package:teknoycart/features/feed/models/product.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
+import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 
 /// Real-Time Chat screen representing Phase 4.
 /// Facilitates peer-to-peer price negotiations and pickup meetups.
@@ -48,7 +49,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
     if (text.isEmpty) return;
 
     ref.read(chatControllerProvider.notifier).postMessage(
-          senderId: 'usr-buyer',
+          senderId: ref.read(authStateProvider).valueOrNull?.id ?? 'usr-buyer',
           receiverId: widget.product.sellerId,
           content: text,
           roomId: widget.roomId,
@@ -287,13 +288,14 @@ class _ChatViewState extends ConsumerState<ChatView> {
           Expanded(
             child: messagesAsync.when(
               data: (messages) {
+                final currentUser = ref.watch(authStateProvider).valueOrNull;
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16.0),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final msg = messages[index];
-                    final isMe = msg.senderId == 'usr-buyer';
+                    final isMe = msg.senderId == (currentUser?.id ?? 'usr-buyer');
                     final isReceipt = msg.content.contains('[GCASH_RECEIPT_PROOF]');
 
                     return Align(

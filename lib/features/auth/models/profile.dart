@@ -6,6 +6,8 @@ class Profile {
   final String username;
   final String email;
   final String? avatarUrl;
+  final String? department;
+  final String? contact;
   final DateTime createdAt;
 
   const Profile({
@@ -13,6 +15,8 @@ class Profile {
     required this.username,
     required this.email,
     this.avatarUrl,
+    this.department,
+    this.contact,
     required this.createdAt,
   });
 
@@ -23,6 +27,8 @@ class Profile {
       username: json['username'] as String,
       email: json['email'] as String,
       avatarUrl: json['avatar_url'] as String?,
+      department: json['department'] as String?,
+      contact: json['contact'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
@@ -34,6 +40,8 @@ class Profile {
       'username': username,
       'email': email,
       'avatar_url': avatarUrl,
+      'department': department,
+      'contact': contact,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -44,6 +52,8 @@ class Profile {
     String? username,
     String? email,
     String? avatarUrl,
+    String? department,
+    String? contact,
     DateTime? createdAt,
   }) {
     return Profile(
@@ -51,6 +61,8 @@ class Profile {
       username: username ?? this.username,
       email: email ?? this.email,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      department: department ?? this.department,
+      contact: contact ?? this.contact,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -64,6 +76,8 @@ class Profile {
           username == other.username &&
           email == other.email &&
           avatarUrl == other.avatarUrl &&
+          department == other.department &&
+          contact == other.contact &&
           createdAt == other.createdAt;
 
   @override
@@ -72,5 +86,7 @@ class Profile {
       username.hashCode ^
       email.hashCode ^
       avatarUrl.hashCode ^
+      department.hashCode ^
+      contact.hashCode ^
       createdAt.hashCode;
 }

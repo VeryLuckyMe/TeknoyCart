@@ -4,6 +4,8 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 
+import 'package:teknoycart/core/supabase_client.dart';
+
 /// Relational Bottom Sheet displaying detailed information about a selected product.
 /// Implements standard P2P cash agreements and price negotiation features.
 class ProductDetailsSheet extends StatelessWidget {
@@ -13,6 +15,20 @@ class ProductDetailsSheet extends StatelessWidget {
     super.key,
     required this.product,
   });
+
+  /// Helper to fetch real seller name dynamically from the users table
+  Future<String> _getSellerName(String sellerId) async {
+    try {
+      final res = await SupabaseConfig.client
+          .from('users')
+          .select('full_name')
+          .eq('user_id', sellerId)
+          .single();
+      return res['full_name'] as String? ?? 'Wildcat Student Seller';
+    } catch (e) {
+      return 'Wildcat Student Seller';
+    }
+  }
 
   /// Displays the sheet programmatically with a modern modal design
   static void show(BuildContext context, Product product) {
@@ -199,19 +215,24 @@ class ProductDetailsSheet extends StatelessWidget {
                               child: Icon(Icons.person, color: Colors.white),
                             ),
                             const SizedBox(width: 12),
-                            const Expanded(
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    'Wildcat Student Seller',
-                                    style: TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                  FutureBuilder<String>(
+                                    future: _getSellerName(product.sellerId),
+                                    builder: (context, snapshot) {
+                                      return Text(
+                                        snapshot.data ?? 'Wildcat Student Seller',
+                                        style: const TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      );
+                                    },
                                   ),
-                                  Text(
+                                  const Text(
                                     'Verified Student Account',
                                     style: TextStyle(
                                       fontFamily: 'Inter',

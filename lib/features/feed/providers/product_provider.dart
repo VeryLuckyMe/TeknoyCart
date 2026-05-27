@@ -187,9 +187,59 @@ class ProductListNotifier
 
   /// Adds a new product optimistically to the local state and inserts into Supabase.
   Future<void> addProduct(Product product) async {
+    // Update local state immediately for instant feedback
     state.whenData((list) {
       state = AsyncValue.data([product, ...list]);
     });
+
+    try {
+      const categoryNameToId = {
+        'Books': 1,
+        'Drawing Tools': 2,
+        'Uniforms': 3,
+        'Electronics': 4,
+        'Others': 5,
+      };
+      final categoryId = categoryNameToId[product.category] ?? 5;
+
+      // 1. Insert product
+      final inserted = await _supabase.from('products').insert({
+        'name': product.title,
+        'description': product.description,
+        'base_price': product.price,
+        'category_id': categoryId,
+        'seller_id': product.sellerId,
+        'status': 'ACTIVE',
+      }).select().single();
+
+      final String dbProductId = inserted['product_id'] as String;
+
+      // 2. Create product variant
+      final insertedVariant = await _supabase.from('product_variants').insert({
+        'product_id': dbProductId,
+        'variant_name': 'Condition',
+        'variant_value': product.condition,
+        'additional_price': 0,
+        'sku': 'SKU-${product.category.substring(0, 3).toUpperCase()}-${dbProductId.substring(0, 6).toUpperCase()}',
+      }).select().single();
+
+      final String dbVariantId = insertedVariant['variant_id'] as String;
+
+      // 3. Create inventory record so it shows up in Web Admin!
+      await _supabase.from('inventory').insert({
+        'variant_id': dbVariantId,
+        'stock_qty': 1,
+        'reserved_qty': 0,
+        'low_stock_threshold': 1,
+      });
+
+      // Reload fresh list to sync generated database UUIDs
+      await _load();
+    } catch (e) {
+      // Revert local state by reloading cache on failure
+      await _load();
+      rethrow;
+    }
   }
 
   /// Refresh from Supabase

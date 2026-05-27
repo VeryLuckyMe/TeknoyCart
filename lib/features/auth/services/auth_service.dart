@@ -22,13 +22,15 @@ class AuthService {
     return user != null ? _userToProfile(user) : null;
   }
 
-  // ── Helpers ──
   Profile _userToProfile(User user) {
     return Profile(
       id: user.id,
       username: user.userMetadata?['username'] as String? ??
           (user.email?.split('@').first ?? 'student'),
       email: user.email ?? '',
+      avatarUrl: user.userMetadata?['avatar_url'] as String?,
+      department: user.userMetadata?['department'] as String?,
+      contact: user.userMetadata?['contact'] as String?,
       createdAt: DateTime.tryParse(user.createdAt) ?? DateTime.now(),
     );
   }

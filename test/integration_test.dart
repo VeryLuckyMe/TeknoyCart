@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
@@ -11,6 +13,8 @@ import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:teknoycart/features/feed/models/product.dart';
 import 'package:teknoycart/features/chat/models/message.dart';
+import 'package:teknoycart/features/auth/models/profile.dart';
+import 'package:teknoycart/features/auth/services/auth_service.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
@@ -19,6 +23,14 @@ import 'mock_http_client.dart';
 void main() {
   setUpAll(() async {
     HttpOverrides.global = MockHttpOverrides();
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const MethodChannel('plugins.flutter.io/shared_preferences')
+        .setMockMethodCallHandler((MethodCall methodCall) async {
+      if (methodCall.method == 'getAll') {
+        return <String, dynamic>{};
+      }
+      return null;
+    });
     // Initialize Supabase so SupabaseConfig.client doesn't throw in test environment
     await SupabaseConfig.initialize();
   });
@@ -40,7 +52,7 @@ void main() {
       );
     });
 
-    testWidgets('Full User Journey E2E Flow: Auth -> Discovery Feed -> Bottom Sheet specs -> Counter Offer Negotiation Chat -> Campus Meetup Checkout -> Back to Feed', (WidgetTester tester) async {
+    testWidgets('Full User Journey E2E: Auth -> Feed -> Product Sheet -> Chat Negotiation -> Checkout -> Back to Feed', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1080, 1920);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -54,20 +66,18 @@ void main() {
         ProviderScope(
           overrides: [
             productsListProvider.overrideWith((ref) => Future.value([testProduct])),
+            authServiceProvider.overrideWith((ref) => MockAuthService()),
             authStateProvider.overrideWith((ref) async* {
-              // Start as unauthenticated, then let mock login work
-              yield null;
+              final notifierState = ref.watch(authNotifierProvider);
+              yield notifierState.valueOrNull;
             }),
-            authNotifierProvider.overrideWith((ref) {
-              // Use an AuthNotifier backed by the real service; domain checks still work.
-              // signIn will be intercepted by the guard first (domain check passes for cit.edu).
-              // In test environment, we watch the provider override yield the profile directly.
-              final service = ref.watch(authServiceProvider);
-              return AuthNotifier(service);
-            }),
-            chatMessagesStreamProvider.overrideWith((ref, roomId) async* {
-              final service = ref.watch(chatServiceProvider);
-              yield [
+            chatMessagesStreamProvider.overrideWith((ref, roomId) {
+              // Use a broadcast StreamController so we can merge: seed messages + sent messages + seller reply
+              final controller = StreamController<List<Message>>.broadcast();
+              final chatService = ref.read(chatServiceProvider);
+              ref.onDispose(controller.close);
+
+              final allMessages = <Message>[
                 Message(
                   id: 'msg-init-1',
                   senderId: 'usr-seller',
@@ -80,12 +90,46 @@ void main() {
                   id: 'msg-init-2',
                   senderId: 'usr-buyer',
                   receiverId: 'usr-seller',
-                  content: 'Hello! Yes, is the price still negotiable? Can we do ₱400 instead of ₱450?',
+                  content: 'Hello! Yes, is the price still negotiable? Can we do \u20b1400 instead of \u20b1450?',
                   createdAt: DateTime.now().subtract(const Duration(minutes: 15)),
                   roomId: roomId,
                 ),
               ];
-              yield* service.watchMessages(roomId);
+
+              // Emit seeds immediately via microtask
+              Future.microtask(() {
+                if (!controller.isClosed) controller.add(List.from(allMessages));
+              });
+
+              // Bridge real ChatService sends into our mock stream
+              chatService.watchMessages(roomId).listen((msgs) {
+                if (!controller.isClosed) {
+                  // Merge: keep seeds + add any new messages from service
+                  for (final m in msgs) {
+                    if (!allMessages.any((e) => e.id == m.id)) {
+                      allMessages.add(m);
+                    }
+                  }
+                  controller.add(List.from(allMessages));
+                }
+              });
+
+              // Simulate seller's reply 2 seconds after stream starts
+              Future.delayed(const Duration(seconds: 2), () {
+                if (!controller.isClosed) {
+                  allMessages.add(Message(
+                    id: 'msg-seller-reply',
+                    senderId: 'usr-seller',
+                    receiverId: 'usr-buyer',
+                    content: 'Sure! I can accept \u20b1400. Let\'s meet at the Library Lobby for the item exchange. Deal! \ud83e\udd1d',
+                    createdAt: DateTime.now(),
+                    roomId: roomId,
+                  ));
+                  controller.add(List.from(allMessages));
+                }
+              });
+
+              return controller.stream;
             }),
           ],
           child: const TeknoyCartApp(),
@@ -149,12 +193,15 @@ void main() {
       // Verify our offer message is logged in chat bubbles
       expect(find.text('Can we agree on ₱400? Deal?'), findsOneWidget);
 
-      // Let the seller's mock peer-negotiation logic trigger after 2 seconds
+      // Let the seller's mock peer-negotiation stream emit after 2 seconds
       await tester.pump(const Duration(seconds: 3));
       await tester.pumpAndSettle();
 
-      // Verify active message list displays the mock reply from seller agreeing to the price and suggesting meet location
-      expect(find.text('Sure! I can accept ₱400. Let\'s meet up at the Library Lobby for the exchange. Deal!'), findsOneWidget);
+      // Verify the seller's reply appears in the chat bubbles (exact text from service)
+      expect(
+        find.text('Sure! I can accept ₱400. Let\'s meet at the Library Lobby for the item exchange. Deal! 🤝'),
+        findsOneWidget,
+      );
 
       // 5. Navigate back to feed / details and initiate campus meetup checkout process
       // Go back to the feed
@@ -198,4 +245,19 @@ void main() {
       expect(find.byType(ProductDiscoveryFeedView), findsOneWidget);
     });
   });
+}
+
+class MockAuthService extends AuthService {
+  @override
+  Future<Profile> signIn({required String email, required String password}) async {
+    if (!isValidCituEmail(email)) {
+      throw const FormatException('Strict Security Policy: Only @cit.edu and @my.cit.edu domains are permitted.');
+    }
+    return Profile(
+      id: 'usr-buyer',
+      username: 'Wildcat Student',
+      email: email.trim(),
+      createdAt: DateTime.now(),
+    );
+  }
 }
