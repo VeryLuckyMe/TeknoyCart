@@ -217,60 +217,65 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                             ),
                             const SizedBox(height: 16),
                             // ── Role Selector Dropdown ──────────────────────
-                            DropdownButtonFormField<String>(
-                              value: _selectedRole,
-                              dropdownColor: Colors.white,
-                              style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 14,
-                                color: Color(0xFF191C1D),
+                            Theme(
+                              data: Theme.of(context).copyWith(
+                                canvasColor: Colors.white,
                               ),
-                              decoration: InputDecoration(
-                                labelText: 'Registration Role',
-                                labelStyle: const TextStyle(
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedRole,
+                                dropdownColor: Colors.white,
+                                style: const TextStyle(
                                   fontFamily: 'Inter',
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w400,
-                                  color: Color(0xFF5A413D),
-                                  letterSpacing: 0.25,
+                                  color: Color(0xFF191C1D),
                                 ),
-                                prefixIcon: const Icon(
-                                  Icons.assignment_ind_outlined,
-                                  color: Color(0xFF5A413D),
-                                  size: 20,
+                                decoration: InputDecoration(
+                                  labelText: 'Registration Role',
+                                  labelStyle: const TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w400,
+                                    color: Color(0xFF5A413D),
+                                    letterSpacing: 0.25,
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.assignment_ind_outlined,
+                                    color: Color(0xFF5A413D),
+                                    size: 20,
+                                  ),
+                                  filled: false,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                    borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                    borderSide: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
+                                  ),
                                 ),
-                                filled: false,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
-                                ),
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: 'BUYER',
+                                    child: Text(
+                                      'Student Buyer (Browse & Inquire)',
+                                      style: TextStyle(color: Color(0xFF191C1D)),
+                                    ),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'SELLER',
+                                    child: Text(
+                                      'Campus Vendor / Seller (List & Sell)',
+                                      style: TextStyle(color: Color(0xFF191C1D)),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() => _selectedRole = val);
+                                  }
+                                },
                               ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'BUYER',
-                                  child: Text(
-                                    'Student Buyer (Browse & Inquire)',
-                                    style: TextStyle(color: Color(0xFF191C1D)),
-                                  ),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'SELLER',
-                                  child: Text(
-                                    'Campus Vendor / Seller (List & Sell)',
-                                    style: TextStyle(color: Color(0xFF191C1D)),
-                                  ),
-                                ),
-                              ],
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setState(() => _selectedRole = val);
-                                }
-                              },
                             ),
                             const SizedBox(height: 16),
                           ],
