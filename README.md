@@ -69,14 +69,14 @@ The Supabase Auth database has been pre-seeded with specialized accounts for you
 - **Password**: `teknoycart2026`
 
 ### 🛒 Wildcat Buyer Account
-- **Email**: `wildcat.buyer@my.cit.edu`
+- **Email**: `wildcat.buyer@cit.edu`
 - **Password**: `teknoycart2026`
 
 > [!IMPORTANT]
 > **Domain Restriction Enforced**: 
 > The application and database triggers restrict signups and logins **strictly** to institutional CIT email domains:
 > - `@cit.edu`
-> - `@my.cit.edu`
+> - ``
 
 ---
 

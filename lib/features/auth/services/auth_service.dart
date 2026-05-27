@@ -4,7 +4,7 @@ import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
 
 /// Authentication service backed by Supabase Auth.
-/// Enforces @cit.edu / @my.cit.edu institutional email restriction.
+/// Enforces @cit.edu / @cit.edu institutional email restriction.
 class AuthService {
   // Lazy getter — avoids accessing SupabaseConfig.client before initialization
   SupabaseClient get _client => SupabaseConfig.client;
@@ -37,7 +37,7 @@ class AuthService {
 
   bool isValidCituEmail(String email) {
     final lower = email.toLowerCase().trim();
-    return lower.endsWith('@cit.edu') || lower.endsWith('@my.cit.edu');
+    return lower.endsWith('@cit.edu');
   }
 
   // ── Sign In ──
@@ -47,7 +47,7 @@ class AuthService {
   }) async {
     if (!isValidCituEmail(email)) {
       throw const FormatException(
-        'Strict Security Policy: Only @cit.edu and @my.cit.edu emails are allowed.',
+        'Strict Security Policy: Only @cit.edu emails are allowed.',
       );
     }
 
@@ -73,7 +73,7 @@ class AuthService {
   }) async {
     if (!isValidCituEmail(email)) {
       throw const FormatException(
-        'Strict Security Policy: Only @cit.edu and @my.cit.edu domains are permitted.',
+        'Strict Security Policy: Only @cit.edu domains are permitted.',
       );
     }
     if (username.trim().isEmpty) {

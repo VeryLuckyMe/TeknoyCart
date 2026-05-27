@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS users (
     
     -- Strict email domain constraint (SRS FR-01/FR-02)
     CONSTRAINT check_institutional_email CHECK (
-        email LIKE '%@cit.edu' OR email LIKE '%@my.cit.edu'
+        email LIKE '%@cit.edu' OR email LIKE '%@cit.edu'
     )
 );
 
@@ -205,8 +205,8 @@ CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id);
 CREATE OR REPLACE FUNCTION verify_user_email_domain()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.email NOT LIKE '%@cit.edu' AND NEW.email NOT LIKE '%@my.cit.edu' THEN
-        RAISE EXCEPTION 'Registration restricted to official Cebu Institute of Technology - University (@cit.edu / @my.cit.edu) institutional accounts.';
+    IF NEW.email NOT LIKE '%@cit.edu' AND NEW.email NOT LIKE '%@cit.edu' THEN
+        RAISE EXCEPTION 'Registration restricted to official Cebu Institute of Technology - University (@cit.edu / @cit.edu) institutional accounts.';
     END IF;
     RETURN NEW;
 END;

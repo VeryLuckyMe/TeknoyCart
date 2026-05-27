@@ -251,7 +251,7 @@ class MockAuthService extends AuthService {
   @override
   Future<Profile> signIn({required String email, required String password}) async {
     if (!isValidCituEmail(email)) {
-      throw const FormatException('Strict Security Policy: Only @cit.edu and @my.cit.edu domains are permitted.');
+      throw const FormatException('Strict Security Policy: Only @cit.edu and @cit.edu domains are permitted.');
     }
     return Profile(
       id: 'usr-buyer',

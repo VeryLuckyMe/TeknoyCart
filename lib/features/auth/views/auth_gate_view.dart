@@ -291,9 +291,8 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                   return 'Please enter your email';
                               }
                               final email = val.trim().toLowerCase();
-                              if (!email.endsWith('@cit.edu') &&
-                                  !email.endsWith('@my.cit.edu')) {
-                                return 'Only @cit.edu or @my.cit.edu emails';
+                              if (!email.endsWith('@cit.edu')) {
+                                return 'Only @cit.edu emails are permitted';
                               }
                               return null;
                             },
