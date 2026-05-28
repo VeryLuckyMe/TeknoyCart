@@ -113,6 +113,213 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     );
   }
 
+  void _showFilterSheet(BuildContext context) {
+    final currentCondition = ref.read(selectedConditionProvider);
+    final currentMin = ref.read(minPriceProvider);
+    final currentMax = ref.read(maxPriceProvider);
+
+    final minController = TextEditingController(text: currentMin?.toString() ?? '');
+    final maxController = TextEditingController(text: currentMax?.toString() ?? '');
+    String tempCondition = currentCondition;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF141418) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Handle indicator
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(2.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Filter Catalog',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          minController.clear();
+                          maxController.clear();
+                          setModalState(() => tempCondition = 'All');
+                        },
+                        child: Text(
+                          'Reset',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            color: TeknoyTheme.citMaroon,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Condition',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: ['All', 'New', 'Like New', 'Gently Used', 'Well Worn'].map((cond) {
+                      final isSelected = tempCondition == cond;
+                      return ChoiceChip(
+                        label: Text(
+                          cond,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                          ),
+                        ),
+                        selected: isSelected,
+                        selectedColor: TeknoyTheme.citMaroon,
+                        backgroundColor: isDark ? const Color(0xFF202026) : const Color(0xFFF0F1F2),
+                        checkmarkColor: Colors.white,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setModalState(() => tempCondition = cond);
+                          }
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Price Range (₱)',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: minController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            hintText: 'Min',
+                            hintStyle: const TextStyle(fontFamily: 'Inter', fontSize: 13),
+                            filled: true,
+                            fillColor: isDark ? const Color(0xFF202026) : const Color(0xFFF0F1F2),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12.0),
+                        child: Text('to', style: TextStyle(fontFamily: 'Inter')),
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: maxController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            hintText: 'Max',
+                            hintStyle: const TextStyle(fontFamily: 'Inter', fontSize: 13),
+                            filled: true,
+                            fillColor: isDark ? const Color(0xFF202026) : const Color(0xFFF0F1F2),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final minVal = double.tryParse(minController.text);
+                        final maxVal = double.tryParse(maxController.text);
+                        ref.read(selectedConditionProvider.notifier).state = tempCondition;
+                        ref.read(minPriceProvider.notifier).state = minVal;
+                        ref.read(maxPriceProvider.notifier).state = maxVal;
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: TeknoyTheme.citMaroon,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Apply Filters',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -264,7 +471,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       case 0:
         return _buildHomeTabBody(context);
       case 1:
-        return const InboxView();
+        return const InboxView(embedded: true);
       case 2:
         return _buildSellTabBody(context);
       case 3:
@@ -288,46 +495,163 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Search Input Deck
+        // Search Input Deck with Filter Tune Button
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Container(
-            height: 48,
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF18181C) : Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isDark ? const Color(0xFF282830) : const Color(0xFFE0E0E0),
-                width: 1,
-              ),
-            ),
-            child: TextField(
-              onChanged: (val) => ref.read(searchQueryProvider.notifier).state = val,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 16,
-                color: isDark ? Colors.white : const Color(0xFF191C1D),
-              ),
-              decoration: InputDecoration(
-                hintText: 'Search textbooks, uniforms, snacks...',
-                hintStyle: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 16,
-                  color: isDark ? Colors.white38 : const Color(0xFF5A413D).withOpacity(0.7),
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF18181C) : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF282830) : const Color(0xFFE0E0E0),
+                      width: 1,
+                    ),
+                  ),
+                  child: TextField(
+                    onChanged: (val) => ref.read(searchQueryProvider.notifier).state = val,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 16,
+                      color: isDark ? Colors.white : const Color(0xFF191C1D),
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search textbooks, uniforms, snacks...',
+                      hintStyle: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 14,
+                        color: isDark ? Colors.white38 : const Color(0xFF5A413D).withOpacity(0.7),
+                      ),
+                      prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF5A413D)),
+                      suffixIcon: searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded, color: Color(0xFF5A413D)),
+                              onPressed: () => ref.read(searchQueryProvider.notifier).state = '',
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
                 ),
-                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF5A413D)),
-                suffixIcon: searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear_rounded, color: Color(0xFF5A413D)),
-                        onPressed: () => ref.read(searchQueryProvider.notifier).state = '',
-                      )
-                    : null,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _showFilterSheet(context),
+                child: Container(
+                  height: 48,
+                  width: 48,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF18181C) : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF282830) : const Color(0xFFE0E0E0),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.tune_rounded,
+                    color: TeknoyTheme.citMaroon,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Wildcat Campus Spotlight Banner
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              height: 120,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    TeknoyTheme.citMaroon,
+                    TeknoyTheme.citMaroonLight.withOpacity(0.8),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: TeknoyTheme.citMaroon.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    right: -20,
+                    bottom: -20,
+                    child: Opacity(
+                      opacity: 0.15,
+                      child: Icon(
+                        Icons.local_fire_department_rounded,
+                        size: 160,
+                        color: TeknoyTheme.citGold,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: TeknoyTheme.citGold,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'CAMPUS SPOTLIGHT',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              color: TeknoyTheme.citMaroon,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Save 50% on Engineering Drawing Boards',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Verified listings from CEA graduates • Limited availability',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11,
+                            color: Colors.white.withOpacity(0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
+        const SizedBox(height: 8),
 
         // Horizontal Category Pills
         SizedBox(
@@ -951,20 +1275,31 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         final buyOrders = data['buy'] ?? [];
         final sellOrders = data['sell'] ?? [];
 
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
         return DefaultTabController(
           length: 2,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Tab Bar
+              // Tab Bar — theme-aware
               Container(
-                color: Colors.white,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF141418) : Colors.white,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isDark ? const Color(0xFF22222A) : const Color(0xFFE8E8EC),
+                      width: 1,
+                    ),
+                  ),
+                ),
                 child: TabBar(
                   labelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
                   unselectedLabelStyle: const TextStyle(fontFamily: 'Outfit', fontSize: 13),
                   labelColor: TeknoyTheme.citMaroon,
-                  unselectedLabelColor: Colors.grey,
+                  unselectedLabelColor: isDark ? Colors.white54 : Colors.grey,
                   indicatorColor: TeknoyTheme.citMaroon,
+                  indicatorWeight: 2.5,
                   tabs: [
                     Tab(text: 'My Purchases (${buyOrders.length})'),
                     Tab(text: 'Incoming Orders (${sellOrders.length})'),
@@ -1447,6 +1782,19 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                           ],
                         ),
                       ),
+                      const SizedBox(height: 24),
+                      Divider(color: cardBorder, height: 1),
+                      const SizedBox(height: 18),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildStatItem('Listings', '12', isDark),
+                          _buildStatDivider(cardBorder),
+                          _buildStatItem('Deals', '48', isDark),
+                          _buildStatDivider(cardBorder),
+                          _buildStatItem('Trust Score', '98%', isDark, isHighlight: true),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -1584,7 +1932,65 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   ),
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 16),
+                // Sign Out Button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        try {
+                          await ref.read(authNotifierProvider.notifier).logout();
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Logout failed: $e')),
+                          );
+                        }
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFB22222),
+                        side: const BorderSide(color: Color(0xFFB22222), width: 1.5),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: const Icon(Icons.logout_rounded, size: 20),
+                      label: const Text(
+                        'Sign Out Account',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 36),
+                
+                // Footer
+                Text(
+                  'TeknoCart CIT-U v1.4.0',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: labelColor.withOpacity(0.6),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Cebu Institute of Technology - University',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 10,
+                    color: labelColor.withOpacity(0.4),
+                  ),
+                ),
+                const SizedBox(height: 48),
               ],
             ),
           ),
@@ -2077,6 +2483,42 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, bool isDark, {bool isHighlight = false}) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: isHighlight 
+                ? const Color(0xFFB22222) 
+                : (isDark ? Colors.white : Colors.black87),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: isDark ? Colors.white54 : Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatDivider(Color borderColor) {
+    return Container(
+      height: 24,
+      width: 1,
+      color: borderColor,
     );
   }
 }

@@ -41,6 +41,7 @@ void main() {
           username: 'hacker',
           password: 'password123',
           role: 'BUYER',
+          studentId: '22-1234-567',
         ),
         throwsA(isA<FormatException>()),
       );
@@ -53,6 +54,7 @@ void main() {
           username: '',
           password: 'password123',
           role: 'BUYER',
+          studentId: '22-1234-567',
         ),
         throwsA(isA<FormatException>()),
       );
@@ -65,6 +67,7 @@ void main() {
           username: 'wildcat',
           password: '123',
           role: 'BUYER',
+          studentId: '22-1234-567',
         ),
         throwsA(isA<FormatException>()),
       );

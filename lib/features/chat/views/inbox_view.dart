@@ -10,7 +10,8 @@ import 'package:teknoycart/features/feed/models/product.dart';
 /// Real-Time Chat Inbox listing active negotiations.
 /// Enables seamless account-to-account conversations for both buyers and sellers.
 class InboxView extends ConsumerStatefulWidget {
-  const InboxView({super.key});
+  final bool embedded;
+  const InboxView({super.key, this.embedded = false});
 
   @override
   ConsumerState<InboxView> createState() => _InboxViewState();
@@ -154,23 +155,8 @@ class _InboxViewState extends ConsumerState<InboxView> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Messages',
-          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _loadChatRooms,
-          ),
-        ],
-        elevation: 1,
-      ),
-      body: _isLoading
+  Widget _buildInboxBody(BuildContext context) {
+    return _isLoading
           ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
           : _errorMessage != null
               ? Center(
@@ -352,7 +338,29 @@ class _InboxViewState extends ConsumerState<InboxView> {
                           ),
                         );
                       },
-                    ),
+                    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.embedded) {
+      return _buildInboxBody(context);
+    }
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Messages',
+          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _loadChatRooms,
+          ),
+        ],
+        elevation: 1,
+      ),
+      body: _buildInboxBody(context),
     );
   }
 }

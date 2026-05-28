@@ -20,10 +20,12 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
   final _lastNameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _studentIdController = TextEditingController();
+  final _departmentController = TextEditingController(text: 'CCS');
 
   String _selectedRole = 'BUYER';
   bool _isLoginTab = true;
   bool _obscurePassword = true;
+  int _registerStep = 0; // 0: Identity & Role, 1: Academic Verification, 2: Account Credentials
 
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
@@ -45,11 +47,66 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     _lastNameController.dispose();
     _passwordController.dispose();
     _studentIdController.dispose();
+    _departmentController.dispose();
     _fadeCtrl.dispose();
     super.dispose();
   }
 
+  bool _validateStep(int step) {
+    if (step == 0) {
+      if (_firstNameController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter your first name'),
+            backgroundColor: TeknoyTheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return false;
+      }
+      if (_lastNameController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter your last name'),
+            backgroundColor: TeknoyTheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return false;
+      }
+      return true;
+    } else if (step == 1) {
+      final studentId = _studentIdController.text.trim();
+      final studentIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
+      if (!studentIdRegex.hasMatch(studentId)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Student ID must be formatted as ##-####-###'),
+            backgroundColor: TeknoyTheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return false;
+      }
+      if (_departmentController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter your Department Code (e.g. CCS)'),
+            backgroundColor: TeknoyTheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return false;
+      }
+      return true;
+    }
+    return true;
+  }
+
   void _submitForm() {
+    if (!_isLoginTab) {
+      if (!_validateStep(0) || !_validateStep(1)) return;
+    }
     if (!_formKey.currentState!.validate()) return;
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -67,6 +124,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
         password: password,
         role: _selectedRole,
         studentId: studentId,
+        department: _departmentController.text.trim().toUpperCase(),
       );
     }
   }
@@ -74,13 +132,24 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
   void _switchTab(bool toLogin) {
     if (_isLoginTab == toLogin) return;
     _fadeCtrl.reset();
-    setState(() => _isLoginTab = toLogin);
+    setState(() {
+      _isLoginTab = toLogin;
+      _registerStep = 0;
+    });
     _fadeCtrl.forward();
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Define adaptive colors
+    final scaffoldBg = isDark ? const Color(0xFF0F0A0A) : const Color(0xFFF6F6F9);
+    final cardBg = isDark ? Colors.white.withOpacity(0.06) : Colors.white.withOpacity(0.9);
+    final cardBorder = isDark ? Colors.white.withOpacity(0.12) : const Color(0xFFECECEF);
+    final titleColor = isDark ? Colors.white : Colors.black87;
+    final subtitleColor = isDark ? Colors.white.withOpacity(0.5) : Colors.black54;
 
     ref.listen<AsyncValue>(authNotifierProvider, (_, state) {
       state.whenOrNull(
@@ -93,7 +162,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      err.toString().replaceAll('Exception: ', ''),
+                       err.toString().replaceAll('Exception: ', ''),
                       style: const TextStyle(
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w500,
@@ -120,8 +189,8 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
         children: [
           // ── Premium Ambient Background Gradient ────────────────────────
           Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFF0F0A0A),
+            decoration: BoxDecoration(
+              color: scaffoldBg,
             ),
           ),
           // Blur circle 1 (Maroon)
@@ -133,7 +202,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
               height: 320,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: TeknoyTheme.citMaroon.withOpacity(0.35),
+                color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.35 : 0.08),
               ),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 90, sigmaY: 90),
@@ -150,7 +219,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: TeknoyTheme.citGold.withOpacity(0.20),
+                color: TeknoyTheme.citGold.withOpacity(isDark ? 0.20 : 0.06),
               ),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
@@ -210,17 +279,17 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
+                        Text(
                           'Teknoy',
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontSize: 24,
                             fontWeight: FontWeight.w900,
-                            color: Colors.white,
+                            color: titleColor,
                             letterSpacing: -0.5,
                           ),
                         ),
-                        Text(
+                        const Text(
                           'Cart',
                           style: TextStyle(
                             fontFamily: 'Outfit',
@@ -239,7 +308,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                         fontFamily: 'Outfit',
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white.withOpacity(0.5),
+                        color: subtitleColor,
                         letterSpacing: 2.0,
                       ),
                     ),
@@ -251,10 +320,10 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                       child: Container(
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.06),
+                          color: cardBg,
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.12),
+                            color: cardBorder,
                             width: 1,
                           ),
                         ),
@@ -272,11 +341,11 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                     Text(
                                       _isLoginTab ? 'Welcome Back' : 'Create Account',
                                       textAlign: TextAlign.center,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontFamily: 'Outfit',
                                         fontSize: 26,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                        color: titleColor,
                                         letterSpacing: -0.5,
                                       ),
                                     ),
@@ -290,140 +359,75 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                         fontFamily: 'Inter',
                                         fontSize: 13,
                                         fontWeight: FontWeight.w400,
-                                        color: Colors.white.withOpacity(0.6),
+                                        color: subtitleColor,
                                       ),
                                     ),
-                                    const SizedBox(height: 24),
+                                    const SizedBox(height: 20),
 
-                                    // Register-Only Fields
+                                    // ── Step Progress Indicator ──
                                     if (!_isLoginTab) ...[
-                                      _buildInputField(
-                                        controller: _firstNameController,
-                                        label: 'First Name',
-                                        icon: Icons.person_outline_rounded,
-                                        validator: (val) {
-                                          if (val == null || val.trim().isEmpty) {
-                                            return 'Please enter your first name';
-                                          }
-                                          return null;
-                                        },
-                                      ),
-                                      const SizedBox(height: 16),
-                                      _buildInputField(
-                                        controller: _lastNameController,
-                                        label: 'Last Name',
-                                        icon: Icons.person_outline_rounded,
-                                        validator: (val) {
-                                          if (val == null || val.trim().isEmpty) {
-                                            return 'Please enter your last name';
-                                          }
-                                          return null;
-                                        },
-                                      ),
-                                      const SizedBox(height: 16),
-                                      _buildInputField(
-                                        controller: _studentIdController,
-                                        label: 'Student ID (##-####-###)',
-                                        icon: Icons.badge_outlined,
-                                        keyboardType: TextInputType.phone,
-                                        validator: (val) {
-                                          if (val == null || val.trim().isEmpty) {
-                                            return 'Please enter your student ID';
-                                          }
-                                          final trimmed = val.trim();
-                                          final studentIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
-                                          if (!studentIdRegex.hasMatch(trimmed)) {
-                                            return 'Format must be ##-####-###';
-                                          }
-                                          return null;
-                                        },
-                                      ),
-                                      const SizedBox(height: 20),
-
-                                      // ── Bento Segmented Role Selector ────────────────
-                                      const Text(
-                                        'Select Your Campus Role',
-                                        style: TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
                                       Row(
-                                        children: [
-                                          Expanded(
-                                            child: _buildRoleCard(
-                                              role: 'BUYER',
-                                              title: 'Buyer',
-                                              desc: 'Browse & purchase',
-                                              icon: Icons.shopping_bag_outlined,
+                                        children: List.generate(3, (index) {
+                                          final active = index <= _registerStep;
+                                          return Expanded(
+                                            child: Container(
+                                              height: 4,
+                                              margin: const EdgeInsets.symmetric(horizontal: 3),
+                                              decoration: BoxDecoration(
+                                                color: active
+                                                    ? TeknoyTheme.citGold
+                                                    : (isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.08)),
+                                                borderRadius: BorderRadius.circular(2),
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: _buildRoleCard(
-                                              role: 'SELLER',
-                                              title: 'Seller',
-                                              desc: 'List & trade products',
-                                              icon: Icons.storefront_outlined,
-                                            ),
-                                          ),
-                                        ],
+                                          );
+                                        }),
                                       ),
-                                      const SizedBox(height: 16),
+                                      const SizedBox(height: 24),
                                     ],
 
-                                    // CIT-U Email
-                                    _buildInputField(
-                                      controller: _emailController,
-                                      label: 'CIT-U Email',
-                                      icon: Icons.email_outlined,
-                                      keyboardType: TextInputType.emailAddress,
-                                      validator: (val) {
-                                        if (val == null || val.trim().isEmpty) {
-                                          return 'Please enter your email';
-                                        }
-                                        final email = val.trim().toLowerCase();
-                                        if (!email.endsWith('@cit.edu')) {
-                                          return 'Only @cit.edu emails are permitted';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                    const SizedBox(height: 16),
-
-                                    // Password
-                                    _buildInputField(
-                                      controller: _passwordController,
-                                      label: 'Password',
-                                      icon: Icons.lock_outline_rounded,
-                                      obscureText: _obscurePassword,
-                                      suffixIcon: IconButton(
-                                        icon: Icon(
-                                          _obscurePassword
-                                              ? Icons.visibility_off_outlined
-                                              : Icons.visibility_outlined,
-                                          color: Colors.white60,
-                                          size: 20,
-                                        ),
-                                        onPressed: () =>
-                                            setState(() => _obscurePassword = !_obscurePassword),
-                                      ),
-                                      validator: (val) {
-                                        if (val == null || val.isEmpty) {
-                                          return 'Please enter your password';
-                                        }
-                                        if (val.length < 6) {
-                                          return 'Password must be at least 6 characters';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-
-                                    // Forgot Password
+                                    // ── LOGIN FORM ──
                                     if (_isLoginTab) ...[
+                                      _buildInputField(
+                                        controller: _emailController,
+                                        label: 'CIT-U Email',
+                                        icon: Icons.email_outlined,
+                                        keyboardType: TextInputType.emailAddress,
+                                        validator: (val) {
+                                          if (val == null || val.trim().isEmpty) {
+                                            return 'Please enter your email';
+                                          }
+                                          final email = val.trim().toLowerCase();
+                                          if (!email.endsWith('@cit.edu')) {
+                                            return 'Only @cit.edu emails are permitted';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildInputField(
+                                        controller: _passwordController,
+                                        label: 'Password',
+                                        icon: Icons.lock_outline_rounded,
+                                        obscureText: _obscurePassword,
+                                        suffixIcon: IconButton(
+                                          icon: Icon(
+                                            _obscurePassword
+                                                ? Icons.visibility_off_outlined
+                                                : Icons.visibility_outlined,
+                                            color: isDark ? Colors.white60 : Colors.black54,
+                                            size: 20,
+                                          ),
+                                          onPressed: () =>
+                                              setState(() => _obscurePassword = !_obscurePassword),
+                                        ),
+                                        validator: (val) {
+                                          if (val == null || val.isEmpty) {
+                                            return 'Please enter your password';
+                                          }
+                                          return null;
+                                        },
+                                      ),
                                       const SizedBox(height: 6),
                                       Align(
                                         alignment: Alignment.centerRight,
@@ -434,7 +438,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                             minimumSize: Size.zero,
                                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                           ),
-                                          child: Text(
+                                          child: const Text(
                                             'Forgot Password?',
                                             style: TextStyle(
                                               fontFamily: 'Inter',
@@ -445,71 +449,310 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                           ),
                                         ),
                                       ),
-                                    ],
-                                    const SizedBox(height: 24),
-
-                                    // Login/Register Button
-                                    SizedBox(
-                                      height: 52,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(16),
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              TeknoyTheme.citMaroonLight,
-                                              TeknoyTheme.citMaroon,
+                                      const SizedBox(height: 24),
+                                      SizedBox(
+                                        height: 52,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(16),
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                TeknoyTheme.citMaroonLight,
+                                                TeknoyTheme.citMaroon,
+                                              ],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: TeknoyTheme.citMaroon.withOpacity(0.4),
+                                                blurRadius: 12,
+                                                offset: const Offset(0, 4),
+                                              ),
                                             ],
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
                                           ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: TeknoyTheme.citMaroon.withOpacity(0.4),
-                                              blurRadius: 12,
-                                              offset: const Offset(0, 4),
+                                          child: ElevatedButton(
+                                            key: const Key('auth-submit-btn'),
+                                            onPressed: authState.isLoading ? null : _submitForm,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.transparent,
+                                              foregroundColor: Colors.white,
+                                              shadowColor: Colors.transparent,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(16),
+                                              ),
+                                            ),
+                                            child: authState.isLoading
+                                                ? const SizedBox(
+                                                    height: 22,
+                                                    width: 22,
+                                                    child: CircularProgressIndicator(
+                                                      color: Colors.white,
+                                                      strokeWidth: 2.5,
+                                                    ),
+                                                  )
+                                                : const Text(
+                                                    'Login',
+                                                    style: TextStyle(
+                                                      fontFamily: 'Outfit',
+                                                      fontSize: 16,
+                                                      fontWeight: FontWeight.bold,
+                                                      letterSpacing: 0.5,
+                                                    ),
+                                                  ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+
+                                    // ── REGISTER FLOW ──
+                                    if (!_isLoginTab) ...[
+                                      // Step 0: Identity & Role
+                                      if (_registerStep == 0) ...[
+                                        _buildInputField(
+                                          controller: _firstNameController,
+                                          label: 'First Name',
+                                          icon: Icons.person_outline_rounded,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        _buildInputField(
+                                          controller: _lastNameController,
+                                          label: 'Last Name',
+                                          icon: Icons.person_outline_rounded,
+                                        ),
+                                        const SizedBox(height: 20),
+                                        Text(
+                                          'Select Your Campus Role',
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark ? Colors.white70 : Colors.black87,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: _buildRoleCard(
+                                                role: 'BUYER',
+                                                title: 'Buyer',
+                                                desc: 'Browse & purchase',
+                                                icon: Icons.shopping_bag_outlined,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: _buildRoleCard(
+                                                role: 'SELLER',
+                                                title: 'Seller',
+                                                desc: 'List & trade products',
+                                                icon: Icons.storefront_outlined,
+                                              ),
                                             ),
                                           ],
                                         ),
-                                        child: ElevatedButton(
-                                          key: const Key('auth-submit-btn'),
-                                          onPressed: authState.isLoading ? null : _submitForm,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.transparent,
-                                            foregroundColor: Colors.white,
-                                            shadowColor: Colors.transparent,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(16),
+                                        const SizedBox(height: 24),
+                                        SizedBox(
+                                          height: 52,
+                                          child: ElevatedButton(
+                                            onPressed: () {
+                                              if (_validateStep(0)) {
+                                                setState(() => _registerStep = 1);
+                                              }
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: TeknoyTheme.citMaroon,
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(16),
+                                              ),
+                                            ),
+                                            child: const Text(
+                                              'Continue',
+                                              style: TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                           ),
-                                          child: authState.isLoading
-                                              ? const SizedBox(
-                                                  height: 22,
-                                                  width: 22,
-                                                  child: CircularProgressIndicator(
-                                                    color: Colors.white,
-                                                    strokeWidth: 2.5,
+                                        ),
+                                      ],
+
+                                      // Step 1: Academic Verification
+                                      if (_registerStep == 1) ...[
+                                        _buildInputField(
+                                          controller: _studentIdController,
+                                          label: 'Student ID (##-####-###)',
+                                          icon: Icons.badge_outlined,
+                                          keyboardType: TextInputType.phone,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        _buildInputField(
+                                          controller: _departmentController,
+                                          label: 'Department Code (e.g. CCS)',
+                                          icon: Icons.school_outlined,
+                                        ),
+                                        const SizedBox(height: 24),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: OutlinedButton(
+                                                onPressed: () => setState(() => _registerStep = 0),
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: isDark ? Colors.white : Colors.black87,
+                                                  side: BorderSide(color: isDark ? Colors.white.withOpacity(0.2) : const Color(0xFFDCDCE0)),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(16),
                                                   ),
-                                                )
-                                              : Text(
-                                                  _isLoginTab ? 'Login' : 'Create Account',
-                                                  style: const TextStyle(
+                                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                                ),
+                                                child: const Text(
+                                                  'Back',
+                                                  style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: ElevatedButton(
+                                                onPressed: () {
+                                                  if (_validateStep(1)) {
+                                                    setState(() => _registerStep = 2);
+                                                  }
+                                                },
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: TeknoyTheme.citMaroon,
+                                                  foregroundColor: Colors.white,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(16),
+                                                  ),
+                                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                                ),
+                                                child: const Text(
+                                                  'Continue',
+                                                  style: TextStyle(
                                                     fontFamily: 'Outfit',
-                                                    fontSize: 16,
+                                                    fontSize: 14,
                                                     fontWeight: FontWeight.bold,
-                                                    letterSpacing: 0.5,
                                                   ),
                                                 ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ),
-                                    ),
-                                  ],
+                                      ],
+
+                                      // Step 2: Account Credentials
+                                      if (_registerStep == 2) ...[
+                                        _buildInputField(
+                                          controller: _emailController,
+                                          label: 'CIT-U Email',
+                                          icon: Icons.email_outlined,
+                                          keyboardType: TextInputType.emailAddress,
+                                          validator: (val) {
+                                            if (val == null || val.trim().isEmpty) {
+                                              return 'Please enter your email';
+                                            }
+                                            final email = val.trim().toLowerCase();
+                                            if (!email.endsWith('@cit.edu')) {
+                                              return 'Only @cit.edu emails are permitted';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 16),
+                                        _buildInputField(
+                                          controller: _passwordController,
+                                          label: 'Password',
+                                          icon: Icons.lock_outline_rounded,
+                                          obscureText: _obscurePassword,
+                                          suffixIcon: IconButton(
+                                            icon: Icon(
+                                              _obscurePassword
+                                                  ? Icons.visibility_off_outlined
+                                                  : Icons.visibility_outlined,
+                                              color: isDark ? Colors.white60 : Colors.black54,
+                                              size: 20,
+                                            ),
+                                            onPressed: () =>
+                                                setState(() => _obscurePassword = !_obscurePassword),
+                                          ),
+                                          validator: (val) {
+                                            if (val == null || val.isEmpty) {
+                                              return 'Please enter your password';
+                                            }
+                                            if (val.length < 6) {
+                                              return 'Password must be at least 6 characters';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 24),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: OutlinedButton(
+                                                onPressed: () => setState(() => _registerStep = 1),
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: isDark ? Colors.white : Colors.black87,
+                                                  side: BorderSide(color: isDark ? Colors.white.withOpacity(0.2) : const Color(0xFFDCDCE0)),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(16),
+                                                  ),
+                                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                                ),
+                                                child: const Text(
+                                                  'Back',
+                                                  style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: ElevatedButton(
+                                                key: const Key('auth-submit-btn'),
+                                                onPressed: authState.isLoading ? null : _submitForm,
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: TeknoyTheme.citMaroon,
+                                                  foregroundColor: Colors.white,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(16),
+                                                  ),
+                                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                                ),
+                                                child: authState.isLoading
+                                                    ? const SizedBox(
+                                                        height: 20,
+                                                        width: 20,
+                                                        child: CircularProgressIndicator(
+                                                          color: Colors.white,
+                                                          strokeWidth: 2,
+                                                        ),
+                                                      )
+                                                    : const Text(
+                                                        'Submit',
+                                                        style: TextStyle(
+                                                          fontFamily: 'Outfit',
+                                                          fontSize: 14,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
 
                     // ── Sign up / Sign in link below card ─────────────────────
                     const SizedBox(height: 24),
@@ -524,7 +767,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                             fontFamily: 'Inter',
                             fontSize: 14,
                             fontWeight: FontWeight.w400,
-                            color: Colors.white.withOpacity(0.7),
+                            color: isDark ? Colors.white.withOpacity(0.7) : Colors.black54,
                           ),
                         ),
                         GestureDetector(
@@ -563,6 +806,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     required String desc,
     required IconData icon,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSelected = _selectedRole == role;
     return GestureDetector(
       onTap: () => setState(() => _selectedRole = role),
@@ -572,13 +816,13 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
           color: isSelected
-              ? TeknoyTheme.citMaroon.withOpacity(0.15)
-              : Colors.white.withOpacity(0.03),
+              ? TeknoyTheme.citMaroon.withOpacity(0.12)
+              : (isDark ? Colors.white.withOpacity(0.03) : const Color(0xFFF4F4F6)),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected
                 ? TeknoyTheme.citGold
-                : Colors.white.withOpacity(0.08),
+                : (isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E5E9)),
             width: isSelected ? 1.5 : 1.0,
           ),
         ),
@@ -587,7 +831,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
             Icon(
               icon,
               size: 28,
-              color: isSelected ? TeknoyTheme.citGold : Colors.white60,
+              color: isSelected ? TeknoyTheme.citGold : (isDark ? Colors.white60 : Colors.black45),
             ),
             const SizedBox(height: 8),
             Text(
@@ -596,7 +840,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                 fontFamily: 'Outfit',
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
-                color: isSelected ? Colors.white : Colors.white70,
+                color: isSelected ? (isDark ? Colors.white : Colors.black87) : (isDark ? Colors.white70 : Colors.black54),
               ),
             ),
             const SizedBox(height: 2),
@@ -606,7 +850,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
               style: TextStyle(
                 fontFamily: 'Inter',
                 fontSize: 10,
-                color: Colors.white38,
+                color: isDark ? Colors.white38 : Colors.black38,
               ),
             ),
           ],
@@ -624,14 +868,15 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     Widget? suffixIcon,
     String? Function(String?)? validator,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
-      style: const TextStyle(
+      style: TextStyle(
         fontFamily: 'Inter',
         fontSize: 14,
-        color: Colors.white,
+        color: isDark ? Colors.white : Colors.black87,
       ),
       decoration: InputDecoration(
         labelText: label,
@@ -639,16 +884,16 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
           fontFamily: 'Inter',
           fontSize: 13,
           fontWeight: FontWeight.w400,
-          color: Colors.white.withOpacity(0.5),
+          color: isDark ? Colors.white.withOpacity(0.5) : Colors.black45,
         ),
-        prefixIcon: Icon(icon, color: Colors.white60, size: 20),
+        prefixIcon: Icon(icon, color: isDark ? Colors.white60 : Colors.black45, size: 20),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: Colors.white.withOpacity(0.03),
+        fillColor: isDark ? Colors.white.withOpacity(0.03) : const Color(0xFFF4F4F6),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+          borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E5E9)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),

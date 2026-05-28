@@ -15,6 +15,9 @@ final categoriesProvider = Provider<List<String>>((ref) => [
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 final selectedCategoryProvider = StateProvider<String>((ref) => 'All');
+final selectedConditionProvider = StateProvider<String>((ref) => 'All');
+final minPriceProvider = StateProvider<double?>((ref) => null);
+final maxPriceProvider = StateProvider<double?>((ref) => null);
 
 // ── Category ID mapping from Supabase schema ──
 const _categoryIdToName = {
@@ -284,6 +287,9 @@ final productsListProvider = FutureProvider<List<Product>>((ref) async {
 final filteredProductsProvider = Provider<List<Product>>((ref) {
   final search = ref.watch(searchQueryProvider).toLowerCase();
   final category = ref.watch(selectedCategoryProvider);
+  final condition = ref.watch(selectedConditionProvider);
+  final minPrice = ref.watch(minPriceProvider);
+  final maxPrice = ref.watch(maxPriceProvider);
   final productsAsync = ref.watch(productsListProvider);
 
   return productsAsync.maybeWhen(
@@ -293,7 +299,11 @@ final filteredProductsProvider = Provider<List<Product>>((ref) {
             product.description.toLowerCase().contains(search);
         final matchesCategory =
             category == 'All' || product.category == category;
-        return matchesSearch && matchesCategory;
+        final matchesCondition =
+            condition == 'All' || product.condition.toLowerCase() == condition.toLowerCase();
+        final matchesMinPrice = minPrice == null || product.price >= minPrice;
+        final matchesMaxPrice = maxPrice == null || product.price <= maxPrice;
+        return matchesSearch && matchesCategory && matchesCondition && matchesMinPrice && matchesMaxPrice;
       }).toList();
     },
     orElse: () => [],

@@ -74,6 +74,17 @@ class _ChatViewState extends ConsumerState<ChatView> {
     });
   }
 
+  double? _parseOfferPrice(String content) {
+    if (content.startsWith('Can we agree on ₱') && content.endsWith('? Deal?')) {
+      final cleanStr = content
+          .replaceAll('Can we agree on ₱', '')
+          .replaceAll('? Deal?', '')
+          .trim();
+      return double.tryParse(cleanStr);
+    }
+    return null;
+  }
+
   void _showCounterOfferDialog() {
     // Also support pre-populating text controller directly for integration test scenarios
     _textController.text = 'Can we agree on ₱400? Deal?';
@@ -313,6 +324,167 @@ class _ChatViewState extends ConsumerState<ChatView> {
                     final msg = messages[index];
                     final isMe = msg.senderId == (currentUser?.id ?? 'usr-buyer');
                     final isReceipt = msg.content.contains('[GCASH_RECEIPT_PROOF]');
+                    final offerPrice = _parseOfferPrice(msg.content);
+
+                    if (offerPrice != null) {
+                      return Align(
+                        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 8.0),
+                          width: MediaQuery.of(context).size.width * 0.78,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                isMe ? TeknoyTheme.citMaroon : (isDark ? const Color(0xFF1B1B1F) : const Color(0xFFF1F1F4)),
+                                isMe ? TeknoyTheme.citMaroonLight.withOpacity(0.9) : (isDark ? const Color(0xFF24242A) : const Color(0xFFE5E5E9)),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: TeknoyTheme.citGold.withOpacity(0.3),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.handshake_rounded,
+                                          color: isMe ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Bargaining Offer',
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: isMe ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      '₱${offerPrice.toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.bold,
+                                        color: isMe ? Colors.white : (isDark ? Colors.white : Colors.black87),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      isMe
+                                          ? 'You proposed this counter offer.'
+                                          : 'Seller proposed this counter offer.',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 11,
+                                        color: isMe ? Colors.white.withOpacity(0.6) : Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (!isMe && _negotiationState == 'offered') ...[
+                                Container(
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      top: BorderSide(
+                                        color: isMe ? Colors.white.withOpacity(0.08) : Colors.grey.withOpacity(0.2),
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _negotiationState = 'none';
+                                            });
+                                            _sendMessage(customContent: 'Offer Declined.');
+                                          },
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: TeknoyTheme.error,
+                                            padding: const EdgeInsets.symmetric(vertical: 14),
+                                            shape: const RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.only(
+                                                bottomLeft: Radius.circular(20),
+                                              ),
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Decline',
+                                            style: TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        width: 1,
+                                        height: 40,
+                                        color: isMe ? Colors.white.withOpacity(0.08) : Colors.grey.withOpacity(0.2),
+                                      ),
+                                      Expanded(
+                                        child: TextButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _negotiationState = 'agreed';
+                                              _agreedPrice = offerPrice;
+                                            });
+                                            _sendMessage(customContent: 'Offer Accepted!');
+                                          },
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: TeknoyTheme.success,
+                                            padding: const EdgeInsets.symmetric(vertical: 14),
+                                            shape: const RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.only(
+                                                bottomRight: Radius.circular(20),
+                                              ),
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Accept Offer',
+                                            style: TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    }
 
                     return Align(
                       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,

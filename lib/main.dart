@@ -33,7 +33,7 @@ class TeknoyCartApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: TeknoyTheme.lightTheme,
       darkTheme: TeknoyTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.light,
       builder: (context, child) {
         return ResponsiveMobileFrame(child: child!);
       },

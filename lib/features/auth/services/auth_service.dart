@@ -72,6 +72,7 @@ class AuthService {
     required String password,
     required String role,
     required String studentId,
+    String? department,
   }) async {
     if (!isValidCituEmail(email)) {
       throw const FormatException(
@@ -105,7 +106,12 @@ class AuthService {
     final response = await _client.auth.signUp(
       email: email.trim(),
       password: password,
-      data: {'username': username.trim(), 'role': role, 'student_id': studentIdTrimmed},
+      data: {
+        'username': username.trim(),
+        'role': role,
+        'student_id': studentIdTrimmed,
+        'department': department,
+      },
     );
 
     final user = response.user;
