@@ -303,9 +303,11 @@ class _ChatViewState extends ConsumerState<ChatView> {
             child: messagesAsync.when(
               data: (messages) {
                 final currentUser = ref.watch(authStateProvider).valueOrNull;
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+
                 return ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final msg = messages[index];
@@ -315,17 +317,22 @@ class _ChatViewState extends ConsumerState<ChatView> {
                     return Align(
                       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4.0),
+                        margin: const EdgeInsets.symmetric(vertical: 6.0),
                         padding: isReceipt
                             ? const EdgeInsets.all(4.0)
-                            : const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+                            : const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                         decoration: BoxDecoration(
                           color: isMe
-                              ? (isReceipt ? Colors.white : TeknoyTheme.citMaroon)
-                              : Theme.of(context).cardColor,
-                          border: (isMe && !isReceipt)
+                              ? (isReceipt ? Colors.transparent : TeknoyTheme.citMaroon)
+                              : (isDark ? const Color(0xFF141418) : Colors.white),
+                          border: isReceipt
                               ? null
-                              : Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
+                              : Border.all(
+                                  color: isMe 
+                                      ? Colors.transparent 
+                                      : (isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF)),
+                                  width: 1,
+                                ),
                           borderRadius: BorderRadius.only(
                             topLeft: const Radius.circular(16),
                             topRight: const Radius.circular(16),
@@ -333,17 +340,17 @@ class _ChatViewState extends ConsumerState<ChatView> {
                             bottomRight: isMe ? Radius.zero : const Radius.circular(16),
                           ),
                           boxShadow: isReceipt
-                              ? [
+                              ? []
+                              : [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.08),
-                                    blurRadius: 8,
+                                    color: Colors.black.withOpacity(0.02),
+                                    blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   )
-                                ]
-                              : null,
+                                ],
                         ),
                         constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.75,
+                          maxWidth: MediaQuery.of(context).size.width * 0.78,
                         ),
                         child: isReceipt
                             ? InkWell(
@@ -352,38 +359,57 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                   showModalBottomSheet(
                                     context: context,
                                     shape: const RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                                     ),
                                     builder: (context) => Container(
                                       padding: const EdgeInsets.all(24),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF9F9FB),
+                                        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                                      ),
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         crossAxisAlignment: CrossAxisAlignment.stretch,
                                         children: [
                                           const Text(
                                             'GCash P2P Proof of Payment',
-                                            style: TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
+                                            style: TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                              color: TeknoyTheme.citMaroon,
+                                              letterSpacing: -0.5,
+                                            ),
                                             textAlign: TextAlign.center,
                                           ),
-                                          const SizedBox(height: 16),
+                                          const SizedBox(height: 6),
+                                          const Text(
+                                            'Verify the reference details against your GCash account before completing meetup.',
+                                            style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                          const SizedBox(height: 20),
                                           Container(
-                                            padding: const EdgeInsets.all(16),
+                                            padding: const EdgeInsets.all(20),
                                             decoration: BoxDecoration(
-                                              color: Colors.blue.shade50,
-                                              borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(color: Colors.blue.shade200),
+                                              color: isDark ? const Color(0xFF141418) : Colors.blue.shade50,
+                                              borderRadius: BorderRadius.circular(16),
+                                              border: Border.all(
+                                                color: isDark ? const Color(0xFF22222A) : Colors.blue.shade200,
+                                              ),
                                             ),
-                                            child: const Column(
+                                            child: Column(
                                               children: [
-                                                Icon(Icons.receipt_long_rounded, color: Colors.blue, size: 40),
-                                                SizedBox(height: 8),
-                                                Text(
+                                                const Icon(Icons.receipt_long_rounded, color: Colors.blue, size: 44),
+                                                const SizedBox(height: 12),
+                                                const Text(
                                                   'GCASH Reference No: 9028 1123 4567',
-                                                  style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
+                                                  style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15),
                                                 ),
+                                                const SizedBox(height: 4),
                                                 Text(
-                                                  'Amount Transferred: ₱400.00',
-                                                  style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey),
+                                                  'Amount Transferred: ₱${widget.product.price.toStringAsFixed(2)}',
+                                                  style: const TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey),
                                                 ),
                                               ],
                                             ),
@@ -394,7 +420,13 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                               Expanded(
                                                 child: OutlinedButton(
                                                   onPressed: () => Navigator.pop(context),
-                                                  child: const Text('Close'),
+                                                  style: OutlinedButton.styleFrom(
+                                                    side: const BorderSide(color: Colors.grey),
+                                                    foregroundColor: Colors.grey,
+                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                                  ),
+                                                  child: const Text('Close', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
                                                 ),
                                               ),
                                               const SizedBox(width: 12),
@@ -409,8 +441,12 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                                       ),
                                                     );
                                                   },
-                                                  style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.success),
-                                                  child: const Text('Verify Proof'),
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: TeknoyTheme.success,
+                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                                  ),
+                                                  child: const Text('Verify Proof', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
                                                 ),
                                               ),
                                             ],
@@ -420,31 +456,49 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                     ),
                                   );
                                 },
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Container(
-                                    color: Colors.blue.shade700,
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.image_rounded, color: Colors.white, size: 24),
-                                        SizedBox(width: 8),
-                                        Column(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF1E3A5F) : Colors.blue.shade50,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF2B5B9C) : Colors.blue.shade200,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.receipt_long_rounded, color: Colors.blue, size: 28),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Text(
                                               'GCash Receipt.png',
-                                              style: TextStyle(fontFamily: 'Outfit', color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                              style: TextStyle(
+                                                fontFamily: 'Outfit',
+                                                color: isDark ? Colors.white : Colors.blue.shade900,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
-                                            Text(
-                                              'Tap to Verify P2P Proof',
-                                              style: TextStyle(fontFamily: 'Inter', color: Colors.white70, fontSize: 11),
+                                            const SizedBox(height: 2),
+                                            const Text(
+                                              'Tap to verify payment proof',
+                                              style: TextStyle(
+                                                fontFamily: 'Inter',
+                                                color: Colors.grey,
+                                                fontSize: 11,
+                                              ),
                                             ),
                                           ],
-                                        )
-                                      ],
-                                    ),
+                                        ),
+                                      ),
+                                      const Icon(Icons.verified_user_rounded, color: Colors.blue, size: 18),
+                                    ],
                                   ),
                                 ),
                               )
@@ -452,8 +506,9 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                 msg.content,
                                 style: TextStyle(
                                   fontFamily: 'Inter',
-                                  fontSize: 14,
-                                  color: isMe ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
+                                  fontSize: 14.5,
+                                  color: isMe ? Colors.white : (isDark ? Colors.white.withOpacity(0.9) : Colors.black87),
+                                  height: 1.35,
                                 ),
                               ),
                       ),

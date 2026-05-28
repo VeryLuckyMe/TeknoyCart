@@ -48,10 +48,16 @@ class ProductDetailsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        color: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF9F9FB),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -59,27 +65,45 @@ class ProductDetailsSheet extends ConsumerWidget {
           // Drag Indicator Bar
           Center(
             child: Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              margin: const EdgeInsets.only(top: 14, bottom: 10),
               width: 48,
               height: 5,
               decoration: BoxDecoration(
-                color: Colors.grey.shade400,
+                color: isDark ? const Color(0xFF2D2D36) : Colors.grey.shade300,
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
           ),
 
-          // Product Image & Exit Button
+          // Product Image & Exit Button with Hero Transition
           Expanded(
             flex: 6,
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Container(
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                      image: NetworkImage(product.imageUrl ?? ''),
-                      fit: BoxFit.cover,
+                Hero(
+                  tag: 'product_image_${product.id}',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: NetworkImage(product.imageUrl ?? ''),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
+                // Soft elegant overlay gradient on image
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.black.withOpacity(0.4),
+                          Colors.transparent,
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
                     ),
                   ),
                 ),
@@ -87,9 +111,9 @@ class ProductDetailsSheet extends ConsumerWidget {
                   top: 16,
                   right: 16,
                   child: CircleAvatar(
-                    backgroundColor: Colors.black.withOpacity(0.5),
+                    backgroundColor: Colors.black.withOpacity(0.55),
                     child: IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      icon: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ),
@@ -98,7 +122,7 @@ class ProductDetailsSheet extends ConsumerWidget {
             ),
           ),
 
-          // Detailed Specifications & Actions
+          // Detailed Specifications & Dynamic Actions
           Expanded(
             flex: 8,
             child: Padding(
@@ -113,39 +137,43 @@ class ProductDetailsSheet extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Category & Condition
+                          // Category & Condition Tags
                           Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                                 decoration: BoxDecoration(
-                                  color: TeknoyTheme.citMaroon.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.15 : 0.08),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: TeknoyTheme.citMaroon.withOpacity(0.2)),
                                 ),
                                 child: Text(
-                                  product.category,
+                                  product.category.toUpperCase(),
                                   style: const TextStyle(
                                     fontFamily: 'Outfit',
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
                                     color: TeknoyTheme.citMaroon,
+                                    letterSpacing: 0.8,
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                                 decoration: BoxDecoration(
-                                  color: TeknoyTheme.citGold.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: TeknoyTheme.citGold.withOpacity(isDark ? 0.15 : 0.08),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: TeknoyTheme.citGold.withOpacity(0.2)),
                                 ),
                                 child: Text(
-                                  product.condition,
+                                  product.condition.toUpperCase(),
                                   style: const TextStyle(
                                     fontFamily: 'Outfit',
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
                                     color: TeknoyTheme.citGold,
+                                    letterSpacing: 0.8,
                                   ),
                                 ),
                               ),
@@ -153,7 +181,7 @@ class ProductDetailsSheet extends ConsumerWidget {
                           ),
                           const SizedBox(height: 16),
 
-                          // Title & Price Info
+                          // Title & Price Info (State of the art layout)
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,17 +193,18 @@ class ProductDetailsSheet extends ConsumerWidget {
                                     fontFamily: 'Outfit',
                                     fontSize: 24,
                                     fontWeight: FontWeight.bold,
+                                    letterSpacing: -0.5,
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 12),
                               Text(
                                 '₱${product.price.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontFamily: 'Outfit',
                                   fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: TeknoyTheme.citGold,
+                                  fontWeight: FontWeight.w800,
+                                  color: TeknoyTheme.citMaroon,
                                 ),
                               ),
                             ],
@@ -188,7 +217,7 @@ class ProductDetailsSheet extends ConsumerWidget {
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 14,
-                              color: Theme.of(context).textTheme.bodyLarge?.color,
+                              color: isDark ? Colors.white70 : Colors.black87,
                               height: 1.5,
                             ),
                           ),
@@ -203,19 +232,23 @@ class ProductDetailsSheet extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const SizedBox(height: 8),
-                      // P2P Seller Card details
+                      // P2P Seller Card details with high-trust indicators
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
-                          border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
-                          borderRadius: BorderRadius.circular(12),
+                          color: isDark ? const Color(0xFF141418) : Colors.white,
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: TeknoyTheme.kElevationLow,
                         ),
                         child: Row(
                           children: [
                             const CircleAvatar(
                               backgroundColor: TeknoyTheme.citMaroon,
-                              child: Icon(Icons.person, color: Colors.white),
+                              radius: 20,
+                              child: Icon(Icons.person_rounded, color: Colors.white, size: 20),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -229,7 +262,7 @@ class ProductDetailsSheet extends ConsumerWidget {
                                         snapshot.data ?? 'Wildcat Student Seller',
                                         style: const TextStyle(
                                           fontFamily: 'Outfit',
-                                          fontSize: 14,
+                                          fontSize: 15,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       );
@@ -247,25 +280,33 @@ class ProductDetailsSheet extends ConsumerWidget {
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(4),
+                                color: Colors.green.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.green.withOpacity(0.3)),
                               ),
-                              child: const Text(
-                                '98% Trust',
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green,
-                                ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.verified_user_rounded, color: Colors.green, size: 12),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    '98% TRUST',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.green,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 18),
 
                       // Action Button Deck
                       Row(
@@ -324,12 +365,18 @@ class ProductDetailsSheet extends ConsumerWidget {
                                   );
                                 }
                               },
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
+                                foregroundColor: TeknoyTheme.citMaroon,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                              ),
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                                  Icon(Icons.chat_bubble_outline_rounded, size: 18),
                                   SizedBox(width: 8),
-                                  Text('Chat Seller'),
+                                  Text('Chat Seller', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15)),
                                 ],
                               ),
                             ),
@@ -348,8 +395,18 @@ class ProductDetailsSheet extends ConsumerWidget {
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: TeknoyTheme.citMaroon,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                elevation: 0,
                               ),
-                              child: const Text('Buy Now'),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.shopping_cart_checkout_rounded, size: 18, color: Colors.white),
+                                  SizedBox(width: 8),
+                                  Text('Buy Now', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15)),
+                                ],
+                              ),
                             ),
                           ),
                         ],

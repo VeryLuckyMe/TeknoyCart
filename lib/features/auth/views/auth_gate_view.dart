@@ -1,10 +1,10 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/core/theme.dart';
 
-/// Authentication gate view matching Figma "Login Screen" (Node 1:2).
-/// Layout: 390×884, white card on #f8f9fa background.
+/// Authentication gate view upgraded to a premium, world-class mobile visual standard.
 class AuthGateView extends ConsumerStatefulWidget {
   const AuthGateView({super.key});
 
@@ -35,7 +35,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
       vsync: this,
       duration: const Duration(milliseconds: 500),
     )..forward();
-    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOutCubic);
   }
 
   @override
@@ -87,11 +87,28 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
         error: (err, _) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(err.toString().replaceAll('Exception: ', '')),
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      err.toString().replaceAll('Exception: ', ''),
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               backgroundColor: TeknoyTheme.error,
               behavior: SnackBarBehavior.floating,
               margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              elevation: 4,
             ),
           );
         },
@@ -99,360 +116,500 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     });
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            child: Column(
-              children: [
-                // ── Logo area above the card ──────────────────────────────
-                const SizedBox(height: 40),
-                // TeknoyCart circular logo
-                Container(
-                  width: 96,
-                  height: 96,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: TeknoyTheme.citMaroon,
-                    boxShadow: [
-                      BoxShadow(
-                        color: TeknoyTheme.citMaroon.withOpacity(0.30),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.shopping_basket_rounded,
-                    size: 48,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'TeknoyCart',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: TeknoyTheme.citMaroon,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
+      body: Stack(
+        children: [
+          // ── Premium Ambient Background Gradient ────────────────────────
+          Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFF0F0A0A),
+            ),
+          ),
+          // Blur circle 1 (Maroon)
+          Positioned(
+            top: -100,
+            left: -50,
+            child: Container(
+              width: 320,
+              height: 320,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: TeknoyTheme.citMaroon.withOpacity(0.35),
+              ),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 90, sigmaY: 90),
+                child: Container(color: Colors.transparent),
+              ),
+            ),
+          ),
+          // Blur circle 2 (Gold Accent)
+          Positioned(
+            bottom: 50,
+            right: -80,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: TeknoyTheme.citGold.withOpacity(0.20),
+              ),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
+                child: Container(color: Colors.transparent),
+              ),
+            ),
+          ),
 
-                // ── White card (Figma: Background+Border+Shadow, cornerRadius: 12) ─
-                const SizedBox(height: 20),
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE0E0E0)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.fromLTRB(25, 24, 25, 24),
-                  child: Form(
-                    key: _formKey,
-                    child: FadeTransition(
-                      opacity: _fadeAnim,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // ── Heading ──────────────────────────────────────
-                          Text(
-                            _isLoginTab ? 'Welcome Back' : 'Create Account',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 28,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF191C1D),
-                              letterSpacing: 0,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _isLoginTab
-                                ? 'Sign in to continue to TeknoyCart.'
-                                : 'Join the CIT-U student marketplace.',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                              color: Color(0xFF5A413D),
-                              letterSpacing: 0.25,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // ── First Name & Last Name (register only) ───────
-                          if (!_isLoginTab) ...[
-                            _buildInputField(
-                              controller: _firstNameController,
-                              label: 'First Name',
-                              icon: Icons.person_outline_rounded,
-                              validator: (val) {
-                                if (val == null || val.trim().isEmpty) {
-                                  return 'Please enter your first name';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            _buildInputField(
-                              controller: _lastNameController,
-                              label: 'Last Name',
-                              icon: Icons.person_outline_rounded,
-                              validator: (val) {
-                                if (val == null || val.trim().isEmpty) {
-                                  return 'Please enter your last name';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            _buildInputField(
-                              controller: _studentIdController,
-                              label: 'Student ID Number (##-####-###)',
-                              icon: Icons.badge_outlined,
-                              keyboardType: TextInputType.phone,
-                              validator: (val) {
-                                if (val == null || val.trim().isEmpty) {
-                                  return 'Please enter your student ID';
-                                }
-                                final trimmed = val.trim();
-                                final studentIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
-                                if (!studentIdRegex.hasMatch(trimmed)) {
-                                  return 'Format must be ##-####-###';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            // ── Role Selector Dropdown ──────────────────────
-                            Theme(
-                              data: Theme.of(context).copyWith(
-                                canvasColor: Colors.white,
-                              ),
-                              child: DropdownButtonFormField<String>(
-                                value: _selectedRole,
-                                dropdownColor: Colors.white,
-                                style: const TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 14,
-                                  color: Color(0xFF191C1D),
-                                ),
-                                decoration: InputDecoration(
-                                  labelText: 'Registration Role',
-                                  labelStyle: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w400,
-                                    color: Color(0xFF5A413D),
-                                    letterSpacing: 0.25,
-                                  ),
-                                  prefixIcon: const Icon(
-                                    Icons.assignment_ind_outlined,
-                                    color: Color(0xFF5A413D),
-                                    size: 20,
-                                  ),
-                                  filled: false,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
-                                    borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
-                                    borderSide: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
-                                  ),
-                                ),
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: 'BUYER',
-                                    child: Text(
-                                      'Student Buyer (Browse & Inquire)',
-                                      style: TextStyle(color: Color(0xFF191C1D)),
-                                    ),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'SELLER',
-                                    child: Text(
-                                      'Campus Vendor / Seller (List & Sell)',
-                                      style: TextStyle(color: Color(0xFF191C1D)),
-                                    ),
-                                  ),
-                                ],
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setState(() => _selectedRole = val);
-                                  }
-                                },
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-
-                          // ── CIT-U Email ───────────────────────────────
-                          _buildInputField(
-                            controller: _emailController,
-                            label: 'CIT-U Email',
-                            icon: Icons.email_outlined,
-                            keyboardType: TextInputType.emailAddress,
-                            validator: (val) {
-                              if (val == null || val.trim().isEmpty) {
-                                  return 'Please enter your email';
-                              }
-                              final email = val.trim().toLowerCase();
-                              if (!email.endsWith('@cit.edu')) {
-                                return 'Only @cit.edu emails are permitted';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // ── Password ──────────────────────────────────
-                          _buildInputField(
-                            controller: _passwordController,
-                            label: 'Password',
-                            icon: Icons.lock_outline_rounded,
-                            obscureText: _obscurePassword,
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_off_outlined
-                                    : Icons.visibility_outlined,
-                                color: const Color(0xFF5A413D),
-                                size: 20,
-                              ),
-                              onPressed: () =>
-                                  setState(() => _obscurePassword = !_obscurePassword),
-                            ),
-                            validator: (val) {
-                              if (val == null || val.isEmpty) {
-                                return 'Please enter your password';
-                              }
-                              if (val.length < 6) {
-                                return 'Password must be at least 6 characters';
-                              }
-                              return null;
-                            },
-                          ),
-
-                          // ── Forgot Password link ──────────────────────
-                          if (_isLoginTab) ...[
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: () {},
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                child: const Text(
-                                  'Forgot Password?',
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: TeknoyTheme.citMaroon,
-                                    letterSpacing: 0.1,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-
-                          // ── Login / Register Button ────────────────────
-                          // Figma: #570000, cornerRadius: 12, height: 48
-                          SizedBox(
-                            height: 48,
-                            child: ElevatedButton(
-                              key: const Key('auth-submit-btn'),
-                              onPressed: authState.isLoading ? null : _submitForm,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: TeknoyTheme.citMaroon,
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: authState.isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : Text(
-                                      _isLoginTab ? 'Login' : 'Create Account',
-                                      style: const TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                        letterSpacing: 0.15,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-                // ── Sign up / Sign in link below card ─────────────────────
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+          // ── Main Content Scrollable View ────────────────────────────────
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                child: Column(
                   children: [
-                    Text(
-                      _isLoginTab
-                          ? "Don't have an account? "
-                          : 'Already have an account? ',
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: Color(0xFF5A413D),
-                        letterSpacing: 0.25,
+                    const SizedBox(height: 10),
+                    // Elegant Premium Logo Badge
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: TeknoyTheme.citGold.withOpacity(0.4),
+                          width: 1.5,
+                        ),
                       ),
-                    ),
-                    GestureDetector(
-                      onTap: () => _switchTab(!_isLoginTab),
-                      child: Text(
-                        _isLoginTab ? 'Sign up' : 'Sign in',
-                        style: const TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: TeknoyTheme.citMaroon,
-                          letterSpacing: 0.15,
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [
+                              TeknoyTheme.citMaroon,
+                              TeknoyTheme.citMaroonDark,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: TeknoyTheme.citMaroon.withOpacity(0.5),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.shopping_basket_rounded,
+                          size: 38,
+                          color: Colors.white,
                         ),
                       ),
                     ),
+                    const SizedBox(height: 14),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Teknoy',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        Text(
+                          'Cart',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: TeknoyTheme.citGold,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'CIT-U STUDENT MARKETPLACE',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withOpacity(0.5),
+                        letterSpacing: 2.0,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ── Glassmorphic Form Card ─────────────────────────────────
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.12),
+                            width: 1,
+                          ),
+                        ),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                            child: Form(
+                              key: _formKey,
+                              child: FadeTransition(
+                                opacity: _fadeAnim,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      _isLoginTab ? 'Welcome Back' : 'Create Account',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        letterSpacing: -0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      _isLoginTab
+                                          ? 'Sign in to access student deals.'
+                                          : 'Join the premium campus market.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w400,
+                                        color: Colors.white.withOpacity(0.6),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+
+                                    // Register-Only Fields
+                                    if (!_isLoginTab) ...[
+                                      _buildInputField(
+                                        controller: _firstNameController,
+                                        label: 'First Name',
+                                        icon: Icons.person_outline_rounded,
+                                        validator: (val) {
+                                          if (val == null || val.trim().isEmpty) {
+                                            return 'Please enter your first name';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildInputField(
+                                        controller: _lastNameController,
+                                        label: 'Last Name',
+                                        icon: Icons.person_outline_rounded,
+                                        validator: (val) {
+                                          if (val == null || val.trim().isEmpty) {
+                                            return 'Please enter your last name';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildInputField(
+                                        controller: _studentIdController,
+                                        label: 'Student ID (##-####-###)',
+                                        icon: Icons.badge_outlined,
+                                        keyboardType: TextInputType.phone,
+                                        validator: (val) {
+                                          if (val == null || val.trim().isEmpty) {
+                                            return 'Please enter your student ID';
+                                          }
+                                          final trimmed = val.trim();
+                                          final studentIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
+                                          if (!studentIdRegex.hasMatch(trimmed)) {
+                                            return 'Format must be ##-####-###';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: 20),
+
+                                      // ── Bento Segmented Role Selector ────────────────
+                                      const Text(
+                                        'Select Your Campus Role',
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: _buildRoleCard(
+                                              role: 'BUYER',
+                                              title: 'Buyer',
+                                              desc: 'Browse & purchase',
+                                              icon: Icons.shopping_bag_outlined,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: _buildRoleCard(
+                                              role: 'SELLER',
+                                              title: 'Seller',
+                                              desc: 'List & trade products',
+                                              icon: Icons.storefront_outlined,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+                                    ],
+
+                                    // CIT-U Email
+                                    _buildInputField(
+                                      controller: _emailController,
+                                      label: 'CIT-U Email',
+                                      icon: Icons.email_outlined,
+                                      keyboardType: TextInputType.emailAddress,
+                                      validator: (val) {
+                                        if (val == null || val.trim().isEmpty) {
+                                          return 'Please enter your email';
+                                        }
+                                        final email = val.trim().toLowerCase();
+                                        if (!email.endsWith('@cit.edu')) {
+                                          return 'Only @cit.edu emails are permitted';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    const SizedBox(height: 16),
+
+                                    // Password
+                                    _buildInputField(
+                                      controller: _passwordController,
+                                      label: 'Password',
+                                      icon: Icons.lock_outline_rounded,
+                                      obscureText: _obscurePassword,
+                                      suffixIcon: IconButton(
+                                        icon: Icon(
+                                          _obscurePassword
+                                              ? Icons.visibility_off_outlined
+                                              : Icons.visibility_outlined,
+                                          color: Colors.white60,
+                                          size: 20,
+                                        ),
+                                        onPressed: () =>
+                                            setState(() => _obscurePassword = !_obscurePassword),
+                                      ),
+                                      validator: (val) {
+                                        if (val == null || val.isEmpty) {
+                                          return 'Please enter your password';
+                                        }
+                                        if (val.length < 6) {
+                                          return 'Password must be at least 6 characters';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+
+                                    // Forgot Password
+                                    if (_isLoginTab) ...[
+                                      const SizedBox(height: 6),
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton(
+                                          onPressed: () {},
+                                          style: TextButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          child: Text(
+                                            'Forgot Password?',
+                                            style: TextStyle(
+                                              fontFamily: 'Inter',
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: TeknoyTheme.citGold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 24),
+
+                                    // Login/Register Button
+                                    SizedBox(
+                                      height: 52,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(16),
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              TeknoyTheme.citMaroonLight,
+                                              TeknoyTheme.citMaroon,
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: TeknoyTheme.citMaroon.withOpacity(0.4),
+                                              blurRadius: 12,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: ElevatedButton(
+                                          key: const Key('auth-submit-btn'),
+                                          onPressed: authState.isLoading ? null : _submitForm,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.transparent,
+                                            foregroundColor: Colors.white,
+                                            shadowColor: Colors.transparent,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(16),
+                                            ),
+                                          ),
+                                          child: authState.isLoading
+                                              ? const SizedBox(
+                                                  height: 22,
+                                                  width: 22,
+                                                  child: CircularProgressIndicator(
+                                                    color: Colors.white,
+                                                    strokeWidth: 2.5,
+                                                  ),
+                                                )
+                                              : Text(
+                                                  _isLoginTab ? 'Login' : 'Create Account',
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Outfit',
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.bold,
+                                                    letterSpacing: 0.5,
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // ── Sign up / Sign in link below card ─────────────────────
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _isLoginTab
+                              ? "Don't have an account? "
+                              : 'Already have an account? ',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white.withOpacity(0.7),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => _switchTab(!_isLoginTab),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            child: Text(
+                              _isLoginTab ? 'Sign up' : 'Sign in',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: TeknoyTheme.citGold,
+                                decoration: TextDecoration.underline,
+                                decorationColor: TeknoyTheme.citGold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
                   ],
                 ),
-                const SizedBox(height: 32),
-              ],
+              ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoleCard({
+    required String role,
+    required String title,
+    required String desc,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedRole == role;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedRole = role),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? TeknoyTheme.citMaroon.withOpacity(0.15)
+              : Colors.white.withOpacity(0.03),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? TeknoyTheme.citGold
+                : Colors.white.withOpacity(0.08),
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 28,
+              color: isSelected ? TeknoyTheme.citGold : Colors.white60,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? Colors.white : Colors.white70,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              desc,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 10,
+                color: Colors.white38,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -474,36 +631,41 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
       style: const TextStyle(
         fontFamily: 'Inter',
         fontSize: 14,
-        color: Color(0xFF191C1D),
+        color: Colors.white,
       ),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(
+        labelStyle: TextStyle(
           fontFamily: 'Inter',
-          fontSize: 14,
+          fontSize: 13,
           fontWeight: FontWeight.w400,
-          color: Color(0xFF5A413D),
-          letterSpacing: 0.25,
+          color: Colors.white.withOpacity(0.5),
         ),
-        prefixIcon: Icon(icon, color: const Color(0xFF5A413D), size: 20),
+        prefixIcon: Icon(icon, color: Colors.white60, size: 20),
         suffixIcon: suffixIcon,
-        filled: false,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.03),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(4),
-          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(4),
-          borderSide: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: TeknoyTheme.citGold, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(4),
-          borderSide: const BorderSide(color: Color(0xFFB3261E)),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: TeknoyTheme.error, width: 1),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(4),
-          borderSide: const BorderSide(color: Color(0xFFB3261E), width: 1.5),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: TeknoyTheme.error, width: 1.5),
+        ),
+        errorStyle: const TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 11,
+          color: TeknoyTheme.error,
         ),
       ),
       validator: validator,

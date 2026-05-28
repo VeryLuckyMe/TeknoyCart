@@ -202,92 +202,154 @@ class _InboxViewState extends ConsumerState<InboxView> {
                         ],
                       ),
                     )
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(12),
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       itemCount: _chatRooms.length,
-                      separatorBuilder: (context, index) => const Divider(),
                       itemBuilder: (context, index) {
                         final room = _chatRooms[index];
                         final Product product = room['product'];
                         final String lastMsg = room['last_message'];
                         final isGcashProof = lastMsg.contains('[GCASH_RECEIPT_PROOF]');
+                        final isDark = Theme.of(context).brightness == Brightness.dark;
 
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage: NetworkImage(product.imageUrl ?? ''),
-                            radius: 26,
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF141418) : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                              width: 1,
+                            ),
+                            boxShadow: TeknoyTheme.kElevationLow,
                           ),
-                          title: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                room['other_user_name'] as String,
-                                style: const TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              leading: Container(
+                                padding: const EdgeInsets.all(2),
                                 decoration: BoxDecoration(
-                                  color: room['other_user_role'] == 'Seller'
-                                      ? TeknoyTheme.citMaroon.withOpacity(0.1)
-                                      : TeknoyTheme.citGold.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  room['other_user_role'] as String,
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: room['other_user_role'] == 'Seller'
-                                        ? TeknoyTheme.citMaroon
-                                        : TeknoyTheme.citGold,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: TeknoyTheme.citMaroon.withOpacity(0.2),
+                                    width: 1.5,
                                   ),
                                 ),
+                                child: CircleAvatar(
+                                  backgroundImage: NetworkImage(product.imageUrl ?? ''),
+                                  radius: 26,
+                                  backgroundColor: isDark ? const Color(0xFF1C1C22) : const Color(0xFFEDEEEF),
+                                ),
                               ),
-                            ],
+                              title: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    room['other_user_name'] as String,
+                                    style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: room['other_user_role'] == 'Seller'
+                                          ? TeknoyTheme.citMaroon.withOpacity(0.12)
+                                          : TeknoyTheme.citGold.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: room['other_user_role'] == 'Seller'
+                                            ? TeknoyTheme.citMaroon.withOpacity(0.3)
+                                            : TeknoyTheme.citGold.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      (room['other_user_role'] as String).toUpperCase(),
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: room['other_user_role'] == 'Seller'
+                                            ? TeknoyTheme.citMaroon
+                                            : const Color(0xFF6F5400),
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF1F1F5),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'Item: ${product.title}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.white60 : Colors.black54,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      if (isGcashProof) ...[
+                                        const Icon(Icons.receipt_long_rounded, size: 14, color: Colors.blue),
+                                        const SizedBox(width: 6),
+                                      ] else ...[
+                                        Icon(Icons.chat_bubble_outline_rounded, size: 13, color: isDark ? Colors.white30 : Colors.grey),
+                                        const SizedBox(width: 6),
+                                      ],
+                                      Expanded(
+                                        child: Text(
+                                          isGcashProof ? 'GCash Receipt Attached' : lastMsg,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 13,
+                                            color: isGcashProof
+                                                ? Colors.blue
+                                                : (isDark ? Colors.white70 : Colors.grey.shade800),
+                                            fontWeight: isGcashProof ? FontWeight.bold : FontWeight.normal,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              trailing: Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 14,
+                                color: isDark ? Colors.white30 : Colors.grey.shade400,
+                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ChatView(
+                                      product: product,
+                                      roomId: room['chat_id'] as String,
+                                    ),
+                                  ),
+                                ).then((_) => _loadChatRooms());
+                              },
+                            ),
                           ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 4),
-                              Text(
-                                'Regarding: ${product.title}',
-                                style: const TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                isGcashProof ? '📷 GCash Proof of Payment' : lastMsg,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 13,
-                                  color: isGcashProof ? Colors.blue : Colors.grey.shade700,
-                                  fontWeight: isGcashProof ? FontWeight.bold : FontWeight.normal,
-                                ),
-                              ),
-                            ],
-                          ),
-                          trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ChatView(
-                                  product: product,
-                                  roomId: room['chat_id'] as String,
-                                ),
-                              ),
-                            ).then((_) => _loadChatRooms());
-                          },
                         );
                       },
                     ),

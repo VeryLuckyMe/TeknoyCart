@@ -1749,87 +1749,128 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       height: 166,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF18181C) : const Color(0xFFF3F4F5),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark ? const Color(0xFF282830) : const Color(0xFFE0E0E0),
-          width: 1,
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF3A0000), const Color(0xFF180E02)]
+              : [const Color(0xFFFFF0F0), const Color(0xFFFFF9E6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF5A1D1D) : const Color(0xFFFFD5D5),
+          width: 1.5,
+        ),
+        boxShadow: TeknoyTheme.kElevationLow,
       ),
-      child: Row(
-        children: [
-          // Left Content
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(left: 16.0, top: 16.0, bottom: 16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Gold badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                    decoration: BoxDecoration(
-                      color: TeknoyTheme.citGold,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      'CAMPUS DEAL',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w500,
-                        fontSize: 11,
-                        color: Color(0xFF6F5400),
-                        letterSpacing: 0.55,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // Title
-                  const Text(
-                    'Pre-Loved\nEngineering Books',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 20,
-                      height: 1.2,
-                      color: TeknoyTheme.citMaroon,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  // Subtitle
-                  const Text(
-                    'Up to 40% off from senior\nstudents. Limited time only.',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w400,
-                      fontSize: 12,
-                      color: Color(0xFF5A413D),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Right Content: Stack of books image
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF25252A) : const Color(0xFFEDEEEF),
-                borderRadius: BorderRadius.circular(8),
-                image: const DecorationImage(
-                  image: NetworkImage(
-                    'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&q=80&w=200',
-                  ),
-                  fit: BoxFit.cover,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            // Decorative glow circle
+            Positioned(
+              right: -50,
+              top: -50,
+              width: 150,
+              height: 150,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: TeknoyTheme.citGold.withOpacity(isDark ? 0.08 : 0.15),
+                  shape: BoxShape.circle,
                 ),
               ),
             ),
-          ),
-        ],
+            Row(
+              children: [
+                // Left Content
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Dynamic Gold badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
+                          decoration: BoxDecoration(
+                            color: TeknoyTheme.citGold,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              )
+                            ],
+                          ),
+                          child: const Text(
+                            '🔥 EXCLUSIVE OFFER',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w800,
+                              fontSize: 10,
+                              color: Color(0xFF6F5400),
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        // Title
+                        Text(
+                          'Pre-Loved\nEngineering Books',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 20,
+                            height: 1.15,
+                            color: isDark ? Colors.white : TeknoyTheme.citMaroon,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        // Subtitle
+                        Text(
+                          'Up to 40% off from senior students. Limited time only.',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontWeight: FontWeight.w500,
+                            fontSize: 11,
+                            color: isDark ? Colors.white60 : const Color(0xFF5A413D),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Right Content: Stack of books image with drop shadow
+                Padding(
+                  padding: const EdgeInsets.only(right: 20.0, top: 16.0, bottom: 16.0),
+                  child: Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF25252A) : const Color(0xFFEDEEEF),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.12),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        )
+                      ],
+                      image: const DecorationImage(
+                        image: NetworkImage(
+                          'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&q=80&w=200',
+                        ),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1843,178 +1884,198 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     if (product.condition.toLowerCase() == 'new') {
       badgeBg = const Color(0xFF10B981); // Emerald Green
       badgeText = Colors.white;
+    } else if (product.condition.toLowerCase() == 'like new') {
+      badgeBg = TeknoyTheme.citGold;
+      badgeText = const Color(0xFF533F00);
     } else {
-      badgeBg = TeknoyTheme.citGold; // Gold
-      badgeText = const Color(0xFF6F5400);
+      badgeBg = isDark ? const Color(0xFF2C2C35) : const Color(0xFFECECEF);
+      badgeText = isDark ? Colors.white70 : Colors.black87;
     }
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF18181C) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: isDark ? const Color(0xFF141418) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? const Color(0xFF282830) : const Color(0xFFE0E0E0),
+          color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
           width: 1,
         ),
+        boxShadow: TeknoyTheme.kElevationLow,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 1. Square Image Container (169x169 relative proportion)
-          AspectRatio(
-            aspectRatio: 1.0,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
-              child: Container(
-                color: isDark ? const Color(0xFF25252A) : const Color(0xFFEDEEEF),
-                child: Stack(
-                  children: [
-                    // Product image
-                    Positioned.fill(
-                      child: product.imageUrl != null && product.imageUrl!.isNotEmpty
-                          ? Image.network(
-                              product.imageUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => const Center(
-                                child: Icon(Icons.image_not_supported_rounded, color: Colors.grey, size: 36),
-                              ),
-                            )
-                          : const Center(
-                              child: Icon(Icons.image_rounded, color: Colors.grey, size: 36),
-                            ),
-                    ),
-                    
-                    // Condition Badge (top-left)
-                    Positioned(
-                      top: 8,
-                      left: 8,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1. Square Image Container (with Hero transition and condition tags)
+            AspectRatio(
+              aspectRatio: 1.0,
+              child: Stack(
+                children: [
+                  // Image
+                  Positioned.fill(
+                    child: Hero(
+                      tag: 'product_image_${product.id}',
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                        decoration: BoxDecoration(
-                          color: badgeBg,
-                          borderRadius: BorderRadius.circular(4),
+                        color: isDark ? const Color(0xFF1C1C22) : const Color(0xFFF3F3F5),
+                        child: product.imageUrl != null && product.imageUrl!.isNotEmpty
+                            ? Image.network(
+                                product.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => const Center(
+                                  child: Icon(Icons.image_not_supported_rounded, color: Colors.grey, size: 28),
+                                ),
+                              )
+                            : const Center(
+                                child: Icon(Icons.image_rounded, color: Colors.grey, size: 28),
+                              ),
+                      ),
+                    ),
+                  ),
+                  
+                  // Condition Badge (top-left) - modern rounded tag
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
+                      decoration: BoxDecoration(
+                        color: badgeBg.withOpacity(0.95),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          )
+                        ],
+                      ),
+                      child: Text(
+                        product.condition.toUpperCase(),
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w800,
+                          fontSize: 9,
+                          color: badgeText,
+                          letterSpacing: 0.8,
                         ),
+                      ),
+                    ),
+                  ),
+
+                  // Wishlist / Favorite Button (top-right) - premium glassmorphism
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.85),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.favorite_rounded,
+                          size: 16,
+                          color: TeknoyTheme.citMaroon,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // 2. Dense Layout Info Area
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Rating & Category Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.star_rounded, size: 13, color: TeknoyTheme.citGold),
+                            const SizedBox(width: 3),
+                            Text(
+                              '4.8',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                                color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF1F1F5),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            product.category,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontWeight: FontWeight.bold,
+                              fontSize: 9,
+                              color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // Title
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6.0),
                         child: Text(
-                          product.condition,
-                          style: TextStyles.badgeStyle(badgeText),
+                          product.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            height: 1.25,
+                            color: isDark ? Colors.white : const Color(0xFF191C1D),
+                          ),
                         ),
                       ),
                     ),
 
-                    // Wishlist / Favorite Button (top-right)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        width: 26,
-                        height: 26,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 4,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.favorite_border_rounded,
-                            size: 14,
-                            color: TeknoyTheme.citMaroon,
-                          ),
-                        ),
+                    // Price - prominent burgundy highlight
+                    Text(
+                      '₱${product.price.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        color: TeknoyTheme.citMaroon,
+                        letterSpacing: -0.5,
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-          ),
-
-          // 2. Info Area
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Rating line
-                  Row(
-                    children: [
-                      const Icon(Icons.star_rounded, size: 12, color: TeknoyTheme.citGold),
-                      const SizedBox(width: 4),
-                      Text(
-                        '4.8 (12)',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.w500,
-                          fontSize: 11,
-                          color: isDark ? Colors.white70 : const Color(0xFF5A413D),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-
-                  // Title (Official CIT-U...)
-                  Expanded(
-                    child: Text(
-                      product.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w500,
-                        fontSize: 15,
-                        height: 1.2,
-                        color: isDark ? Colors.white : const Color(0xFF191C1D),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-
-                  // Price and Category/Tag row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Price
-                      Text(
-                        '₱${product.price.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 20,
-                          color: TeknoyTheme.citMaroon,
-                        ),
-                      ),
-                      // Tag
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF25252A) : const Color(0xFFEDEEEF),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          product.category,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontWeight: FontWeight.w500,
-                            fontSize: 10,
-                            color: isDark ? Colors.white70 : const Color(0xFF5A413D),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

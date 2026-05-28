@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
@@ -6,8 +7,7 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/reports/views/financial_reports_view.dart';
 import 'package:teknoycart/features/chat/views/inbox_view.dart';
 
-/// Contextual slide-out Navigation Drawer for TeknoyCart.
-/// Provides links to manage listings, order history, and view active sessions.
+/// Upgraded sliding Navigation Drawer reflecting a multi-billion-dollar brand layout.
 class TeknoyNavigationDrawer extends ConsumerWidget {
   const TeknoyNavigationDrawer({super.key});
 
@@ -16,7 +16,8 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
     final userAsync = ref.watch(authStateProvider);
 
     return Drawer(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFF0F0A0A),
+      elevation: 16,
       child: userAsync.when(
         data: (user) {
           if (user == null) return const SizedBox();
@@ -24,129 +25,284 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Drawer User Header Card with CIT-U Maroon Branding
-              UserAccountsDrawerHeader(
-                decoration: const BoxDecoration(
-                  color: TeknoyTheme.citMaroon,
-                  image: DecorationImage(
-                    image: NetworkImage(
-                      'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&q=80&w=400',
-                    ),
-                    fit: BoxFit.cover,
-                    opacity: 0.15,
+              // ── Premium Glassmorphic User Header ───────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      TeknoyTheme.citMaroon.withOpacity(0.9),
+                      TeknoyTheme.citMaroonDark.withOpacity(0.95),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ),
-                currentAccountPicture: CircleAvatar(
-                  backgroundColor: TeknoyTheme.citGold,
-                  child: Text(
-                    user.username[0].toUpperCase(),
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
+                  border: const Border(
+                    bottom: BorderSide(
+                      color: Colors.white10,
+                      width: 1,
                     ),
                   ),
                 ),
-                accountName: Text(
-                  user.username,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        // Dynamic outer ring avatar
+                        Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: TeknoyTheme.citGold,
+                              width: 2,
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            radius: 28,
+                            backgroundColor: TeknoyTheme.citMaroonLight,
+                            backgroundImage: user.avatarUrl != null
+                                ? NetworkImage(user.avatarUrl!)
+                                : null,
+                            child: user.avatarUrl == null
+                                ? Text(
+                                    user.username[0].toUpperCase(),
+                                    style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Role Badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: TeknoyTheme.citGold.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(100),
+                                  border: Border.all(
+                                    color: TeknoyTheme.citGold.withOpacity(0.4),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.verified_user_rounded,
+                                      size: 11,
+                                      color: TeknoyTheme.citGold,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      user.studentId != null ? 'VERIFIED STUDENT' : 'CIT-U TECH MEMBER',
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                        color: TeknoyTheme.citGold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                user.username,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    // Contact/Department stats strip
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.school_outlined, size: 16, color: Colors.white.withOpacity(0.6)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              user.email,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.7),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Premium Custom Bento Drawer Options ───────────────────
+              Expanded(
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  children: [
+                    _buildNavTile(
+                      context,
+                      icon: Icons.storefront_rounded,
+                      title: 'Marketplace Feed',
+                      isActive: true,
+                      onTap: () => Navigator.pop(context),
+                    ),
+                    _buildNavTile(
+                      context,
+                      icon: Icons.forum_outlined,
+                      title: 'Negotiation Chats',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const InboxView()),
+                        );
+                      },
+                    ),
+                    _buildNavTile(
+                      context,
+                      icon: Icons.analytics_outlined,
+                      title: 'Financial Reports',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const FinancialReportsView()),
+                        );
+                      },
+                    ),
+                    _buildNavTile(
+                      context,
+                      icon: Icons.loyalty_rounded,
+                      title: 'Manage My Listings',
+                      onTap: () {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Manage Listings view coming in Phase 4!'),
+                            backgroundColor: TeknoyTheme.citMaroon,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildNavTile(
+                      context,
+                      icon: Icons.receipt_long_rounded,
+                      title: 'Order History',
+                      onTap: () {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Order History coming in Phase 4!'),
+                            backgroundColor: TeknoyTheme.citMaroon,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        );
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      child: Divider(color: Colors.white.withOpacity(0.08)),
+                    ),
+                    _buildNavTile(
+                      context,
+                      icon: Icons.settings_outlined,
+                      title: 'Settings',
+                      onTap: () => Navigator.pop(context),
+                    ),
+                    _buildNavTile(
+                      context,
+                      icon: Icons.logout_rounded,
+                      title: 'Sign Out',
+                      isDanger: true,
+                      onTap: () {
+                        Navigator.pop(context);
+                        ref.read(authNotifierProvider.notifier).logout();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              // Institutional Premium Tech Label
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: Colors.white.withOpacity(0.05),
+                      width: 1,
+                    ),
                   ),
                 ),
-                accountEmail: Text(
-                  user.email,
-                  style: const TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12,
-                    color: Colors.white70,
-                  ),
-                ),
-              ),
-
-              // Drawer Nav Options List
-              ListTile(
-                leading: const Icon(Icons.storefront_rounded, color: TeknoyTheme.citMaroon),
-                title: const Text('Marketplace Feed', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-                selected: true,
-                selectedColor: TeknoyTheme.citMaroon,
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.forum_outlined, color: Colors.grey),
-                title: const Text('Negotiation Chats', style: TextStyle(fontFamily: 'Outfit')),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const InboxView()),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.analytics_outlined, color: Colors.grey),
-                title: const Text('Financial Reports', style: TextStyle(fontFamily: 'Outfit')),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const FinancialReportsView()),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.loyalty_rounded, color: Colors.grey),
-                title: const Text('Manage My Listings', style: TextStyle(fontFamily: 'Outfit')),
-                onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Manage Listings view coming in Phase 4!')),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.receipt_long_rounded, color: Colors.grey),
-                title: const Text('Order History', style: TextStyle(fontFamily: 'Outfit')),
-                onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Order History coming in Phase 4!')),
-                  );
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.settings_outlined, color: Colors.grey),
-                title: const Text('Settings', style: TextStyle(fontFamily: 'Outfit')),
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.logout_rounded, color: Colors.grey),
-                title: const Text('Sign Out', style: TextStyle(fontFamily: 'Outfit')),
-                onTap: () {
-                  Navigator.pop(context);
-                  ref.read(authNotifierProvider.notifier).logout();
-                },
-              ),
-
-              const Spacer(),
-
-              // Institutional Signature Label
-              const Padding(
-                padding: EdgeInsets.all(16.0),
                 child: Column(
                   children: [
-                    Text(
-                      'TeknoyCart v1.0.0',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontFamily: 'Outfit', fontSize: 12, color: Colors.grey),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.security_rounded,
+                          size: 14,
+                          color: TeknoyTheme.citGold.withOpacity(0.6),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'TeknoyCart Platform v1.0.0',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white.withOpacity(0.4),
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 4),
                     Text(
-                      'CIT-U Lead Engineering Guild',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontFamily: 'Inter', fontSize: 10, color: Colors.grey),
+                      'CIT-U LEAD ENGINEERING GUILD',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withOpacity(0.25),
+                        letterSpacing: 1.0,
+                      ),
                     ),
                   ],
                 ),
@@ -155,12 +311,77 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
           );
         },
         loading: () => const Center(
-          child: CircularProgressIndicator(color: TeknoyTheme.citMaroon),
+          child: CircularProgressIndicator(color: TeknoyTheme.citGold),
         ),
         error: (err, _) => Center(
-          child: Text('Error loading user session: $err'),
+          child: Text(
+            'Error loading user session: $err',
+            style: const TextStyle(color: Colors.white70),
+          ),
         ),
       ),
     );
   }
+
+  Widget _buildNavTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    bool isActive = false,
+    bool isDanger = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: isActive
+            ? TeknoyTheme.citMaroon.withOpacity(0.15)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isActive
+              ? TeknoyTheme.citGold.withOpacity(0.3)
+              : Colors.transparent,
+          width: 1,
+        ),
+      ),
+      child: ListTile(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        leading: Icon(
+          icon,
+          color: isActive
+              ? TeknoyTheme.citGold
+              : isDanger
+                  ? TeknoyTheme.error.withOpacity(0.8)
+                  : Colors.white60,
+          size: 22,
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 15,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+            color: isActive
+                ? Colors.white
+                : isDanger
+                    ? TeknoyTheme.error.withOpacity(0.9)
+                    : Colors.white.withOpacity(0.8),
+          ),
+        ),
+        trailing: Icon(
+          Icons.arrow_forward_ios_rounded,
+          size: 12,
+          color: isActive
+              ? TeknoyTheme.citGold.withOpacity(0.7)
+              : Colors.white24,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        onTap: onTap,
+      ),
+    );
+  }
 }
+

@@ -78,77 +78,74 @@ class ResponsiveMobileFrame extends StatelessWidget {
 
               // 2. Mockup Smartphone Device Frame
               Center(
-                child: Hero(
-                  tag: 'app_phone_frame',
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                    width: 420,
-                    height: 900,
-                    constraints: BoxConstraints(
-                      maxHeight: constraints.maxHeight - 48,
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                  width: 420,
+                  height: 900,
+                  constraints: BoxConstraints(
+                    maxHeight: constraints.maxHeight - 48,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBg,
+                    borderRadius: BorderRadius.circular(44),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF25252A) : const Color(0xFFDFDFE5),
+                      width: 12, // Realistic bezel
                     ),
-                    decoration: BoxDecoration(
-                      color: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBg,
-                      borderRadius: BorderRadius.circular(44),
-                      border: Border.all(
-                        color: isDark ? const Color(0xFF25252A) : const Color(0xFFDFDFE5),
-                        width: 12, // Realistic bezel
+                    boxShadow: [
+                      BoxShadow(
+                        color: isDark 
+                            ? Colors.black.withOpacity(0.7) 
+                            : Colors.grey.shade400.withOpacity(0.4),
+                        blurRadius: 40,
+                        spreadRadius: 8,
+                        offset: const Offset(0, 20),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: isDark 
-                              ? Colors.black.withOpacity(0.7) 
-                              : Colors.grey.shade400.withOpacity(0.4),
-                          blurRadius: 40,
-                          spreadRadius: 8,
-                          offset: const Offset(0, 20),
-                        ),
-                        BoxShadow(
-                          color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.04),
-                          blurRadius: 50,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(32), // Inner rounded corners
-                      child: Stack(
-                        children: [
-                          // The main App Viewport
-                          Positioned.fill(child: child),
+                      BoxShadow(
+                        color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.04),
+                        blurRadius: 50,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(32), // Inner rounded corners
+                    child: Stack(
+                      children: [
+                        // The main App Viewport
+                        Positioned.fill(child: child),
 
-                          // Dynamic Notch mockup for beautiful presentation realism
-                          Positioned(
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: Container(
-                                width: 140,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF25252A) : const Color(0xFFDFDFE5),
-                                  borderRadius: const BorderRadius.only(
-                                    bottomLeft: Radius.circular(20),
-                                    bottomRight: Radius.circular(20),
-                                  ),
+                        // Dynamic Notch mockup for beautiful presentation realism
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: Container(
+                              width: 140,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF25252A) : const Color(0xFFDFDFE5),
+                                borderRadius: const BorderRadius.only(
+                                  bottomLeft: Radius.circular(20),
+                                  bottomRight: Radius.circular(20),
                                 ),
-                                child: Center(
-                                  child: Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFF101015),
-                                      shape: BoxShape.circle,
-                                    ),
+                              ),
+                              child: Center(
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF101015),
+                                    shape: BoxShape.circle,
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
