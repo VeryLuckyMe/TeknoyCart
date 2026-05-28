@@ -4,6 +4,7 @@ import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/core/theme.dart';
 
 import 'package:teknoycart/features/reports/views/financial_reports_view.dart';
+import 'package:teknoycart/features/chat/views/inbox_view.dart';
 
 /// Contextual slide-out Navigation Drawer for TeknoyCart.
 /// Provides links to manage listings, order history, and view active sessions.
@@ -72,6 +73,17 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                 selected: true,
                 selectedColor: TeknoyTheme.citMaroon,
                 onTap: () => Navigator.pop(context),
+              ),
+              ListTile(
+                leading: const Icon(Icons.forum_outlined, color: Colors.grey),
+                title: const Text('Negotiation Chats', style: TextStyle(fontFamily: 'Outfit')),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const InboxView()),
+                  );
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.analytics_outlined, color: Colors.grey),

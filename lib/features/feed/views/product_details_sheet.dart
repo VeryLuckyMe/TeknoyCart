@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/features/auth/providers/auth_provider.dart';
+import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/feed/models/product.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
@@ -8,7 +11,7 @@ import 'package:teknoycart/core/supabase_client.dart';
 
 /// Relational Bottom Sheet displaying detailed information about a selected product.
 /// Implements standard P2P cash agreements and price negotiation features.
-class ProductDetailsSheet extends StatelessWidget {
+class ProductDetailsSheet extends ConsumerWidget {
   final Product product;
 
   const ProductDetailsSheet({
@@ -44,7 +47,7 @@ class ProductDetailsSheet extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
@@ -269,14 +272,57 @@ class ProductDetailsSheet extends StatelessWidget {
                         children: [
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ChatView(product: product),
+                              onPressed: () async {
+                                final buyerId = ref.read(authStateProvider).valueOrNull?.id;
+                                if (buyerId == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please log in to negotiate with the seller.')),
+                                  );
+                                  return;
+                                }
+
+                                if (buyerId == product.sellerId) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('You cannot start a negotiation chat on your own product.')),
+                                  );
+                                  return;
+                                }
+
+                                // Show micro-loading dialog
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (context) => const Center(
+                                    child: CircularProgressIndicator(color: TeknoyTheme.citMaroon),
                                   ),
                                 );
+
+                                try {
+                                  final chatService = ref.read(chatServiceProvider);
+                                  final roomId = await chatService.getOrCreateChatRoom(
+                                    buyerId: buyerId,
+                                    sellerId: product.sellerId,
+                                    productId: product.id,
+                                  );
+
+                                  Navigator.pop(context); // close loader
+                                  Navigator.pop(context); // close sheet
+
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ChatView(
+                                        product: product,
+                                        roomId: roomId,
+                                      ),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  Navigator.pop(context); // close loader
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Failed to initialize chat: $e')),
+                                  );
+                                }
                               },
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,

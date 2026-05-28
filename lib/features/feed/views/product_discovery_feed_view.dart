@@ -9,6 +9,8 @@ import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
 import 'package:teknoycart/features/feed/models/product.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
+import 'package:teknoycart/features/chat/providers/chat_provider.dart';
+import 'package:teknoycart/features/chat/views/inbox_view.dart';
 
 /// Product Discovery Feed representing Figma Node 1:39.
 /// Main marketplace landing hub for listing, browsing, and searching products.
@@ -175,6 +177,23 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           ),
           IconButton(
             icon: Icon(
+              Icons.sync_rounded,
+              color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+            ),
+            onPressed: () async {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Syncing campus catalog...'),
+                  duration: Duration(milliseconds: 500),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+              await ref.read(productsListNotifierProvider.notifier).refresh();
+            },
+            tooltip: 'Sync Feed',
+          ),
+          IconButton(
+            icon: Icon(
               Icons.logout_rounded,
               color: isDark ? Colors.white70 : const Color(0xFF5A413D),
             ),
@@ -204,7 +223,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               icon: Icons.home_rounded,
               label: 'Home',
               isActive: _activeTab == 0,
-              onTap: () => setState(() => _activeTab = 0),
+              onTap: () {
+                setState(() => _activeTab = 0);
+                ref.read(productsListNotifierProvider.notifier).refresh();
+              },
             ),
             _buildBottomNavItem(
               context,
@@ -247,7 +269,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       case 0:
         return _buildHomeTabBody(context);
       case 1:
-        return _buildNegotiationsTabBody(context);
+        return const InboxView();
       case 2:
         return _buildSellTabBody(context);
       case 3:
@@ -379,35 +401,40 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 );
               }
 
-              return CustomScrollView(
-                slivers: [
-                  // Trending Banner
-                  SliverToBoxAdapter(
-                    child: _buildTrendingBanner(context),
-                  ),
-                  // Product Grid
-                  SliverPadding(
-                    padding: const EdgeInsets.all(16.0),
-                    sliver: SliverGrid(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: 0.54,
-                      ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final product = filteredProducts[index];
-                          return GestureDetector(
-                            onTap: () => ProductDetailsSheet.show(context, product),
-                            child: _buildProductCard(context, product),
-                          );
-                        },
-                        childCount: filteredProducts.length,
+              return RefreshIndicator(
+                color: TeknoyTheme.citMaroon,
+                onRefresh: () => ref.read(productsListNotifierProvider.notifier).refresh(),
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    // Trending Banner
+                    SliverToBoxAdapter(
+                      child: _buildTrendingBanner(context),
+                    ),
+                    // Product Grid
+                    SliverPadding(
+                      padding: const EdgeInsets.all(16.0),
+                      sliver: SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 0.54,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final product = filteredProducts[index];
+                            return GestureDetector(
+                              onTap: () => ProductDetailsSheet.show(context, product),
+                              child: _buildProductCard(context, product),
+                            );
+                          },
+                          childCount: filteredProducts.length,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               );
             },
             loading: () => const Center(
@@ -522,13 +549,49 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
               ],
             ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ChatView(product: p, roomId: 'room-${index + 1}'),
+            onTap: () async {
+              final buyerId = ref.read(authStateProvider).valueOrNull?.id;
+              if (buyerId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please log in to negotiate.')),
+                );
+                return;
+              }
+
+              // Show micro-loading dialog
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const Center(
+                  child: CircularProgressIndicator(color: TeknoyTheme.citMaroon),
                 ),
               );
+
+              try {
+                final chatService = ref.read(chatServiceProvider);
+                final roomId = await chatService.getOrCreateChatRoom(
+                  buyerId: buyerId,
+                  sellerId: p.sellerId,
+                  productId: p.id,
+                );
+
+                Navigator.pop(context); // close loader
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatView(
+                      product: p,
+                      roomId: roomId,
+                    ),
+                  ),
+                );
+              } catch (e) {
+                Navigator.pop(context); // close loader
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to initialize chat: $e')),
+                );
+              }
             },
           ),
         );
