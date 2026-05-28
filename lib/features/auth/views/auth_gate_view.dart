@@ -19,6 +19,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _studentIdController = TextEditingController();
 
   String _selectedRole = 'BUYER';
   bool _isLoginTab = true;
@@ -43,6 +44,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     _firstNameController.dispose();
     _lastNameController.dispose();
     _passwordController.dispose();
+    _studentIdController.dispose();
     _fadeCtrl.dispose();
     super.dispose();
   }
@@ -54,6 +56,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     final firstName = _firstNameController.text.trim();
     final lastName = _lastNameController.text.trim();
     final fullName = '$firstName $lastName';
+    final studentId = _studentIdController.text.trim();
     final authNotifier = ref.read(authNotifierProvider.notifier);
     if (_isLoginTab) {
       authNotifier.login(email: email, password: password);
@@ -63,6 +66,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
         username: fullName,
         password: password,
         role: _selectedRole,
+        studentId: studentId,
       );
     }
   }
@@ -211,6 +215,24 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                               validator: (val) {
                                 if (val == null || val.trim().isEmpty) {
                                   return 'Please enter your last name';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            _buildInputField(
+                              controller: _studentIdController,
+                              label: 'Student ID Number (##-####-###)',
+                              icon: Icons.badge_outlined,
+                              keyboardType: TextInputType.phone,
+                              validator: (val) {
+                                if (val == null || val.trim().isEmpty) {
+                                  return 'Please enter your student ID';
+                                }
+                                final trimmed = val.trim();
+                                final studentIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
+                                if (!studentIdRegex.hasMatch(trimmed)) {
+                                  return 'Format must be ##-####-###';
                                 }
                                 return null;
                               },

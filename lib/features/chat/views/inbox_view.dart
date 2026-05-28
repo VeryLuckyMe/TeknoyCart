@@ -159,7 +159,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Negotiation Inbox',
+          'Messages',
           style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -177,7 +177,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Text(
-                      _errorMessage!,
+                       _errorMessage!,
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontFamily: 'Inter', color: Colors.grey),
                     ),
@@ -196,7 +196,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                           ),
                           const SizedBox(height: 8),
                           const Text(
-                            'Chats will appear here once you negotiate with a seller.',
+                            'Chats will appear here once you message a seller.',
                             style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey),
                           ),
                         ],

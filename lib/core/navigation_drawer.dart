@@ -122,6 +122,14 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                 title: const Text('Settings', style: TextStyle(fontFamily: 'Outfit')),
                 onTap: () => Navigator.pop(context),
               ),
+              ListTile(
+                leading: const Icon(Icons.logout_rounded, color: Colors.grey),
+                title: const Text('Sign Out', style: TextStyle(fontFamily: 'Outfit')),
+                onTap: () {
+                  Navigator.pop(context);
+                  ref.read(authNotifierProvider.notifier).logout();
+                },
+              ),
 
               const Spacer(),
 

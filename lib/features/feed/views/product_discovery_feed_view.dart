@@ -23,6 +23,9 @@ class ProductDiscoveryFeedView extends ConsumerStatefulWidget {
 
 class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedView> {
   int _activeTab = 0;
+  Map<String, dynamic>? _cachedProfileData;
+  String? _cachedProfileUserId;
+  Future<Map<String, dynamic>>? _profileFuture;
 
   // Form controllers for Sell tab
   final _sellTitleController = TextEditingController();
@@ -192,14 +195,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             },
             tooltip: 'Sync Feed',
           ),
-          IconButton(
-            icon: Icon(
-              Icons.logout_rounded,
-              color: isDark ? Colors.white70 : const Color(0xFF5A413D),
-            ),
-            onPressed: () => ref.read(authNotifierProvider.notifier).logout(),
-            tooltip: 'Sign Out',
-          ),
         ],
       ),
       drawer: const TeknoyNavigationDrawer(),
@@ -230,8 +225,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             ),
             _buildBottomNavItem(
               context,
-              icon: Icons.handshake_rounded,
-              label: 'Negotiate',
+              icon: Icons.message_rounded,
+              label: 'Messages',
               isActive: _activeTab == 1,
               onTap: () => setState(() => _activeTab = 1),
             ),
@@ -603,7 +598,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     try {
       final res = await SupabaseConfig.client
           .from('users')
-          .select('role, is_verified')
+          .select('role, is_verified, student_id')
           .eq('user_id', userId)
           .single();
       return res;
@@ -1202,12 +1197,13 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     try {
       final res = await SupabaseConfig.client
           .from('users')
-          .select('role, is_verified')
+          .select('role, is_verified, student_id')
           .eq('user_id', userId)
           .single();
       return {
         'role': res['role'] as String? ?? 'BUYER',
         'is_verified': res['is_verified'] as bool? ?? false,
+        'student_id': res['student_id'] as String?,
       };
     } catch (e) {
       return {'role': 'BUYER', 'is_verified': false};
@@ -1276,217 +1272,414 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     );
   }
 
-  // ── Index 4: Profile Page Body
+  // ── Index 4: Profile Page Body — High-Fidelity Dark Mode Design
   Widget _buildProfileTabBody(BuildContext context) {
     final authStateAsync = ref.watch(authStateProvider);
     final user = authStateAsync.valueOrNull;
     final name = user?.username ?? 'Wildcat Student';
     final email = user?.email ?? 'Pending verification';
     final rawId = user?.id ?? '';
-    final studentId = rawId.isNotEmpty 
-        ? 'CIT-${rawId.substring(0, 8).toUpperCase()}'
-        : 'Pending';
     final dept = user?.department ?? 'College of Computer Studies';
     final contact = user?.contact ?? '0912 345 6789';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Dark mode palette from the design prompt
+    const profileBgDark = Color(0xFF101010);
+    const cardBgDark = Color(0xFF1A1A1E);
+    const cardBorderDark = Color(0xFF2A2A30);
+    const accentRed = Color(0xFFB22222);
+    const adminGold = Color(0xFFFFC107);
+    const labelColorDark = Color(0xFF8A8A94);
+    const valueColorDark = Color(0xFFE8E8EC);
+
+    // Light mode fallbacks
+    final bgColor = isDark ? profileBgDark : const Color(0xFFF5F5F8);
+    final cardBg = isDark ? cardBgDark : Colors.white;
+    final cardBorder = isDark ? cardBorderDark : const Color(0xFFE0E0E4);
+    final labelColor = isDark ? labelColorDark : const Color(0xFF6B6B75);
+    final valueColor = isDark ? valueColorDark : const Color(0xFF1A1A1E);
+    final nameColor = isDark ? Colors.white : Colors.black;
+
+    // Cache the future so it doesn't re-run on every tab switch
+    if (rawId.isNotEmpty && _cachedProfileUserId != rawId) {
+      _cachedProfileUserId = rawId;
+      _profileFuture = _getUserRoleAndStatus(rawId)
+          .then((v) => v ?? {'role': 'BUYER', 'is_verified': false});
+    }
 
     return FutureBuilder<Map<String, dynamic>>(
-      future: rawId.isNotEmpty ? _getUserRoleAndVerification(rawId) : Future.value({'role': 'BUYER', 'is_verified': false}),
+      future: _profileFuture ?? Future.value({'role': 'BUYER', 'is_verified': false}),
       builder: (context, snapshot) {
-        final roleInfo = snapshot.data ?? {'role': 'BUYER', 'is_verified': false};
+        // Use cached data if available to avoid re-showing loading state
+        if (snapshot.hasData) {
+          _cachedProfileData = snapshot.data;
+        }
+        final roleInfo = _cachedProfileData ?? {'role': 'BUYER', 'is_verified': false};
         final String role = roleInfo['role'] as String;
         final bool isVerified = roleInfo['is_verified'] as bool;
         final isSeller = role == 'SELLER';
+        // Resolve student ID instantly: session cache first, then DB data, then Pending
+        final String studentId = user?.studentId 
+            ?? (roleInfo['student_id'] as String?)
+            ?? 'Pending';
 
-        // High-fidelity background illustration or banner
-        final String bannerUrl = isSeller 
-            ? 'https://images.unsplash.com/photo-1513829096900-ce04159e1094?auto=format&fit=crop&q=80&w=400' 
-            : 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&q=80&w=400';
+        final badgeText = isSeller
+            ? (isVerified ? 'VERIFIED CAMPUS VENDOR' : 'PENDING SELLER')
+            : 'STUDENT BUYER';
+        final badgeColor = isVerified ? const Color(0xFF22C55E) : const Color(0xFF10B981);
+        final badgeIcon = isVerified ? Icons.verified_user_rounded : Icons.shield_rounded;
 
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header Card matching premium branding guidelines
-              Card(
-                clipBehavior: Clip.antiAlias,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 3,
-                child: Column(
-                  children: [
-                    Container(
-                      height: 80,
-                      decoration: BoxDecoration(
-                        image: DecorationImage(
-                          image: NetworkImage(bannerUrl),
-                          fit: BoxFit.cover,
-                          opacity: 0.7,
-                        ),
+        return Container(
+          color: bgColor,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              children: [
+                // ── Top Profile Header Card
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: cardBorder, width: 1),
+                    boxShadow: isDark ? [
+                      BoxShadow(
+                        color: accentRed.withOpacity(0.04),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
                       ),
-                    ),
-                    Transform.translate(
-                      offset: const Offset(0, -40),
-                      child: Column(
-                        children: [
-                          CircleAvatar(
-                            radius: 44,
-                            backgroundColor: TeknoyTheme.citMaroon,
-                            child: CircleAvatar(
-                              radius: 40,
-                              backgroundColor: Colors.white,
-                              child: Text(
-                                name.isNotEmpty ? name[0].toUpperCase() : 'W',
-                                style: const TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: TeknoyTheme.citMaroon,
-                                ),
+                    ] : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // Avatar with glowing ring
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [
+                              accentRed.withOpacity(0.8),
+                              accentRed.withOpacity(0.3),
+                              accentRed.withOpacity(0.8),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accentRed.withOpacity(isDark ? 0.25 : 0.15),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: CircleAvatar(
+                          radius: 46,
+                          backgroundColor: cardBg,
+                          child: CircleAvatar(
+                            radius: 42,
+                            backgroundColor: isDark ? const Color(0xFF222228) : const Color(0xFFF0F0F4),
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : 'W',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 32,
+                                fontWeight: FontWeight.w700,
+                                color: accentRed,
+                                letterSpacing: -0.5,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            name,
-                            style: const TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isVerified ? Colors.green.shade50 : Colors.amber.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: isVerified ? Colors.green.shade200 : Colors.amber.shade200),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  isVerified ? Icons.check_circle_rounded : Icons.pending_actions_rounded, 
-                                  color: isVerified ? Colors.green.shade700 : Colors.amber.shade700, 
-                                  size: 12
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  isSeller 
-                                      ? (isVerified ? 'VERIFIED CAMPUS VENDOR' : 'PENDING SELLER APPLICATION')
-                                      : 'STUDENT BUYER',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit', 
-                                    fontSize: 9, 
-                                    fontWeight: FontWeight.bold, 
-                                    color: isVerified ? Colors.green.shade800 : Colors.amber.shade900
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
 
-              // Profile details list
-              Expanded(
-                child: SingleChildScrollView(
+                      const SizedBox(height: 16),
+
+                      // User Name
+                      Text(
+                        name,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                          color: nameColor,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // Verification Badge — refined pill
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: badgeColor.withOpacity(isDark ? 0.15 : 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: badgeColor.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(badgeIcon, color: badgeColor, size: 13),
+                            const SizedBox(width: 6),
+                            Text(
+                              badgeText,
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: badgeColor,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── Information Container
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: cardBorder, width: 1),
+                  ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildInteractiveProfileDetailRow(
-                        context, 
-                        label: 'Student ID', 
+                      Text(
+                        'Account Information',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: accentRed,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Student ID
+                      _buildProfileInfoField(
+                        context,
+                        label: 'Student ID',
                         value: studentId,
+                        icon: Icons.badge_outlined,
                         isEditable: false,
+                        labelColor: labelColor,
+                        valueColor: valueColor,
+                        cardBg: cardBg,
+                        cardBorder: cardBorder,
+                        isDark: isDark,
                         onSave: (_) {},
                       ),
-                      _buildInteractiveProfileDetailRow(
-                        context, 
-                        label: 'CIT-U Email', 
+
+                      const SizedBox(height: 14),
+
+                      // CIT-U Email
+                      _buildProfileInfoField(
+                        context,
+                        label: 'CIT-U Email',
                         value: email,
+                        icon: Icons.email_outlined,
                         isEditable: false,
+                        labelColor: labelColor,
+                        valueColor: valueColor,
+                        cardBg: cardBg,
+                        cardBorder: cardBorder,
+                        isDark: isDark,
                         onSave: (_) {},
                       ),
-                      _buildInteractiveProfileDetailRow(
-                        context, 
-                        label: 'Department', 
+
+                      const SizedBox(height: 14),
+
+                      // Department
+                      _buildProfileInfoField(
+                        context,
+                        label: 'Department',
                         value: dept,
+                        icon: Icons.school_outlined,
                         isEditable: true,
+                        labelColor: labelColor,
+                        valueColor: valueColor,
+                        cardBg: cardBg,
+                        cardBorder: cardBorder,
+                        isDark: isDark,
                         onSave: (newDept) => _updateProfileMetadata(newDept, contact),
                       ),
-                      _buildInteractiveProfileDetailRow(
-                        context, 
-                        label: 'Contact', 
+
+                      const SizedBox(height: 14),
+
+                      // Contact Number
+                      _buildProfileInfoField(
+                        context,
+                        label: 'Contact Number',
                         value: contact,
+                        icon: Icons.phone_outlined,
                         isEditable: true,
+                        labelColor: labelColor,
+                        valueColor: valueColor,
+                        cardBg: cardBg,
+                        cardBorder: cardBorder,
+                        isDark: isDark,
                         onSave: (newContact) => _updateProfileMetadata(dept, newContact),
                       ),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
 
-              // Shortcut to Web Console
-              ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Dry-run link: Navigate to web/admin.html in browser to verify Admin sync in real-time!'),
-                      duration: Duration(seconds: 4),
+                const SizedBox(height: 20),
+
+                // ── Admin Console Button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Navigate to web/admin.html in browser to access Admin Console.'),
+                            duration: Duration(seconds: 4),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: adminGold,
+                        foregroundColor: const Color(0xFF3D3200),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: const Icon(Icons.admin_panel_settings_rounded, size: 20),
+                      label: const Text(
+                        'Open Admin & Moderation Console',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
                     ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: TeknoyTheme.citGold,
-                  foregroundColor: const Color(0xFF6F5400),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
-                icon: const Icon(Icons.open_in_browser_rounded),
-                label: const Text('Open Admin & Moderation Console', style: TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.bold)),
-              ),
-            ],
+
+                const SizedBox(height: 32),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildInteractiveProfileDetailRow(
+  /// Elevated profile info field with optional edit icon.
+  Widget _buildProfileInfoField(
     BuildContext context, {
-    required String label, 
+    required String label,
     required String value,
+    required IconData icon,
     required bool isEditable,
+    required Color labelColor,
+    required Color valueColor,
+    required Color cardBg,
+    required Color cardBorder,
+    required bool isDark,
     required Function(String) onSave,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: InkWell(
-        onTap: isEditable 
-            ? () => _showEditProfileRowDialog(context, label: label, currentValue: value, onSave: onSave)
-            : null,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    const accentRed = Color(0xFFB22222);
+
+    return InkWell(
+      onTap: isEditable
+          ? () => _showEditProfileRowDialog(context, label: label, currentValue: value, onSave: onSave)
+          : null,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF141418) : const Color(0xFFF8F8FA),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? const Color(0xFF252530) : const Color(0xFFE8E8EC),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Leading icon
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: accentRed.withOpacity(isDark ? 0.12 : 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 18, color: accentRed),
+            ),
+            const SizedBox(width: 14),
+
+            // Label + Value
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-                  if (isEditable)
-                    const Icon(Icons.edit_rounded, size: 14, color: TeknoyTheme.citMaroon),
+                  Text(
+                    label.toUpperCase(),
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: labelColor,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: valueColor,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(value, style: const TextStyle(fontFamily: 'Outfit', fontSize: 15, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 6),
-              const Divider(height: 1),
-            ],
-          ),
+            ),
+
+            // Edit icon
+            if (isEditable)
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: accentRed.withOpacity(isDark ? 0.1 : 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.edit_rounded, size: 14, color: accentRed),
+              ),
+          ],
         ),
       ),
     );
