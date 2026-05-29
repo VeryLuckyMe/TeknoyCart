@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
@@ -21,6 +22,16 @@ void main() async {
   );
 }
 
+// Custom scroll behavior to enable drag-to-scroll using mouse and trackpad on web/desktop
+class AppScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+      };
+}
+
 class TeknoyCartApp extends ConsumerWidget {
   const TeknoyCartApp({super.key});
 
@@ -34,6 +45,7 @@ class TeknoyCartApp extends ConsumerWidget {
       theme: TeknoyTheme.lightTheme,
       darkTheme: TeknoyTheme.darkTheme,
       themeMode: ThemeMode.light,
+      scrollBehavior: AppScrollBehavior(), // Inject drag scroll behavior
       builder: (context, child) {
         return ResponsiveMobileFrame(child: child!);
       },
@@ -66,3 +78,4 @@ class TeknoyCartApp extends ConsumerWidget {
     );
   }
 }
+
