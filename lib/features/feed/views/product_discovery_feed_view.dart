@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1607,6 +1608,113 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     );
   }
 
+  void _showDeleteAccountDialog(BuildContext context) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    final rand = math.Random();
+    final randomCode = List.generate(5, (index) => chars[rand.nextInt(chars.length)]).join();
+
+    final controller = TextEditingController();
+    bool isValid = false;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+                  SizedBox(width: 8),
+                  Text(
+                    'Delete Account',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'This action is permanent and cannot be undone. All your listings, deals, and messages will be permanently deleted.',
+                    style: TextStyle(fontFamily: 'Inter', fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Type this code to delete the account: $randomCode',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: TeknoyTheme.citMaroon,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Verification Code',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (val) {
+                      setState(() {
+                        isValid = val.trim() == randomCode;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: isValid
+                      ? () async {
+                          Navigator.pop(context);
+                          try {
+                            await SupabaseConfig.client.rpc('delete_user_account');
+                            await ref.read(authNotifierProvider.notifier).logout();
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('✅ Account successfully deleted.'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to delete account: $e'),
+                                backgroundColor: TeknoyTheme.error,
+                              ),
+                            );
+                          }
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    disabledBackgroundColor: Colors.red.withOpacity(0.4),
+                  ),
+                  child: const Text('Delete Permanently'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   // ── Index 4: Profile Page Body — High-Fidelity Dark Mode Design
   Widget _buildProfileTabBody(BuildContext context) {
     final authStateAsync = ref.watch(authStateProvider);
@@ -1897,42 +2005,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
 
                 const SizedBox(height: 20),
 
-                // ── Admin Console Button
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Navigate to web/admin.html in browser to access Admin Console.'),
-                            duration: Duration(seconds: 4),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: adminGold,
-                        foregroundColor: const Color(0xFF3D3200),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      icon: const Icon(Icons.admin_panel_settings_rounded, size: 20),
-                      label: const Text(
-                        'Open Admin & Moderation Console',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
                 // Sign Out Button
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1957,6 +2029,36 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                       icon: const Icon(Icons.logout_rounded, size: 20),
                       label: const Text(
                         'Sign Out Account',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Delete Account Button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showDeleteAccountDialog(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFD90429),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: const Icon(Icons.delete_forever_rounded, size: 20),
+                      label: const Text(
+                        'Delete Account',
                         style: TextStyle(
                           fontFamily: 'Outfit',
                           fontSize: 14,

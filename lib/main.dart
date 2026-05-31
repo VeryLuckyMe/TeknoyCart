@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,7 +48,17 @@ class TeknoyCartApp extends ConsumerWidget {
       themeMode: ThemeMode.light,
       scrollBehavior: AppScrollBehavior(), // Inject drag scroll behavior
       builder: (context, child) {
-        return ResponsiveMobileFrame(child: child!);
+        return InactivityWrapper(
+          onTimeout: () async {
+            final user = ref.read(authStateProvider).valueOrNull;
+            if (user != null) {
+              try {
+                await ref.read(authNotifierProvider.notifier).logout();
+              } catch (_) {}
+            }
+          },
+          child: ResponsiveMobileFrame(child: child!),
+        );
       },
       home: authStateAsync.when(
         data: (user) {
@@ -75,6 +86,52 @@ class TeknoyCartApp extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class InactivityWrapper extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTimeout;
+
+  const InactivityWrapper({
+    super.key,
+    required this.child,
+    required this.onTimeout,
+  });
+
+  @override
+  State<InactivityWrapper> createState() => _InactivityWrapperState();
+}
+
+class _InactivityWrapperState extends State<InactivityWrapper> {
+  Timer? _timer;
+
+  void _resetTimer() {
+    _timer?.cancel();
+    _timer = Timer(const Duration(minutes: 30), widget.onTimeout);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _resetTimer();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _resetTimer(),
+      onPointerMove: (_) => _resetTimer(),
+      onPointerUp: (_) => _resetTimer(),
+      child: widget.child,
     );
   }
 }

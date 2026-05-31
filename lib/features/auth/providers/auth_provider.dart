@@ -46,7 +46,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
   }) async {
     state = const AsyncValue.loading();
     try {
-      final user = await _authService.signUp(
+      await _authService.signUp(
         email: email,
         username: username,
         password: password,
@@ -54,9 +54,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
         studentId: studentId,
         department: department,
       );
-      state = AsyncValue.data(user);
+      state = const AsyncValue.data(null);
     } catch (e, stackTrace) {
       state = AsyncValue.error(e, stackTrace);
+      rethrow;
     }
   }
 

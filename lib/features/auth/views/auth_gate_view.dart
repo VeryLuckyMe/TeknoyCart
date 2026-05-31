@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/core/theme.dart';
+import 'package:http/http.dart' as http;
 
 /// Authentication gate view upgraded to a premium, world-class mobile visual standard.
 class AuthGateView extends ConsumerStatefulWidget {
@@ -103,7 +106,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     return true;
   }
 
-  void _submitForm() {
+  void _submitForm() async {
     if (!_isLoginTab) {
       if (!_validateStep(0) || !_validateStep(1)) return;
     }
@@ -118,15 +121,66 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     if (_isLoginTab) {
       authNotifier.login(email: email, password: password);
     } else {
-      authNotifier.register(
-        email: email,
-        username: fullName,
-        password: password,
-        role: _selectedRole,
-        studentId: studentId,
-        department: _departmentController.text.trim().toUpperCase(),
-      );
+      try {
+        await authNotifier.register(
+          email: email,
+          username: fullName,
+          password: password,
+          role: _selectedRole,
+          studentId: studentId,
+          department: _departmentController.text.trim().toUpperCase(),
+        );
+        if (mounted) {
+          // Clear inputs on successful signup
+          _emailController.clear();
+          _passwordController.clear();
+          _firstNameController.clear();
+          _lastNameController.clear();
+          _studentIdController.clear();
+
+          _switchTab(true);
+
+          // Use addPostFrameCallback to ensure the dialog appears AFTER
+          // the widget tree settles from the _switchTab setState rebuild.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _showRegistrationSuccessDialog(email, fullName);
+          });
+        }
+      } catch (_) {
+        // Handled by ref.listen
+      }
     }
+  }
+
+  /// Premium dialog shown after successful registration, prompting the user
+  /// to check their Outlook inbox for the verification link.
+  /// Features a live countdown timer showing remaining time before link expiry.
+  void _showRegistrationSuccessDialog(String email, String fullName) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => _VerificationCountdownDialog(
+        email: email,
+        fullName: fullName,
+        parentContext: context,
+        parentMounted: () => mounted,
+      ),
+    );
+  }
+
+  void _showUnverifiedEmailDialog(String email, String fullName) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => _VerificationCountdownDialog(
+        email: email,
+        fullName: fullName,
+        parentContext: context,
+        parentMounted: () => mounted,
+        isUnverifiedLogin: true,
+      ),
+    );
   }
 
   void _switchTab(bool toLogin) {
@@ -154,6 +208,18 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     ref.listen<AsyncValue>(authNotifierProvider, (_, state) {
       state.whenOrNull(
         error: (err, _) {
+          final errorStr = err.toString();
+          if (errorStr.contains('EMAIL_UNVERIFIED_PENDING:')) {
+            final dataStr = errorStr.replaceFirst('EMAIL_UNVERIFIED_PENDING:', '').trim();
+            final parts = dataStr.split('|');
+            final email = parts[0];
+            final fullName = parts.length > 1 ? parts[1] : 'Student';
+
+            // Show the popup dialog with the Resend option
+            _showUnverifiedEmailDialog(email, fullName);
+            return;
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
@@ -162,7 +228,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                       err.toString().replaceAll('Exception: ', ''),
+                      errorStr.replaceAll('Exception: ', '').replaceAll('EMAIL_UNVERIFIED_PENDING:', ''),
                       style: const TextStyle(
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w500,
@@ -914,6 +980,414 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
         ),
       ),
       validator: validator,
+    );
+  }
+}
+
+/// Self-contained StatefulWidget dialog with a live countdown timer.
+/// Used for both post-registration and unverified-login email verification prompts.
+class _VerificationCountdownDialog extends StatefulWidget {
+  final String email;
+  final String fullName;
+  final BuildContext parentContext;
+  final bool Function() parentMounted;
+  final bool isUnverifiedLogin;
+
+  const _VerificationCountdownDialog({
+    required this.email,
+    required this.fullName,
+    required this.parentContext,
+    required this.parentMounted,
+    this.isUnverifiedLogin = false,
+  });
+
+  @override
+  State<_VerificationCountdownDialog> createState() => _VerificationCountdownDialogState();
+}
+
+class _VerificationCountdownDialogState extends State<_VerificationCountdownDialog> {
+  late int _secondsRemaining;
+  Timer? _timer;
+  Timer? _pollTimer;
+  bool _isResending = false;
+  bool _isVerified = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _secondsRemaining = 5 * 60; // 5 minutes
+    _startTimer();
+    _startPolling();
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining <= 0 || _isVerified) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _secondsRemaining--;
+      });
+    });
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      debugPrint('Polling verification status for ${widget.email}...');
+      if (_secondsRemaining <= 0 || _isVerified || !mounted) {
+        timer.cancel();
+        return;
+      }
+      try {
+        final url = Uri.parse('http://localhost:8080/api/auth/check-verification')
+            .replace(queryParameters: {'email': widget.email});
+        final response = await http.get(url);
+        debugPrint('Poll response status: ${response.statusCode}, body: ${response.body}');
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data['verified'] == true) {
+            debugPrint('Email verified! Transitioning to success layout.');
+            timer.cancel();
+            _timer?.cancel();
+            setState(() {
+              _isVerified = true;
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Poll background error: $e');
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  String get _formattedTime {
+    final min = (_secondsRemaining ~/ 60).toString().padLeft(2, '0');
+    final sec = (_secondsRemaining % 60).toString().padLeft(2, '0');
+    return '$min:$sec';
+  }
+
+  Color get _timerColor {
+    if (_secondsRemaining <= 0) return TeknoyTheme.error;
+    if (_secondsRemaining <= 60) return const Color(0xFFE65100); // Orange-red warning
+    return TeknoyTheme.citGold;
+  }
+
+  String get _timerLabel {
+    if (_secondsRemaining <= 0) return 'Verification link has expired!';
+    return 'Link expires in';
+  }
+
+  Future<void> _resendEmail() async {
+    setState(() => _isResending = true);
+    try {
+      final url = Uri.parse('http://localhost:8080/api/auth/send-verification')
+          .replace(queryParameters: {
+            'email': widget.email,
+            'fullName': widget.fullName,
+          });
+      final response = await http.post(url);
+      if (response.statusCode == 200) {
+        // Reset countdown to 5 minutes on successful resend
+        setState(() {
+          _secondsRemaining = 5 * 60;
+          _isResending = false;
+        });
+        _startTimer();
+        if (widget.parentMounted()) {
+          ScaffoldMessenger.of(widget.parentContext).showSnackBar(
+            const SnackBar(
+              content: Text('New verification email sent! Check your Outlook inbox.'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else {
+        throw Exception('Server returned status ${response.statusCode}');
+      }
+    } catch (e) {
+      setState(() => _isResending = false);
+      if (widget.parentMounted()) {
+        ScaffoldMessenger.of(widget.parentContext).showSnackBar(
+          SnackBar(
+            content: Text('Failed to resend: $e'),
+            backgroundColor: TeknoyTheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isVerified) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        title: Row(
+          children: [
+            const Icon(
+              Icons.check_circle_rounded,
+              color: Colors.green,
+              size: 28,
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Verification Successful!',
+                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 14,
+                  height: 1.5,
+                  color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black87,
+                ),
+                children: [
+                  const TextSpan(text: 'Excellent, '),
+                  TextSpan(
+                    text: widget.fullName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const TextSpan(text: '! Your account ('),
+                  TextSpan(
+                    text: widget.email,
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
+                  ),
+                  const TextSpan(text: ') has been fully verified. You are now ready to log in and start shopping!'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.stars_rounded,
+                  color: TeknoyTheme.citGold,
+                  size: 64,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TeknoyTheme.citMaroon,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(
+                'Go to Login',
+                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final isExpired = _secondsRemaining <= 0;
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      title: Row(
+        children: [
+          Icon(
+            widget.isUnverifiedLogin
+                ? Icons.warning_amber_rounded
+                : Icons.mark_email_unread_rounded,
+            color: TeknoyTheme.citGold,
+            size: 28,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              widget.isUnverifiedLogin ? 'Verify Email First' : 'Verify Your Email',
+              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          RichText(
+            text: TextSpan(
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 14,
+                height: 1.5,
+                color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black87,
+              ),
+              children: widget.isUnverifiedLogin
+                  ? [
+                      TextSpan(text: 'Hello ${widget.fullName}, your account email ('),
+                      TextSpan(
+                        text: widget.email,
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
+                      ),
+                      const TextSpan(text: ') is not verified yet. Check your Outlook inbox for the activation link.'),
+                    ]
+                  : [
+                      const TextSpan(text: 'Account created! A verification link was sent to '),
+                      TextSpan(
+                        text: widget.email,
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
+                      ),
+                      const TextSpan(text: '. Check your '),
+                      const TextSpan(
+                        text: 'Outlook inbox',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const TextSpan(text: ' and click the verification button to activate your account.'),
+                    ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // ── Live Countdown Timer Banner ──
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: _timerColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _timerColor.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isExpired ? Icons.timer_off_outlined : Icons.timer_outlined,
+                  color: _timerColor,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _timerLabel,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _timerColor,
+                    ),
+                  ),
+                ),
+                // Countdown digits badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _timerColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _formattedTime,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: _timerColor,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // ── Spam / Junk Reminder ──
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: TeknoyTheme.citMaroon.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: TeknoyTheme.citMaroon.withValues(alpha: 0.15)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline_rounded, color: TeknoyTheme.citMaroon, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Check junk/spam folder if you don\'t see the email.',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: TeknoyTheme.citMaroon,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            widget.isUnverifiedLogin ? 'Cancel' : 'Got it',
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
+        ),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: TeknoyTheme.citMaroon,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          ),
+          icon: _isResending
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Icon(Icons.send_rounded, size: 18),
+          label: Text(
+            _isResending ? 'Sending...' : 'Resend Email',
+            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+          ),
+          onPressed: _isResending ? null : _resendEmail,
+        ),
+      ],
     );
   }
 }
