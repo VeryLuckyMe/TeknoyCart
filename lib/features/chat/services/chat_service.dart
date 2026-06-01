@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/chat/models/message.dart';
+import 'package:teknoycart/features/feed/models/product.dart';
 
 /// Real-time chat service using Supabase Realtime channels.
 /// Listens to the `messages` table for INSERT events on the given chat room.
@@ -77,20 +78,7 @@ class ChatService {
         });
       }
 
-      // 2. Try to find an existing chat room for this buyer and seller
-      final existingChat = await _client
-          .from('chats')
-          .select('chat_id')
-          .eq('buyer_id', buyerId)
-          .eq('seller_id', sellerId)
-          .limit(1)
-          .maybeSingle();
-
-      if (existingChat != null) {
-        return existingChat['chat_id'] as String;
-      }
-
-      // 3. We need an inquiry first. Find or create one.
+      // 2. We need an inquiry first. Find or create one.
       // Check for an existing product variant
       final productVariants = await _client
           .from('product_variants')
@@ -140,6 +128,27 @@ class ChatService {
           'message': 'Hi, I would like to inquire about this product.',
         }).select().single();
         inquiryId = newInquiry['inquiry_id'] as String;
+      }
+
+      // 3. Try to find an existing chat room for this buyer and seller
+      final existingChat = await _client
+          .from('chats')
+          .select('chat_id')
+          .eq('buyer_id', buyerId)
+          .eq('seller_id', sellerId)
+          .limit(1)
+          .maybeSingle();
+
+      if (existingChat != null) {
+        final chatId = existingChat['chat_id'] as String;
+        
+        // Update the existing chat's inquiry_id to the new product inquiry
+        // so that the automated assistant trigger acts on the current product context!
+        await _client.from('chats').update({
+          'inquiry_id': inquiryId,
+        }).eq('chat_id', chatId);
+        
+        return chatId;
       }
 
       // 4. Create the chat room linking to this inquiry
@@ -262,14 +271,16 @@ class ChatService {
     });
   }
 
-  /// Sends a message. For live chat rooms, inserts into Supabase messages table.
-  /// For demo rooms, simulates a negotiation reply.
+  /// Sends a message. For live chat rooms, inserts into Supabase messages table
+  /// and triggers an automated assistant reply as the seller.
+  /// For demo rooms, simulates an automated assistant response locally.
   Future<void> sendMessage({
     required String senderId,
     required String receiverId,
     required String content,
     required String roomId,
     String? imageUrl,
+    Product? product,
   }) async {
     final userMessage = Message(
       id: 'msg-${DateTime.now().millisecondsSinceEpoch}',
@@ -304,24 +315,73 @@ class ChatService {
       return;
     }
 
-    // Demo negotiation auto-reply simulation
-    if (content.contains('₱400') ||
-        content.toLowerCase().contains('deal') ||
-        content.toLowerCase().contains('₱')) {
-      Future.delayed(const Duration(seconds: 2), () {
-        final sellerReply = Message(
-          id: 'msg-${DateTime.now().millisecondsSinceEpoch}-reply',
-          senderId: receiverId,
-          receiverId: senderId,
-          content:
-              'Sure! I can accept ₱400. Let\'s meet at the Library Lobby for the item exchange. Deal! 🤝',
-          createdAt: DateTime.now(),
-          roomId: roomId,
-        );
-        _activeMessages.add(sellerReply);
-        _messageController.add(List.from(_activeMessages));
-      });
+    // Demo negotiation auto-reply simulation using the Automated Chat Assistant rules
+    // Only trigger if the buyer is the one sending the message (prevent self-reply/loops)
+    if (senderId != receiverId && product != null) {
+      final responseText = _getAssistantResponse(content, product);
+      if (responseText != null) {
+        Future.delayed(const Duration(seconds: 2), () {
+          final sellerReply = Message(
+            id: 'msg-${DateTime.now().millisecondsSinceEpoch}-reply',
+            senderId: receiverId,
+            receiverId: senderId,
+            content: responseText,
+            createdAt: DateTime.now(),
+            roomId: roomId,
+          );
+          _activeMessages.add(sellerReply);
+          _messageController.add(List.from(_activeMessages));
+        });
+      }
     }
+  }
+
+
+  /// Generates a context-aware automated assistant response.
+  /// Returns null if the message does not match specific inquiries about:
+  /// 1. Price
+  /// 2. Availability
+  /// 3. Meetup Location / Time (When & Where)
+  String? _getAssistantResponse(String messageText, Product product, {String? sellerFirstName}) {
+    final msg = messageText.toLowerCase().trim();
+
+    // Resolve seller first name: use provided name, fallback to 'Clarence' for demo, else 'the seller'
+    final String resolvedSellerName = sellerFirstName ??
+        (product.sellerId == 'demo-seller' || product.sellerId.startsWith('demo')
+            ? 'Clarence'
+            : 'the seller');
+
+    const String responseTime = '10 minutes';
+    const String meetupLocation = 'not specified';
+    const int stock = 3; // fallback stock for demo/unknown products
+
+    // 1. Price Inquiry
+    if (msg.contains('price') || msg.contains('magkano') || msg.contains('how much') || msg.contains('hm') || msg.contains('cost') || msg.contains('peso')) {
+      return "The price for the ${product.title} is ₱${product.price.toStringAsFixed(0)}. Do note that this is already the final fixed price!";
+    }
+
+    // 2. Availability / Stock Inquiry & Greetings
+    if (msg.contains('available') || msg.contains('stock') || msg.contains('meron') || msg.contains('sold') || msg.contains('still there') || msg.contains('avail') ||
+        msg.contains('hi') || msg.contains('hello') || msg.contains('hoy') || msg.contains('uy') || msg.contains('interested') || msg.contains('gusto') || msg.contains('inquire')) {
+      if (stock > 0) {
+        return "Hi! Yes, the ${product.title} is available. Feel free to ask anything!";
+      } else {
+        return "The ${product.title} is currently out of stock. I'll let $resolvedSellerName know you're looking for it!";
+      }
+    }
+
+    // 3. Meetup Location / Time Inquiry (When and where is the seller available)
+    if (msg.contains('meet') || msg.contains('location') || msg.contains('saan') || msg.contains('place') || msg.contains('spot') || msg.contains('meetup') ||
+        msg.contains('when') || msg.contains('free') || msg.contains('oras') || msg.contains('time') || msg.contains('schedule') || msg.contains('day') || msg.contains('pwede') || msg.contains('pede')) {
+      if (meetupLocation != 'not specified' && meetupLocation.isNotEmpty) {
+        return "For meetups, $resolvedSellerName prefers: $meetupLocation. Let us know if this works for you!";
+      } else {
+        return "We can meet at common campus spots like the library, canteen, or the guard post. $resolvedSellerName will confirm the exact spot and time with you!";
+      }
+    }
+
+    // No reply for unrecognized/ambiguous messages
+    return null;
   }
 
   void dispose() {
