@@ -38,6 +38,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   String _selectedLocation = 'Library Lobby';
   String _selectedDay = 'Today';
   String _selectedTimeSlot = '12:00 PM - 01:30 PM';
+  bool _isReservation = false;
 
   final List<CampusLandmark> _landmarks = const [
     CampusLandmark(
@@ -139,8 +140,11 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           'quantity': 1,
           'unit_price': negotiatedPrice,
           'total_amount': negotiatedPrice,
-          'status': 'INQUIRY_SENT',
+          'status': _isReservation ? 'APPROVED' : 'INQUIRY_SENT',
           'pickup_location': combinedLocation,
+          'reservation_expires_at': _isReservation 
+              ? DateTime.now().add(const Duration(hours: 24)).toIso8601String() 
+              : null,
         });
       } catch (e) {
         // Network unavailable (e.g. test environment) — degrade gracefully
@@ -159,18 +163,20 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.check_circle_rounded, color: TeknoyTheme.success, size: 28),
-            SizedBox(width: 10),
+            const Icon(Icons.check_circle_rounded, color: TeknoyTheme.success, size: 28),
+            const SizedBox(width: 10),
             Text(
-              'Deal Logged!',
-              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+              _isReservation ? 'Item Reserved!' : 'Deal Logged!',
+              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
             ),
           ],
         ),
         content: Text(
-          'Your P2P offer of ₱${_priceController.text} at $_selectedLocation ($_selectedDay, $_selectedTimeSlot) has been successfully logged! Coordinate with the seller via chat for the meetup.',
+          _isReservation 
+              ? 'Your P2P offer of ₱${_priceController.text} has been successfully logged and the item is now reserved for 24 hours! Make sure to coordinate and upload your payment proof via chat before the reservation expires.'
+              : 'Your P2P offer of ₱${_priceController.text} at $_selectedLocation ($_selectedDay, $_selectedTimeSlot) has been successfully logged! Coordinate with the seller via chat for the meetup.',
           style: const TextStyle(fontFamily: 'Inter', height: 1.4),
         ),
         actions: [
@@ -530,6 +536,74 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     );
   }
 
+  Widget _buildReservationToggle(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _isReservation
+            ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.06)
+            : (isDark ? const Color(0xFF141418) : const Color(0xFFF4F4F7)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _isReservation
+              ? TeknoyTheme.citMaroon.withOpacity(0.5)
+              : (isDark ? const Color(0xFF22222A) : const Color(0xFFE5E5E9)),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _isReservation
+                  ? TeknoyTheme.citMaroon
+                  : (isDark ? const Color(0xFF22222A) : Colors.white),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.hourglass_empty_rounded,
+              color: _isReservation ? Colors.white : TeknoyTheme.citGold,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Instantly Reserve Item',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Locks stock for 24 hours. Auto-cancels if payment is not uploaded.',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 11,
+                    color: isDark ? Colors.white54 : Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: _isReservation,
+            activeColor: TeknoyTheme.citMaroon,
+            onChanged: (val) {
+              setState(() => _isReservation = val);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -607,6 +681,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               _buildTimeSlotGrid(isDark),
               const SizedBox(height: 28),
 
+              _buildReservationToggle(isDark),
+              const SizedBox(height: 28),
+
               // Final Price header
               Row(
                 children: [
@@ -646,9 +723,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                         width: 20,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
-                    : const Text(
-                        'Confirm Meetup Deal',
-                        style: TextStyle(
+                    : Text(
+                        _isReservation ? 'Reserve & Confirm Meetup Deal' : 'Confirm Meetup Deal',
+                        style: const TextStyle(
                           fontFamily: 'Outfit',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
