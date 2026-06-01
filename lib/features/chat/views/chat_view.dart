@@ -53,6 +53,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
           receiverId: widget.product.sellerId,
           content: text,
           roomId: widget.roomId,
+          product: widget.product,
         );
 
     if (customContent == null) {
