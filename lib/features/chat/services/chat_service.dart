@@ -188,7 +188,12 @@ class ChatService {
             clearedAt = isBuyer
                 ? roomData['buyer_cleared_at'] as String?
                 : roomData['seller_cleared_at'] as String?;
+            print("WATCH_MESSAGES_DEBUG: roomId=$roomId, userId=${currentUser.id}, isBuyer=$isBuyer, clearedAt=$clearedAt");
+          } else {
+            print("WATCH_MESSAGES_DEBUG: Room data not found for roomId=$roomId");
           }
+        } else {
+          print("WATCH_MESSAGES_DEBUG: Current authenticated user is NULL");
         }
 
         var dbQuery = _client.from('messages').select('*').eq('chat_id', roomId);
@@ -197,6 +202,7 @@ class ChatService {
         }
 
         final response = await dbQuery.order('sent_at', ascending: true);
+        print("WATCH_MESSAGES_DEBUG: Fetched ${response.length} messages after filtering");
 
         final rows = response as List<dynamic>;
         final loaded = rows.map((row) => Message(

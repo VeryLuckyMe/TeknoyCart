@@ -28,6 +28,7 @@ class ChatController extends StateNotifier<AsyncValue<void>> {
     required String content,
     required String roomId,
     Product? product,
+    String? imageUrl,
   }) async {
     state = const AsyncValue.loading();
     try {
@@ -37,6 +38,7 @@ class ChatController extends StateNotifier<AsyncValue<void>> {
         content: content,
         roomId: roomId,
         product: product,
+        imageUrl: imageUrl,
       );
       state = const AsyncValue.data(null);
     } catch (e, stack) {
