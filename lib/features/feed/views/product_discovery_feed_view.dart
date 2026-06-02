@@ -2015,6 +2015,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                         try {
                           await ref.read(authNotifierProvider.notifier).logout();
                         } catch (e) {
+                          if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Logout failed: $e')),
                           );
