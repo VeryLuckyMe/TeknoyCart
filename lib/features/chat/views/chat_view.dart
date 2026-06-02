@@ -1,5 +1,10 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/feed/models/product.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/core/theme.dart';
@@ -25,11 +30,16 @@ class ChatView extends ConsumerStatefulWidget {
 class _ChatViewState extends ConsumerState<ChatView> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
-  
+  final _imagePicker = ImagePicker();
+
   // Negotiation states: 'none', 'offered', 'agreed'
   String _negotiationState = 'none';
   double _agreedPrice = 0.0;
   double _offeredPrice = 0.0;
+
+  // Image upload state
+  bool _isUploadingImage = false;
+  XFile? _pendingImageFile;
 
   @override
   void initState() {
@@ -44,16 +54,17 @@ class _ChatViewState extends ConsumerState<ChatView> {
     super.dispose();
   }
 
-  void _sendMessage({String? customContent}) {
+  void _sendMessage({String? customContent, String? imageUrl}) {
     final text = customContent ?? _textController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty && imageUrl == null) return;
 
     ref.read(chatControllerProvider.notifier).postMessage(
           senderId: ref.read(authStateProvider).valueOrNull?.id ?? 'usr-buyer',
           receiverId: widget.product.sellerId,
-          content: text,
+          content: text.isEmpty ? '📷 Image' : text,
           roomId: widget.roomId,
           product: widget.product,
+          imageUrl: imageUrl,
         );
 
     if (customContent == null) {
@@ -61,6 +72,117 @@ class _ChatViewState extends ConsumerState<ChatView> {
     }
 
     _scrollToBottom();
+  }
+
+  Future<void> _pickAndSendImage(ImageSource source) async {
+    try {
+      final picked = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 75,
+        maxWidth: 1080,
+      );
+      if (picked == null) return;
+
+      setState(() {
+        _isUploadingImage = true;
+        _pendingImageFile = picked;
+      });
+
+      // Upload to Supabase Storage bucket 'chat-images'
+      final senderId = ref.read(authStateProvider).valueOrNull?.id ?? 'usr-buyer';
+      final fileName = 'chat_${senderId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final bytes = await picked.readAsBytes();
+
+      await SupabaseConfig.client.storage
+          .from('chat-images')
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+          );
+
+      final publicUrl = SupabaseConfig.client.storage
+          .from('chat-images')
+          .getPublicUrl(fileName);
+
+      setState(() {
+        _isUploadingImage = false;
+        _pendingImageFile = null;
+      });
+
+      _sendMessage(imageUrl: publicUrl);
+    } catch (e) {
+      setState(() {
+        _isUploadingImage = false;
+        _pendingImageFile = null;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to upload image: $e'),
+            backgroundColor: TeknoyTheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showImageSourceSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                'Send Image',
+                style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: TeknoyTheme.citMaroon,
+                  child: Icon(Icons.photo_library_rounded, color: Colors.white),
+                ),
+                title: const Text('Choose from Gallery', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+                subtitle: const Text('Pick a photo from your device', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndSendImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: TeknoyTheme.citGold,
+                  child: Icon(Icons.camera_alt_rounded, color: Colors.white),
+                ),
+                title: const Text('Take a Photo', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+                subtitle: const Text('Capture using your camera', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndSendImage(ImageSource.camera);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _scrollToBottom() {
@@ -325,6 +447,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                     final msg = messages[index];
                     final isMe = msg.senderId == (currentUser?.id ?? 'usr-buyer');
                     final isReceipt = msg.content.contains('[GCASH_RECEIPT_PROOF]');
+                    final hasImage = msg.imageUrl != null && !msg.content.contains('[GCASH_RECEIPT_PROOF]');
                     final offerPrice = _parseOfferPrice(msg.content);
 
                     if (offerPrice != null) {
@@ -525,7 +648,79 @@ class _ChatViewState extends ConsumerState<ChatView> {
                         constraints: BoxConstraints(
                           maxWidth: MediaQuery.of(context).size.width * 0.78,
                         ),
-                        child: isReceipt
+                        child: hasImage
+                            // ── Real image message bubble ──
+                            ? GestureDetector(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (ctx) => Dialog(
+                                      backgroundColor: Colors.transparent,
+                                      insetPadding: EdgeInsets.zero,
+                                      child: GestureDetector(
+                                        onTap: () => Navigator.pop(ctx),
+                                        child: InteractiveViewer(
+                                          child: Image.network(
+                                            msg.imageUrl!,
+                                            fit: BoxFit.contain,
+                                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.white, size: 64),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: const Radius.circular(16),
+                                        topRight: const Radius.circular(16),
+                                        bottomLeft: isMe ? const Radius.circular(16) : Radius.zero,
+                                        bottomRight: isMe ? Radius.zero : const Radius.circular(16),
+                                      ),
+                                      child: Image.network(
+                                        msg.imageUrl!,
+                                        width: MediaQuery.of(context).size.width * 0.65,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (context, child, progress) {
+                                          if (progress == null) return child;
+                                          return Container(
+                                            width: MediaQuery.of(context).size.width * 0.65,
+                                            height: 180,
+                                            decoration: BoxDecoration(
+                                              color: isDark ? const Color(0xFF1A1A1F) : Colors.grey.shade200,
+                                              borderRadius: BorderRadius.circular(16),
+                                            ),
+                                            child: const Center(
+                                              child: CircularProgressIndicator(color: TeknoyTheme.citMaroon, strokeWidth: 2),
+                                            ),
+                                          );
+                                        },
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: MediaQuery.of(context).size.width * 0.65,
+                                          height: 120,
+                                          color: Colors.grey.shade300,
+                                          child: const Icon(Icons.broken_image_rounded, size: 40, color: Colors.grey),
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 8,
+                                      right: 8,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.45),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 14),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : isReceipt
                             ? InkWell(
                                 onTap: () {
                                   // Open high-fidelity proof verification bottom sheet modal matching SRS FR-18/FR-19
@@ -698,25 +893,54 @@ class _ChatViewState extends ConsumerState<ChatView> {
             ),
           ),
 
+          // Pending image preview banner
+          if (_pendingImageFile != null || _isUploadingImage)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: TeknoyTheme.citMaroon.withOpacity(0.06),
+              child: Row(
+                children: [
+                  if (_pendingImageFile != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: kIsWeb
+                          ? Image.network(_pendingImageFile!.path, width: 48, height: 48, fit: BoxFit.cover)
+                          : Image.file(File(_pendingImageFile!.path), width: 48, height: 48, fit: BoxFit.cover),
+                    ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _isUploadingImage
+                        ? Row(
+                            children: [
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: TeknoyTheme.citMaroon),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('Uploading image...', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey)),
+                            ],
+                          )
+                        : const Text('Image ready to send', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+                    onPressed: () => setState(() { _pendingImageFile = null; _isUploadingImage = false; }),
+                  ),
+                ],
+              ),
+            ),
+
           // Input Send Deck
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12.0),
               child: Row(
                 children: [
-                  // Attachment Icon to upload GCash receipt in live Capstone presentation
+                  // Attachment Icon — real image picker
                   IconButton(
                     icon: const Icon(Icons.add_circle_outline_rounded, color: TeknoyTheme.citMaroon, size: 26),
-                    onPressed: () {
-                      // Simulated photo selection
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Simulated: Selected GCash Receipt Screenshot from Gallery'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                      _sendMessage(customContent: '[GCASH_RECEIPT_PROOF] Reference: 902811234567');
-                    },
+                    onPressed: _isUploadingImage ? null : _showImageSourceSheet,
                   ),
                   const SizedBox(width: 4),
                   Expanded(
