@@ -130,6 +130,10 @@ class ProductListNotifier
             category_id,
             seller_id,
             created_at,
+            product_images (
+              image_url,
+              is_primary
+            ),
             product_variants (
               variant_id,
               variant_value,
@@ -152,11 +156,24 @@ class ProductListNotifier
 
       final products = rows.map((row) {
         final variants = (row['product_variants'] as List<dynamic>?) ?? [];
+        final images = (row['product_images'] as List<dynamic>?) ?? [];
+        
+        String imageUrl = '';
+        if (images.isNotEmpty) {
+          final primary = images.firstWhere(
+            (img) => img['is_primary'] == true,
+            orElse: () => images[0],
+          );
+          imageUrl = primary['image_url'] as String? ?? '';
+        }
 
-        // Pick the best available image from Unsplash based on category
         final catId = row['category_id'] as int? ?? 5;
         final category = _categoryIdToName[catId] ?? 'Others';
-        final imageUrl = _categoryImage(category);
+
+        if (imageUrl.isEmpty) {
+          // Pick the best available image from Unsplash based on category
+          imageUrl = _categoryImage(category);
+        }
 
         return Product(
           id: row['product_id'] as String,
@@ -216,6 +233,15 @@ class ProductListNotifier
       }).select().single();
 
       final String dbProductId = inserted['product_id'] as String;
+
+      // 1b. Insert product image if uploaded
+      if (product.imageUrl != null && product.imageUrl!.isNotEmpty) {
+        await _supabase.from('product_images').insert({
+          'product_id': dbProductId,
+          'image_url': product.imageUrl!,
+          'is_primary': true,
+        });
+      }
 
       // 2. Create product variant
       final insertedVariant = await _supabase.from('product_variants').insert({

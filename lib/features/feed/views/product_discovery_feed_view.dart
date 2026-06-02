@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
@@ -35,6 +38,9 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   String _sellCategory = 'Books';
   String _sellCondition = 'New';
   bool _sellHasUploadedMockImage = false;
+  XFile? _selectedImageFile;
+  bool _isUploadingProductImage = false;
+  final _imagePicker = ImagePicker();
 
   @override
   void dispose() {
@@ -70,14 +76,48 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       return;
     }
 
-    // Dynamic mock visual based on category
-    String mockImage = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=400';
-    if (_sellCategory == 'Apparel') {
-      mockImage = 'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?auto=format&fit=crop&q=80&w=400';
-    } else if (_sellCategory == 'Electronics') {
-      mockImage = 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=400';
-    } else if (_sellCategory == 'Drawing Tools') {
-      mockImage = 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&q=80&w=400';
+    _doPostItem(title: title, desc: desc, price: price);
+  }
+
+  Future<void> _doPostItem({required String title, required String desc, required double price}) async {
+    // Use uploaded image URL if available, otherwise use category-based mock
+    String imageUrl;
+    if (_selectedImageFile != null) {
+      setState(() => _isUploadingProductImage = true);
+      try {
+        final sellerId = ref.read(authStateProvider).valueOrNull?.id ?? 'usr-seller';
+        final fileName = 'product_${sellerId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final bytes = await _selectedImageFile!.readAsBytes();
+        await SupabaseConfig.client.storage
+            .from('product-images')
+            .uploadBinary(
+              fileName,
+              bytes,
+              fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+            );
+        imageUrl = SupabaseConfig.client.storage
+            .from('product-images')
+            .getPublicUrl(fileName);
+      } catch (e) {
+        setState(() => _isUploadingProductImage = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Image upload failed: $e'), backgroundColor: TeknoyTheme.error),
+          );
+        }
+        return;
+      }
+      setState(() => _isUploadingProductImage = false);
+    } else {
+      // Dynamic mock visual based on category
+      imageUrl = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=400';
+      if (_sellCategory == 'Apparel') {
+        imageUrl = 'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?auto=format&fit=crop&q=80&w=400';
+      } else if (_sellCategory == 'Electronics') {
+        imageUrl = 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=400';
+      } else if (_sellCategory == 'Drawing Tools') {
+        imageUrl = 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&q=80&w=400';
+      }
     }
 
     final newProduct = Product(
@@ -87,12 +127,11 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       price: price,
       category: _sellCategory,
       condition: _sellCondition,
-      imageUrl: mockImage,
+      imageUrl: imageUrl,
       sellerId: ref.read(authStateProvider).valueOrNull?.id ?? 'usr-buyer',
       createdAt: DateTime.now(),
     );
 
-    // Call dynamic Riverpod state insert
     ref.read(productsListNotifierProvider.notifier).addProduct(newProduct);
 
     // Reset Form
@@ -103,13 +142,95 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       _sellCategory = 'Books';
       _sellCondition = 'New';
       _sellHasUploadedMockImage = false;
-      _activeTab = 0; // Return to discovery feed grid
+      _selectedImageFile = null;
+      _activeTab = 0;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Listed "$title" to CIT-U catalog successfully!'),
-        backgroundColor: TeknoyTheme.success,
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Listed "$title" to CIT-U catalog successfully!'),
+          backgroundColor: TeknoyTheme.success,
+        ),
+      );
+    }
+  }
+
+  Future<void> _pickProductImage(ImageSource source) async {
+    try {
+      final picked = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1080,
+      );
+      if (picked == null) return;
+      setState(() {
+        _selectedImageFile = picked;
+        _sellHasUploadedMockImage = true;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not pick image: $e'), backgroundColor: TeknoyTheme.error),
+        );
+      }
+    }
+  }
+
+  void _showProductImageSourceSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                'Add Product Photo',
+                style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: TeknoyTheme.citMaroon,
+                  child: Icon(Icons.photo_library_rounded, color: Colors.white),
+                ),
+                title: const Text('Choose from Gallery', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+                subtitle: const Text('Pick a photo from your device', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickProductImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: TeknoyTheme.citGold,
+                  child: Icon(Icons.camera_alt_rounded, color: Colors.white),
+                ),
+                title: const Text('Take a Photo', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+                subtitle: const Text('Capture using your camera', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickProductImage(ImageSource.camera);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1154,54 +1275,133 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           ),
           const SizedBox(height: 24),
 
-          // Simulated Image Uploader card
+          // Image uploader — real picker with preview
           GestureDetector(
-            onTap: () {
-              setState(() => _sellHasUploadedMockImage = true);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Simulated: Added listing thumbnail from gallery.')),
-              );
-            },
+            onTap: _showProductImageSourceSheet,
             child: Container(
-              height: 120,
+              height: _selectedImageFile != null ? null : 140,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF18181C) : Colors.grey.shade100,
+                color: _selectedImageFile != null
+                    ? Colors.transparent
+                    : (isDark ? const Color(0xFF18181C) : Colors.grey.shade100),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade400, style: BorderStyle.solid),
+                border: Border.all(
+                  color: _selectedImageFile != null
+                      ? TeknoyTheme.citMaroon.withOpacity(0.4)
+                      : Colors.grey.shade400,
+                  style: BorderStyle.solid,
+                ),
               ),
-              child: Center(
-                child: _sellHasUploadedMockImage
-                    ? const Row(
+              child: _selectedImageFile != null
+                  ? Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(11),
+                          child: kIsWeb
+                              ? Image.network(
+                                  _selectedImageFile!.path,
+                                  width: double.infinity,
+                                  height: 220,
+                                  fit: BoxFit.cover,
+                                )
+                              : Image.file(
+                                  File(_selectedImageFile!.path),
+                                  width: double.infinity,
+                                  height: 220,
+                                  fit: BoxFit.cover,
+                                ),
+                        ),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: GestureDetector(
+                            onTap: () => setState(() {
+                              _selectedImageFile = null;
+                              _sellHasUploadedMockImage = false;
+                            }),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.6),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.close_rounded, color: Colors.white, size: 16),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [Colors.black.withOpacity(0.55), Colors.transparent],
+                              ),
+                              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(11)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 16),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'Photo selected — tap to change',
+                                  style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.white),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Center(
+                      child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
-                          SizedBox(width: 8),
-                          Text('Listing thumbnail added!', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.green)),
-                        ],
-                      )
-                    : const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_photo_alternate_rounded, size: 36, color: TeknoyTheme.citMaroon),
-                          SizedBox(height: 8),
-                          Text('Add Product Photo', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
-                          Text('Select from gallery', style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey)),
+                          const Icon(Icons.add_photo_alternate_rounded, size: 40, color: TeknoyTheme.citMaroon),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Add Product Photo',
+                            style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Tap to choose from gallery or camera',
+                            style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey.shade500),
+                          ),
                         ],
                       ),
-              ),
+                    ),
             ),
           ),
           const SizedBox(height: 32),
 
           // Submit Post
           ElevatedButton(
-            onPressed: _postNewItem,
+            onPressed: _isUploadingProductImage ? null : _postNewItem,
             style: ElevatedButton.styleFrom(
               backgroundColor: TeknoyTheme.citMaroon,
+              disabledBackgroundColor: TeknoyTheme.citMaroon.withOpacity(0.6),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Post Campus Listing', style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold)),
+            child: _isUploadingProductImage
+                ? const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Uploading photo...', style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ],
+                  )
+                : const Text('Post Campus Listing', style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
