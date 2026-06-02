@@ -261,6 +261,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 16,
                                                   ),
+                                                  maxLines: 1,
                                                   overflow: TextOverflow.ellipsis,
                                                 ),
                                               ),
