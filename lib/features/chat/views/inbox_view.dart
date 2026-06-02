@@ -53,6 +53,8 @@ class _InboxViewState extends ConsumerState<InboxView> {
             chat_id,
             buyer_id,
             seller_id,
+            deleted_by_buyer,
+            deleted_by_seller,
             inquiries (
               inquiry_id,
               product_id,
@@ -78,6 +80,13 @@ class _InboxViewState extends ConsumerState<InboxView> {
         final String chatId = rawRoom['chat_id'] as String;
         final String buyerId = rawRoom['buyer_id'] as String;
         final String sellerId = rawRoom['seller_id'] as String;
+        
+        final bool deletedByBuyer = rawRoom['deleted_by_buyer'] as bool? ?? false;
+        final bool deletedBySeller = rawRoom['deleted_by_seller'] as bool? ?? false;
+
+        // Skip chat rooms soft-deleted by the current user
+        if (currentUser.id == buyerId && deletedByBuyer) continue;
+        if (currentUser.id == sellerId && deletedBySeller) continue;
         
         final inquiry = rawRoom['inquiries'];
         if (inquiry == null) continue;
@@ -223,6 +232,9 @@ class _InboxViewState extends ConsumerState<InboxView> {
                                   ),
                                 ).then((_) => _loadChatRooms());
                               },
+                              onLongPress: () {
+                                _showDeleteChatDialog(context, room['chat_id'] as String, room['other_user_name'] as String);
+                              },
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                 child: Row(
@@ -358,6 +370,54 @@ class _InboxViewState extends ConsumerState<InboxView> {
                         );
                       },
                     );
+  }
+
+  void _showDeleteChatDialog(BuildContext context, String chatId, String userName) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Delete Conversation?',
+          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you sure you want to delete your conversation with $userName? This action only clears it for you.',
+          style: const TextStyle(fontFamily: 'Inter'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey, fontFamily: 'Outfit')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              setState(() {
+                _isLoading = true;
+              });
+              try {
+                final chatService = ChatService();
+                await chatService.softDeleteChatRoom(chatId);
+                await _loadChatRooms();
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to delete chat: $e')),
+                );
+                setState(() {
+                  _isLoading = false;
+                });
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: TeknoyTheme.citMaroon,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Delete', style: TextStyle(color: Colors.white, fontFamily: 'Outfit')),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

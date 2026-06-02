@@ -143,9 +143,11 @@ class ChatService {
         final chatId = existingChat['chat_id'] as String;
         
         // Update the existing chat's inquiry_id to the new product inquiry
-        // so that the automated assistant trigger acts on the current product context!
+        // and reset soft-deletion states so that both parties are active!
         await _client.from('chats').update({
           'inquiry_id': inquiryId,
+          'deleted_by_buyer': false,
+          'deleted_by_seller': false,
         }).eq('chat_id', chatId);
         
         return chatId;
@@ -173,11 +175,28 @@ class ChatService {
     if (roomId != 'room-demo' && !roomId.startsWith('demo-')) {
       // 1. Fetch initial messages synchronously within the stream subscription
       try {
-        final response = await _client
-            .from('messages')
-            .select('*')
-            .eq('chat_id', roomId)
-            .order('sent_at', ascending: true);
+        final currentUser = _client.auth.currentUser;
+        String? clearedAt;
+        if (currentUser != null) {
+          final roomData = await _client
+              .from('chats')
+              .select('buyer_id, seller_id, buyer_cleared_at, seller_cleared_at')
+              .eq('chat_id', roomId)
+              .maybeSingle();
+          if (roomData != null) {
+            final isBuyer = currentUser.id == roomData['buyer_id'];
+            clearedAt = isBuyer
+                ? roomData['buyer_cleared_at'] as String?
+                : roomData['seller_cleared_at'] as String?;
+          }
+        }
+
+        var dbQuery = _client.from('messages').select('*').eq('chat_id', roomId);
+        if (clearedAt != null) {
+          dbQuery = dbQuery.gt('sent_at', clearedAt);
+        }
+
+        final response = await dbQuery.order('sent_at', ascending: true);
 
         final rows = response as List<dynamic>;
         final loaded = rows.map((row) => Message(
@@ -382,6 +401,52 @@ class ChatService {
 
     // No reply for unrecognized/ambiguous messages
     return null;
+  }
+
+  /// Soft deletes/clears a chat room for the current user.
+  Future<void> softDeleteChatRoom(String chatId) async {
+    try {
+      final currentUser = _client.auth.currentUser;
+      if (currentUser == null) return;
+
+      final chatRoomRes = await _client
+          .from('chats')
+          .select('buyer_id, seller_id, deleted_by_buyer, deleted_by_seller')
+          .eq('chat_id', chatId)
+          .maybeSingle();
+
+      if (chatRoomRes == null) return;
+
+      final isBuyer = currentUser.id == chatRoomRes['buyer_id'];
+      final now = DateTime.now().toUtc().toIso8601String();
+
+      if (isBuyer) {
+        final sellerDeleted = chatRoomRes['deleted_by_seller'] as bool? ?? false;
+        if (sellerDeleted) {
+          // If both parties deleted the chat, completely purge the room and its messages
+          await _client.from('chats').delete().eq('chat_id', chatId);
+        } else {
+          await _client.from('chats').update({
+            'deleted_by_buyer': true,
+            'buyer_cleared_at': now,
+          }).eq('chat_id', chatId);
+        }
+      } else {
+        final buyerDeleted = chatRoomRes['deleted_by_buyer'] as bool? ?? false;
+        if (buyerDeleted) {
+          // If both parties deleted the chat, completely purge the room and its messages
+          await _client.from('chats').delete().eq('chat_id', chatId);
+        } else {
+          await _client.from('chats').update({
+            'deleted_by_seller': true,
+            'seller_cleared_at': now,
+          }).eq('chat_id', chatId);
+        }
+      }
+    } catch (e) {
+      print("SOFT_DELETE_CHAT_ROOM_ERROR: $e");
+      rethrow;
+    }
   }
 
   void dispose() {

@@ -6,6 +6,8 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 
+import 'package:teknoycart/core/supabase_client.dart';
+
 /// Real-Time Chat screen representing Phase 4.
 /// Facilitates peer-to-peer price negotiations and pickup meetups.
 class ChatView extends ConsumerStatefulWidget {
@@ -31,10 +33,41 @@ class _ChatViewState extends ConsumerState<ChatView> {
   double _agreedPrice = 0.0;
   double _offeredPrice = 0.0;
 
+  bool _isOtherPartyDeleted = false;
+
   @override
   void initState() {
     super.initState();
     _agreedPrice = widget.product.price;
+    _checkOtherPartyDeleted();
+  }
+
+  Future<void> _checkOtherPartyDeleted() async {
+    if (widget.roomId == 'room-demo' || widget.roomId.startsWith('demo-')) return;
+    try {
+      final client = SupabaseConfig.client;
+      final currentUser = client.auth.currentUser;
+      if (currentUser == null) return;
+
+      final roomRes = await client
+          .from('chats')
+          .select('buyer_id, seller_id, deleted_by_buyer, deleted_by_seller')
+          .eq('chat_id', widget.roomId)
+          .maybeSingle();
+
+      if (roomRes != null && mounted) {
+        final isBuyer = currentUser.id == roomRes['buyer_id'];
+        final otherDeleted = isBuyer
+            ? roomRes['deleted_by_seller'] as bool? ?? false
+            : roomRes['deleted_by_buyer'] as bool? ?? false;
+        
+        setState(() {
+          _isOtherPartyDeleted = otherDeleted;
+        });
+      }
+    } catch (e) {
+      print("CHECK_OTHER_DELETED_ERROR: $e");
+    }
   }
 
   @override
@@ -702,55 +735,85 @@ class _ChatViewState extends ConsumerState<ChatView> {
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12.0),
-              child: Row(
-                children: [
-                  // Attachment Icon to upload GCash receipt in live Capstone presentation
-                  IconButton(
-                    icon: const Icon(Icons.add_circle_outline_rounded, color: TeknoyTheme.citMaroon, size: 26),
-                    onPressed: () {
-                      // Simulated photo selection
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Simulated: Selected GCash Receipt Screenshot from Gallery'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                      _sendMessage(customContent: '[GCASH_RECEIPT_PROOF] Reference: 902811234567');
-                    },
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: TextField(
-                      controller: _textController,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _sendMessage(),
-                      decoration: InputDecoration(
-                        hintText: 'Type your message...',
-                        filled: true,
-                        fillColor: Theme.of(context).cardColor,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
+              child: _isOtherPartyDeleted
+                  ? Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                      decoration: BoxDecoration(
+                        color: TeknoyTheme.citMaroon.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: TeknoyTheme.citMaroon.withOpacity(0.15),
                         ),
                       ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.block_rounded, color: TeknoyTheme.citMaroon, size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'You cannot reply to this conversation because the other party has cleared the chat.',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Row(
+                      children: [
+                        // Attachment Icon to upload GCash receipt in live Capstone presentation
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline_rounded, color: TeknoyTheme.citMaroon, size: 26),
+                          onPressed: () {
+                            // Simulated photo selection
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Simulated: Selected GCash Receipt Screenshot from Gallery'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                            _sendMessage(customContent: '[GCASH_RECEIPT_PROOF] Reference: 902811234567');
+                          },
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: TextField(
+                            controller: _textController,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _sendMessage(),
+                            decoration: InputDecoration(
+                              hintText: 'Type your message...',
+                              filled: true,
+                              fillColor: Theme.of(context).cardColor,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        CircleAvatar(
+                          backgroundColor: TeknoyTheme.citMaroon,
+                          radius: 22,
+                          child: IconButton(
+                            icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                            onPressed: () => _sendMessage(),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: TeknoyTheme.citMaroon,
-                    radius: 22,
-                    child: IconButton(
-                      icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-                      onPressed: () => _sendMessage(),
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
         ],
