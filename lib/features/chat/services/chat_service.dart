@@ -130,10 +130,9 @@ class ChatService {
         inquiryId = newInquiry['inquiry_id'] as String;
       }
 
-      // 3. Try to find an existing chat room for this buyer and seller
       final existingChat = await _client
           .from('chats')
-          .select('chat_id')
+          .select('chat_id, inquiry_id')
           .eq('buyer_id', buyerId)
           .eq('seller_id', sellerId)
           .limit(1)
@@ -141,6 +140,7 @@ class ChatService {
 
       if (existingChat != null) {
         final chatId = existingChat['chat_id'] as String;
+        final oldInquiryId = existingChat['inquiry_id'] as String?;
         
         // Update the existing chat's inquiry_id to the new product inquiry
         // and reset soft-deletion states so that both parties are active!
@@ -150,8 +150,10 @@ class ChatService {
           'deleted_by_seller': false,
         }).eq('chat_id', chatId);
         
-        // Automatically post welcome message even for existing chat history (FR-15 Shopee style)
-        await _sendInitialWelcomeMessage(chatId, sellerId, buyerId, productId);
+        // Only trigger welcome message if it's a different/new product inquiry (prevents spamming)
+        if (oldInquiryId != inquiryId) {
+          await _sendInitialWelcomeMessage(chatId, sellerId, buyerId, productId);
+        }
         
         return chatId;
       }
