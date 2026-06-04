@@ -80,7 +80,7 @@ class AuthService {
       final isLocked = userRecord['is_locked'] as bool? ?? false;
       final lockUntilStr = userRecord['lock_until'] as String?;
       if (isLocked && lockUntilStr != null) {
-        final lockUntil = DateTime.parse(lockUntilStr);
+        final lockUntil = DateTime.parse(lockUntilStr).toLocal();
         if (DateTime.now().isBefore(lockUntil)) {
           final remaining = lockUntil.difference(DateTime.now()).inMinutes;
           final secs = lockUntil.difference(DateTime.now()).inSeconds % 60;
