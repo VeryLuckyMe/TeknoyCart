@@ -150,6 +150,9 @@ class ChatService {
           'deleted_by_seller': false,
         }).eq('chat_id', chatId);
         
+        // Automatically post welcome message even for existing chat history (FR-15 Shopee style)
+        await _sendInitialWelcomeMessage(chatId, sellerId, buyerId, productId);
+        
         return chatId;
       }
 
