@@ -91,7 +91,7 @@ class TeknoyTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: darkBorder, width: 1),
+          side: BorderSide(color: Color(0xFF1E1E24), width: 0.8),
           borderRadius: BorderRadius.all(Radius.circular(16)),
         ),
       ),
@@ -217,7 +217,7 @@ class TeknoyTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: lightBorder, width: 1),
+          side: BorderSide(color: Color(0xFFE2E2E6), width: 0.8),
           borderRadius: BorderRadius.all(Radius.circular(16)),
         ),
       ),

@@ -1044,7 +1044,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     try {
       final res = await SupabaseConfig.client
           .from('users')
-          .select('role, is_verified, student_id')
+          .select('role, is_seller_verified, student_id')
           .eq('user_id', userId)
           .single();
       return res;
@@ -1079,7 +1079,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
 
         final data = snapshot.data;
         final role = data?['role'] as String? ?? 'BUYER';
-        final isVerified = data?['is_verified'] as bool? ?? false;
+        final isVerified = data?['is_seller_verified'] as bool? ?? false;
 
         if (role == 'BUYER') {
           return Padding(
@@ -1106,12 +1106,13 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                     try {
                       await SupabaseConfig.client
                           .from('users')
-                          .update({'role': 'SELLER', 'is_verified': false})
+                          .update({'role': 'SELLER', 'is_seller_verified': false})
                           .eq('user_id', authState.id);
                       if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Seller upgrade request submitted! Admin will review your account.')),
                       );
+                      _profileFuture = null; // Clear cache to trigger reload
                       setState(() {}); // Refresh the builder
                     } catch (e) {
                       if (!context.mounted) return;
@@ -1153,7 +1154,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 ),
                 const SizedBox(height: 24),
                 OutlinedButton(
-                  onPressed: () => setState(() {}),
+                  onPressed: () {
+                    _profileFuture = null; // Clear cached future to refetch role status
+                    setState(() {});
+                  },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: TeknoyTheme.citMaroon,
                     side: const BorderSide(color: TeknoyTheme.citMaroon),
@@ -1945,21 +1949,21 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
 
     // Cache the future so it doesn't re-run on every tab switch
     if (rawId.isNotEmpty && _cachedProfileUserId != rawId) {
-      _cachedProfileUserId = rawId;
-      _profileFuture = _getUserRoleAndStatus(rawId)
-          .then((v) => v ?? {'role': 'BUYER', 'is_verified': false});
+       _cachedProfileUserId = rawId;
+       _profileFuture = _getUserRoleAndStatus(rawId)
+           .then((v) => v ?? {'role': 'BUYER', 'is_seller_verified': false});
     }
 
     return FutureBuilder<Map<String, dynamic>>(
-      future: _profileFuture ?? Future.value({'role': 'BUYER', 'is_verified': false}),
+      future: _profileFuture ?? Future.value({'role': 'BUYER', 'is_seller_verified': false}),
       builder: (context, snapshot) {
         // Use cached data if available to avoid re-showing loading state
         if (snapshot.hasData) {
           _cachedProfileData = snapshot.data;
         }
-        final roleInfo = _cachedProfileData ?? {'role': 'BUYER', 'is_verified': false};
+        final roleInfo = _cachedProfileData ?? {'role': 'BUYER', 'is_seller_verified': false};
         final String role = roleInfo['role'] as String;
-        final bool isVerified = roleInfo['is_verified'] as bool;
+        final bool isVerified = roleInfo['is_seller_verified'] as bool;
         final isSeller = role == 'SELLER';
         // Resolve student ID instantly: session cache first, then DB data, then Pending
         final String studentId = user?.studentId 

@@ -214,9 +214,8 @@ class AuthService {
         'student_id': studentIdTrimmed,
       });
 
-      // TRIGGER SPRING BOOT SMTP OUTLOOK EMAIL VERIFICATION
       try {
-        final url = Uri.parse('http://localhost:8080/api/auth/send-verification')
+        final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/send-verification')
             .replace(queryParameters: {
               'email': email.trim(),
               'fullName': username.trim(),

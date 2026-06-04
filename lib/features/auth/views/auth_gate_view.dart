@@ -1042,7 +1042,7 @@ class _VerificationCountdownDialogState extends State<_VerificationCountdownDial
         return;
       }
       try {
-        final url = Uri.parse('http://localhost:8080/api/auth/check-verification')
+        final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/check-verification')
             .replace(queryParameters: {'email': widget.email});
         final response = await http.get(url);
         debugPrint('Poll response status: ${response.statusCode}, body: ${response.body}');
@@ -1090,7 +1090,7 @@ class _VerificationCountdownDialogState extends State<_VerificationCountdownDial
   Future<void> _resendEmail() async {
     setState(() => _isResending = true);
     try {
-      final url = Uri.parse('http://localhost:8080/api/auth/send-verification')
+      final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/send-verification')
           .replace(queryParameters: {
             'email': widget.email,
             'fullName': widget.fullName,
