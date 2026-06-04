@@ -330,6 +330,26 @@ class ChatService {
           'image_url': imageUrl,
           'is_read': false,
         });
+
+        // Trigger live auto-reply for live rooms
+        if (senderId != receiverId && product != null) {
+          final responseText = _getAssistantResponse(content, product);
+          if (responseText != null) {
+            Future.delayed(const Duration(seconds: 2), () async {
+              try {
+                await _client.from('messages').insert({
+                  'chat_id': roomId,
+                  'sender_id': receiverId, // Sent as the seller
+                  'content': responseText,
+                  'image_url': null,
+                  'is_read': false,
+                });
+              } catch (e) {
+                print("LIVE_AUTO_REPLY_ERROR: $e");
+              }
+            });
+          }
+        }
       } catch (e, stackTrace) {
         _activeMessages.remove(userMessage);
         _messageController.add(List.from(_activeMessages));
