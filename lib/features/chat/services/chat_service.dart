@@ -160,11 +160,58 @@ class ChatService {
         'seller_id': sellerId,
       }).select().single();
 
-      return newChat['chat_id'] as String;
+      final chatId = newChat['chat_id'] as String;
+
+      // Automatically post welcome message on chat room creation (FR-15 Shopee style)
+      await _sendInitialWelcomeMessage(chatId, sellerId, buyerId, productId);
+
+      return chatId;
     } catch (e) {
       print("GET_OR_CREATE_CHAT_ROOM_ERROR: $e");
-      // Rethrow so the exact database constraint error pops up directly in the UI SnackBar!
       rethrow;
+    }
+  }
+
+  /// Sends the customizable welcome message containing the product context on chat creation
+  Future<void> _sendInitialWelcomeMessage(String chatId, String sellerId, String buyerId, String productId) async {
+    try {
+      // 1. Fetch seller profile settings (welcome template)
+      final profile = await _client
+          .from('store_profiles')
+          .select('welcome_message_template')
+          .eq('seller_id', sellerId)
+          .maybeSingle();
+
+      // 2. Fetch product info (name and price)
+      final prod = await _client
+          .from('products')
+          .select('name, base_price')
+          .eq('product_id', productId)
+          .maybeSingle();
+
+      if (prod != null) {
+        final prodName = prod['name'] as String? ?? 'Product';
+        final prodPrice = double.tryParse(prod['base_price']?.toString() ?? '0') ?? 0.0;
+
+        String template = (profile != null && profile['welcome_message_template'] != null)
+            ? profile['welcome_message_template'] as String
+            : 'Hi! Thank you for inquiring about [PRODUCT]. The price is ₱[PRICE]. How can I help you?';
+
+        // Swap template tokens with live product details
+        String content = template
+            .replaceAll('[PRODUCT]', prodName)
+            .replaceAll('[PRICE]', prodPrice.toStringAsFixed(0));
+
+        // Insert initial message as the seller
+        await _client.from('messages').insert({
+          'chat_id': chatId,
+          'sender_id': sellerId,
+          'content': content,
+          'is_read': false,
+        });
+      }
+    } catch (e) {
+      print("SEND_INITIAL_WELCOME_MESSAGE_ERROR: $e");
     }
   }
 
@@ -333,7 +380,30 @@ class ChatService {
 
         // Trigger live auto-reply for live rooms
         if (senderId != receiverId && product != null) {
-          final responseText = _getAssistantResponse(content, product);
+          // Fetch custom seller settings dynamically from store_profiles
+          String? customActiveHours;
+          String? customMeetupSpots;
+          try {
+            final profile = await _client
+                .from('store_profiles')
+                .select('usual_active_hours, preferred_meetup_spots')
+                .eq('seller_id', receiverId) // receiverId is the seller
+                .maybeSingle();
+            if (profile != null) {
+              customActiveHours = profile['usual_active_hours'] as String?;
+              customMeetupSpots = profile['preferred_meetup_spots'] as String?;
+            }
+          } catch (e) {
+            print("AUTO_REPLY_FETCH_PROFILE_ERROR: $e");
+          }
+
+          final responseText = _getAssistantResponse(
+            content, 
+            product,
+            activeHours: customActiveHours,
+            meetupSpots: customMeetupSpots,
+          );
+
           if (responseText != null) {
             Future.delayed(const Duration(seconds: 2), () async {
               try {
@@ -387,7 +457,13 @@ class ChatService {
   /// 1. Price
   /// 2. Availability
   /// 3. Meetup Location / Time (When & Where)
-  String? _getAssistantResponse(String messageText, Product product, {String? sellerFirstName}) {
+  String? _getAssistantResponse(
+    String messageText, 
+    Product product, {
+    String? sellerFirstName,
+    String? activeHours,
+    String? meetupSpots,
+  }) {
     final msg = messageText.toLowerCase().trim();
 
     // Resolve seller first name: use provided name, fallback to 'Clarence' for demo, else 'the seller'
@@ -397,7 +473,6 @@ class ChatService {
             : 'the seller');
 
     const String responseTime = '10 minutes';
-    const String meetupLocation = 'not specified';
     const int stock = 3; // fallback stock for demo/unknown products
 
     // 1. Price Inquiry
@@ -418,11 +493,14 @@ class ChatService {
     // 3. Meetup Location / Time Inquiry (When and where is the seller available)
     if (msg.contains('meet') || msg.contains('location') || msg.contains('saan') || msg.contains('place') || msg.contains('spot') || msg.contains('meetup') ||
         msg.contains('when') || msg.contains('free') || msg.contains('oras') || msg.contains('time') || msg.contains('schedule') || msg.contains('day') || msg.contains('pwede') || msg.contains('pede')) {
-      if (meetupLocation != 'not specified' && meetupLocation.isNotEmpty) {
-        return "For meetups, $resolvedSellerName prefers: $meetupLocation. Let us know if this works for you!";
-      } else {
-        return "We can meet at common campus spots like the library, canteen, or the guard post. $resolvedSellerName will confirm the exact spot and time with you!";
-      }
+      
+      final String resolvedActive = (activeHours != null && activeHours != 'Not specified') ? activeHours : 'common hours';
+      final String resolvedMeetup = (meetupSpots != null && meetupSpots != 'common campus locations') ? meetupSpots : 'common campus spots like the library, canteen, or guard post';
+
+      return "Here are the preferred meetup spots & schedule for $resolvedSellerName:\n"
+             "📍 Spots: $resolvedMeetup\n"
+             "🕒 Schedule: $resolvedActive\n"
+             "Please confirm if this schedule or location works for you!";
     }
 
     // No reply for unrecognized/ambiguous messages
