@@ -121,7 +121,7 @@ class AuthService {
       if (userRecord != null) {
         final currentAttempts = (userRecord['failed_attempts'] as int? ?? 0) + 1;
         if (currentAttempts >= 5) {
-          final lockTime = DateTime.now().add(const Duration(minutes: 15));
+          final lockTime = DateTime.now().toUtc().add(const Duration(minutes: 15));
           await _client.from('users').update({
             'is_locked': true,
             'failed_attempts': currentAttempts,
