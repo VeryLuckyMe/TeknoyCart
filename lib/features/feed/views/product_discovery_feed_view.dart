@@ -2551,7 +2551,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 
                 // Footer
                 Text(
-                  'TeknoCart CIT-U v1.4.0',
+                  'TeknoyCart CIT-U v1.4.0',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 11,

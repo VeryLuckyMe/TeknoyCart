@@ -381,32 +381,59 @@ class ChatService {
     // Persist to Supabase for live rooms
     if (roomId != 'room-demo' && !roomId.startsWith('demo-')) {
       try {
-        await _client.from('messages').insert({
+        final newRow = await _client.from('messages').insert({
           'chat_id': roomId,
           'sender_id': senderId,
           'content': content,
           'image_url': imageUrl,
           'is_read': false,
-        });
+        }).select().single();
+
+        final msg = Message(
+          id: newRow['message_id'] as String,
+          senderId: newRow['sender_id'] as String,
+          receiverId: '',
+          content: newRow['content'] as String? ?? '',
+          createdAt: DateTime.tryParse(newRow['sent_at'] as String? ?? '') ??
+              DateTime.now(),
+          roomId: roomId,
+          imageUrl: newRow['image_url'] as String?,
+        );
+
+        final index = _activeMessages.indexWhere((m) => m.id == userMessage.id);
+        if (index != -1) {
+          _activeMessages[index] = msg;
+          _messageController.add(List.from(_activeMessages));
+        }
 
         // Trigger live auto-reply ONLY if the seller is offline
         if (senderId != receiverId && product != null) {
           // Check if seller has been active recently (within last 3 minutes) to determine online presence status
           bool isSellerOnline = false;
           try {
-            final recentMessages = await _client
+            final response = await _client
                 .from('messages')
-                .select('sent_at')
+                .select('sent_at, content')
                 .eq('chat_id', roomId)
                 .eq('sender_id', receiverId)
                 .order('sent_at', ascending: false)
-                .limit(1)
-                .maybeSingle();
+                .limit(10);
 
-            if (recentMessages != null && recentMessages['sent_at'] != null) {
-              final lastSent = DateTime.tryParse(recentMessages['sent_at'] as String) ?? DateTime.now();
-              if (DateTime.now().difference(lastSent).inMinutes < 3) {
-                isSellerOnline = true;
+            if (response != null && (response as List).isNotEmpty) {
+              final list = response as List;
+              for (final row in list) {
+                final contentStr = row['content'] as String? ?? '';
+                // Only consider messages that are NOT auto-replies to gauge human seller activity
+                if (!_isAutoReply(contentStr)) {
+                  final sentAtStr = row['sent_at'] as String?;
+                  if (sentAtStr != null) {
+                    final lastSent = DateTime.tryParse(sentAtStr) ?? DateTime.now();
+                    if (DateTime.now().difference(lastSent).inMinutes < 3) {
+                      isSellerOnline = true;
+                    }
+                  }
+                  break; // Found the latest human seller message, stop checking
+                }
               }
             }
           } catch (e) {
@@ -547,6 +574,17 @@ class ChatService {
 
     // No reply for unrecognized/ambiguous messages
     return null;
+  }
+
+  /// Helper to check if a message content belongs to the automated assistant replies
+  bool _isAutoReply(String content) {
+    final c = content.toLowerCase();
+    return c.contains('thank you for inquiring about') ||
+        c.contains('inquiring about') ||
+        c.contains('final fixed price!') ||
+        c.contains('is available. feel free to ask') ||
+        c.contains('currently out of stock') ||
+        c.contains('preferred meetup spots & schedule for');
   }
 
   /// Soft deletes/clears a chat room for the current user.
