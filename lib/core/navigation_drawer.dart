@@ -404,6 +404,7 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         onTap: onTap,
       ),
+      ),
     );
   }
 }
