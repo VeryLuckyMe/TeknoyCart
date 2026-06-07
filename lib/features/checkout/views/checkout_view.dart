@@ -134,7 +134,38 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             ? (variants[0]['variant_id'] as String)
             : '00000000-0000-0000-0000-000000000000'; // fallback
 
-        // 2. Find or create matching inquiry row
+        // 2. Fetch inventory status for stock validation (NFR-04 / FR-09)
+        final inventoryRecord = await client
+            .from('inventory')
+            .select('stock_qty, reserved_qty')
+            .eq('variant_id', variantId)
+            .maybeSingle();
+
+        if (inventoryRecord != null) {
+          final int stockQty = inventoryRecord['stock_qty'] as int? ?? 0;
+          final int reservedQty = inventoryRecord['reserved_qty'] as int? ?? 0;
+
+          if (stockQty <= 0) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Transaction Failed: This item is currently out of stock.'),
+                  backgroundColor: TeknoyTheme.error,
+                ),
+              );
+            }
+            setState(() => _isSubmitting = false);
+            return;
+          }
+
+          // Update inventory: decrement stock, and increment reserved if instantly reserving
+          await client.from('inventory').update({
+            'stock_qty': stockQty - 1,
+            'reserved_qty': _isReservation ? reservedQty + 1 : reservedQty,
+          }).eq('variant_id', variantId);
+        }
+
+        // 3. Find or create matching inquiry row
         final existingInquiries = await client
             .from('inquiries')
             .select('inquiry_id')
@@ -157,7 +188,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           inquiryId = insertedInquiry['inquiry_id'] as String;
         }
 
-        // 3. Perform live Supabase insert into orders
+        // 4. Perform live Supabase insert into orders
         await client.from('orders').insert({
           'inquiry_id': inquiryId,
           'buyer_id': buyerId,
