@@ -1423,6 +1423,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       created_at,
       buyer_id,
       seller_id,
+      payment_reference,
+      payment_proof_url,
       product_variants (
         products (
           name,
@@ -1602,6 +1604,86 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             case 'READY_FOR_PICKUP':  progress = 0.9; statusDisplay = 'Ready for Campus Meetup'; break;
             case 'COMPLETED':    progress = 1.0; statusDisplay = 'Meetup Completed ✓'; break;
             case 'CANCELLED':    progress = 0.0; statusDisplay = 'Deal Cancelled'; break;
+            case 'REJECTED':     progress = 0.0; statusDisplay = 'Deal Rejected'; break;
+          }
+
+          final isGcash = o['pickup_location']?.toString().contains('Payment: GCash') ?? false;
+          final orderId = o['order_id'] as String;
+
+          Widget? cardActionButton;
+
+          if (isBuyer) {
+            if ((status == 'APPROVED' || status == 'INQUIRY_SENT') && isGcash) {
+              cardActionButton = Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showUploadReceiptDialog(context, orderId),
+                    icon: const Icon(Icons.upload_file_rounded, size: 16, color: Colors.white),
+                    label: const Text('Upload GCash Receipt', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
+                    style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.citMaroon),
+                  ),
+                ),
+              );
+            }
+          } else {
+            if (status == 'INQUIRY_SENT') {
+              cardActionButton = Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => _updateOrderStatus(orderId, 'APPROVED'),
+                        style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.success, foregroundColor: Colors.white),
+                        child: const Text('Accept Deal', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => _updateOrderStatus(orderId, 'REJECTED'),
+                        style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red), foregroundColor: Colors.red),
+                        child: const Text('Decline', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            } else if (status == 'PAYMENT_SUBMITTED') {
+              cardActionButton = Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showVerifyReceiptDialog(
+                      context, 
+                      orderId: orderId,
+                      amount: price,
+                      refNum: o['payment_reference']?.toString() ?? '',
+                      proofUrl: o['payment_proof_url']?.toString() ?? '',
+                    ),
+                    icon: const Icon(Icons.rate_review_rounded, size: 16, color: Colors.white),
+                    label: const Text('Verify GCash Receipt', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
+                    style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.success),
+                  ),
+                ),
+              );
+            } else if (status == 'PAYMENT_VERIFIED' || (status == 'APPROVED' && !isGcash)) {
+              cardActionButton = Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _updateOrderStatus(orderId, 'COMPLETED'),
+                    icon: const Icon(Icons.done_all_rounded, size: 16, color: Colors.white),
+                    label: const Text('Complete Meetup', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
+                    style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.citMaroon),
+                  ),
+                ),
+              );
+            }
           }
 
           return Padding(
@@ -1615,6 +1697,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               time: 'Confirm meetup at agreed campus landmark',
               status: statusDisplay,
               progress: progress,
+              actionButton: cardActionButton,
             ),
           );
         }),
@@ -1631,6 +1714,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     required String time,
     required String status,
     required double progress,
+    Widget? actionButton,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
@@ -1727,8 +1811,170 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 ),
               ],
             ),
+            if (actionButton != null) actionButton,
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _updateOrderStatus(String orderId, String newStatus) async {
+    try {
+      await SupabaseConfig.client
+          .from('orders')
+          .update({'status': newStatus})
+          .eq('order_id', orderId);
+      if (mounted) {
+        setState(() {}); // Trigger reload
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Order status updated to $newStatus!'), backgroundColor: TeknoyTheme.success),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update status: $e'), backgroundColor: TeknoyTheme.error),
+        );
+      }
+    }
+  }
+
+  void _showUploadReceiptDialog(BuildContext context, String orderId) {
+    final refController = TextEditingController();
+    final proofController = TextEditingController(text: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Upload GCash Proof', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Please type the reference number and provide a receipt screenshot url to verify.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: refController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'GCash Reference Number (13 digits)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: proofController,
+              decoration: const InputDecoration(
+                labelText: 'Receipt Image URL',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(fontFamily: 'Outfit')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final refText = refController.text.trim();
+              if (refText.length != 13 || double.tryParse(refText) == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter a valid 13-digit reference number.'), backgroundColor: TeknoyTheme.error),
+                );
+                return;
+              }
+              Navigator.pop(context);
+              try {
+                await SupabaseConfig.client
+                    .from('orders')
+                    .update({
+                      'status': 'PAYMENT_SUBMITTED',
+                      'payment_reference': refText,
+                      'payment_proof_url': proofController.text.trim(),
+                    })
+                    .eq('order_id', orderId);
+                if (mounted) {
+                  setState(() {});
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Receipt uploaded successfully!'), backgroundColor: TeknoyTheme.success),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Upload failed: $e'), backgroundColor: TeknoyTheme.error),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.citMaroon),
+            child: const Text('Submit Proof', style: TextStyle(fontFamily: 'Outfit', color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showVerifyReceiptDialog(
+    BuildContext context, {
+    required String orderId,
+    required double amount,
+    required String refNum,
+    required String proofUrl,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Verify GCash Receipt', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Expected Amount: ₱${amount.toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 8),
+            Text('Reference Number: $refNum', style: const TextStyle(fontFamily: 'Inter', fontSize: 14)),
+            const SizedBox(height: 12),
+            const Text('Uploaded Receipt:', style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Container(
+              height: 180,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+                image: DecorationImage(
+                  image: NetworkImage(proofUrl),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 8),
+            const Text('Verification Checklist (FR-18.1):', style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
+            const SizedBox(height: 6),
+            const Text('• Recipient account name matches your GCash account\n• Amount matches the expected order total\n• Transaction timestamp is within the last 2 hours\n• Screenshot shows the official GCash interface', style: TextStyle(fontFamily: 'Inter', fontSize: 11, height: 1.4, color: Colors.grey)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _updateOrderStatus(orderId, 'APPROVED'); // return to approved (awaiting payment) state
+            },
+            child: const Text('Decline Receipt', style: TextStyle(fontFamily: 'Outfit', color: Colors.red)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _updateOrderStatus(orderId, 'PAYMENT_VERIFIED');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.success),
+            child: const Text('Verify & Complete', style: TextStyle(fontFamily: 'Outfit', color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
@@ -1750,16 +1996,24 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     }
   }
 
-  Future<void> _updateProfileMetadata(String dept, String contact) async {
+  Future<void> _updateProfileMetadata(String dept, String contact, String gcashNumber) async {
     try {
       await SupabaseConfig.client.auth.updateUser(
         UserAttributes(
           data: {
             'department': dept,
             'contact': contact,
+            'gcash_number': gcashNumber,
           },
         ),
       );
+      final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+      if (currentUserId != null) {
+        await SupabaseConfig.client
+            .from('users')
+            .update({'gcash_number': gcashNumber})
+            .eq('user_id', currentUserId);
+      }
       ref.invalidate(authStateProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1928,6 +2182,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     final rawId = user?.id ?? '';
     final dept = user?.department ?? 'College of Computer Studies';
     final contact = user?.contact ?? '0912 345 6789';
+    final gcashNumber = user?.gcashNumber ?? 'Not Configured';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Dark mode palette from the design prompt
@@ -2184,7 +2439,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                         cardBg: cardBg,
                         cardBorder: cardBorder,
                         isDark: isDark,
-                        onSave: (newDept) => _updateProfileMetadata(newDept, contact),
+                        onSave: (newDept) => _updateProfileMetadata(newDept, contact, gcashNumber),
                       ),
 
                       const SizedBox(height: 14),
@@ -2201,7 +2456,24 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                         cardBg: cardBg,
                         cardBorder: cardBorder,
                         isDark: isDark,
-                        onSave: (newContact) => _updateProfileMetadata(dept, newContact),
+                        onSave: (newContact) => _updateProfileMetadata(dept, newContact, gcashNumber),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // GCash Number
+                      _buildProfileInfoField(
+                        context,
+                        label: 'GCash Number',
+                        value: gcashNumber,
+                        icon: Icons.account_balance_wallet_outlined,
+                        isEditable: true,
+                        labelColor: labelColor,
+                        valueColor: valueColor,
+                        cardBg: cardBg,
+                        cardBorder: cardBorder,
+                        isDark: isDark,
+                        onSave: (newGcash) => _updateProfileMetadata(dept, contact, newGcash),
                       ),
                     ],
                   ),

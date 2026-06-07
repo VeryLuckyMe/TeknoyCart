@@ -359,6 +359,12 @@ class ChatService {
     String? imageUrl,
     Product? product,
   }) async {
+    // Clean up any previously failed attempts of the same message content
+    _activeMessages.removeWhere((m) =>
+        m.content == content &&
+        m.senderId == senderId &&
+        m.id.startsWith('failed-'));
+
     final userMessage = Message(
       id: 'msg-${DateTime.now().millisecondsSinceEpoch}',
       senderId: senderId,
@@ -383,51 +389,82 @@ class ChatService {
           'is_read': false,
         });
 
-        // Trigger live auto-reply for live rooms
+        // Trigger live auto-reply ONLY if the seller is offline
         if (senderId != receiverId && product != null) {
-          // Fetch custom seller settings dynamically from store_profiles
-          String? customActiveHours;
-          String? customMeetupSpots;
+          // Check if seller has been active recently (within last 3 minutes) to determine online presence status
+          bool isSellerOnline = false;
           try {
-            final profile = await _client
-                .from('store_profiles')
-                .select('usual_active_hours, preferred_meetup_spots')
-                .eq('seller_id', receiverId) // receiverId is the seller
+            final recentMessages = await _client
+                .from('messages')
+                .select('sent_at')
+                .eq('chat_id', roomId)
+                .eq('sender_id', receiverId)
+                .order('sent_at', ascending: false)
+                .limit(1)
                 .maybeSingle();
-            if (profile != null) {
-              customActiveHours = profile['usual_active_hours'] as String?;
-              customMeetupSpots = profile['preferred_meetup_spots'] as String?;
+
+            if (recentMessages != null && recentMessages['sent_at'] != null) {
+              final lastSent = DateTime.tryParse(recentMessages['sent_at'] as String) ?? DateTime.now();
+              if (DateTime.now().difference(lastSent).inMinutes < 3) {
+                isSellerOnline = true;
+              }
             }
           } catch (e) {
-            print("AUTO_REPLY_FETCH_PROFILE_ERROR: $e");
+            print("PRESENCE_CHECK_AUTO_REPLY_ERROR: $e");
           }
 
-          final responseText = _getAssistantResponse(
-            content, 
-            product,
-            activeHours: customActiveHours,
-            meetupSpots: customMeetupSpots,
-          );
-
-          if (responseText != null) {
-            Future.delayed(const Duration(seconds: 2), () async {
-              try {
-                await _client.from('messages').insert({
-                  'chat_id': roomId,
-                  'sender_id': receiverId, // Sent as the seller
-                  'content': responseText,
-                  'image_url': null,
-                  'is_read': false,
-                });
-              } catch (e) {
-                print("LIVE_AUTO_REPLY_ERROR: $e");
+          // Trigger auto-reply helper ONLY if seller is offline
+          if (!isSellerOnline) {
+            // Fetch custom seller settings dynamically from store_profiles
+            String? customActiveHours;
+            String? customMeetupSpots;
+            try {
+              final profile = await _client
+                  .from('store_profiles')
+                  .select('usual_active_hours, preferred_meetup_spots')
+                  .eq('seller_id', receiverId) // receiverId is the seller
+                  .maybeSingle();
+              if (profile != null) {
+                customActiveHours = profile['usual_active_hours'] as String?;
+                customMeetupSpots = profile['preferred_meetup_spots'] as String?;
               }
-            });
+            } catch (e) {
+              print("AUTO_REPLY_FETCH_PROFILE_ERROR: $e");
+            }
+
+            final responseText = _getAssistantResponse(
+              content, 
+              product,
+              activeHours: customActiveHours,
+              meetupSpots: customMeetupSpots,
+            );
+
+            if (responseText != null) {
+              Future.delayed(const Duration(seconds: 2), () async {
+                try {
+                  await _client.from('messages').insert({
+                    'chat_id': roomId,
+                    'sender_id': receiverId, // Sent as the seller
+                    'content': responseText,
+                    'image_url': null,
+                    'is_read': false,
+                  });
+                } catch (e) {
+                  print("LIVE_AUTO_REPLY_ERROR: $e");
+                }
+              });
+            }
           }
         }
       } catch (e, stackTrace) {
-        _activeMessages.remove(userMessage);
-        _messageController.add(List.from(_activeMessages));
+        final index = _activeMessages.indexWhere((m) => m.id == userMessage.id);
+        if (index != -1) {
+          _activeMessages[index] = userMessage.copyWith(id: 'failed-${userMessage.id}');
+          _messageController.add(List.from(_activeMessages));
+        } else {
+          _activeMessages.remove(userMessage);
+          _messageController.add(List.from(_activeMessages));
+        }
         print("SEND_MESSAGE_INSERT_ERROR: $e");
         print(stackTrace);
         rethrow;

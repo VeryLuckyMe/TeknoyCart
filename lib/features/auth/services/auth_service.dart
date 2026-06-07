@@ -39,6 +39,7 @@ class AuthService {
       department: user.userMetadata?['department'] as String?,
       contact: user.userMetadata?['contact'] as String?,
       studentId: user.userMetadata?['student_id'] as String?,
+      gcashNumber: user.userMetadata?['gcash_number'] as String?,
       createdAt: DateTime.tryParse(user.createdAt) ?? DateTime.now(),
     );
   }

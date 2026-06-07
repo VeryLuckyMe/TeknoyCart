@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
@@ -6,6 +7,7 @@ import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/chat/services/chat_service.dart';
 import 'package:teknoycart/features/feed/models/product.dart';
+import 'package:teknoycart/features/chat/services/presence_service.dart';
 
 /// Real-Time Chat Inbox listing active negotiations.
 /// Enables seamless account-to-account conversations for both buyers and sellers.
@@ -21,11 +23,22 @@ class _InboxViewState extends ConsumerState<InboxView> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _chatRooms = [];
   String? _errorMessage;
+  Timer? _presenceRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadChatRooms();
+    // Refresh presence indicators every 15 seconds so online/offline updates live
+    _presenceRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _presenceRefreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadChatRooms() async {
@@ -141,6 +154,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
 
         rooms.add({
           'chat_id': chatId,
+          'other_user_id': otherUserId,
           'other_user_name': otherUserName,
           'other_user_role': currentUser.id == buyerId ? 'Seller' : 'Buyer',
           'last_message': lastMessage,
@@ -240,27 +254,62 @@ class _InboxViewState extends ConsumerState<InboxView> {
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    // Leading avatar
-                                    Container(
-                                      padding: const EdgeInsets.all(2),
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: TeknoyTheme.citMaroon.withOpacity(0.2),
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                      child: CircleAvatar(
-                                        backgroundImage: NetworkImage(product.imageUrl ?? ''),
-                                        radius: 26,
-                                        backgroundColor: isDark ? const Color(0xFF1C1C22) : const Color(0xFFEDEEEF),
-                                      ),
+                                    // Leading avatar with online indicator overlay (glowing green dot)
+                                    FutureBuilder<bool>(
+                                      future: PresenceService.isUserOnline(room['other_user_id'] as String),
+                                      builder: (context, snapshot) {
+                                        final bool isUserOnline = snapshot.data ?? false;
+
+                                        return Stack(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(2),
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: TeknoyTheme.citMaroon.withOpacity(0.2),
+                                                  width: 1.5,
+                                                ),
+                                              ),
+                                              child: CircleAvatar(
+                                                backgroundImage: NetworkImage(product.imageUrl ?? ''),
+                                                radius: 26,
+                                                backgroundColor: isDark ? const Color(0xFF1C1C22) : const Color(0xFFEDEEEF),
+                                              ),
+                                            ),
+                                            if (isUserOnline)
+                                              Positioned(
+                                                bottom: 2,
+                                                right: 2,
+                                                child: Container(
+                                                  width: 14,
+                                                  height: 14,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.green,
+                                                    shape: BoxShape.circle,
+                                                    border: Border.all(
+                                                      color: isDark ? const Color(0xFF141418) : Colors.white,
+                                                      width: 2.5,
+                                                    ),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.green.withOpacity(0.4),
+                                                        blurRadius: 4,
+                                                        spreadRadius: 1,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        );
+                                      },
                                     ),
                                     const SizedBox(width: 12),
                                     // Title & Subtitle Info Column
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Row(
@@ -307,21 +356,24 @@ class _InboxViewState extends ConsumerState<InboxView> {
                                             ],
                                           ),
                                           const SizedBox(height: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                            decoration: BoxDecoration(
-                                              color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF1F1F5),
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              'Item: ${product.title}',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
-                                                color: isDark ? Colors.white60 : Colors.black54,
+                                          Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF1F1F5),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                'Item: ${product.title}',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontFamily: 'Inter',
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: isDark ? Colors.white60 : Colors.black54,
+                                                ),
                                               ),
                                             ),
                                           ),

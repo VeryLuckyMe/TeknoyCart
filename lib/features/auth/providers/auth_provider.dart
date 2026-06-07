@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/services/auth_service.dart';
+import 'package:teknoycart/features/chat/services/presence_service.dart';
 
 /// Provider exposing the single instance of AuthService.
 final authServiceProvider = Provider<AuthService>((ref) {
@@ -15,13 +17,27 @@ final authStateProvider = StreamProvider<Profile?>((ref) async* {
   yield* service.authStateChanges;
 });
 
-/// StateNotifier that coordinates login, registration, and logout operations.
 class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
   final AuthService _authService;
+  StreamSubscription<Profile?>? _authSubscription;
 
   AuthNotifier(this._authService) : super(const AsyncValue.data(null)) {
     // Sync initial state
-    state = AsyncValue.data(_authService.currentUser);
+    final existingUser = _authService.currentUser;
+    state = AsyncValue.data(existingUser);
+    if (existingUser != null) {
+      PresenceService.instance.startHeartbeat(existingUser.id);
+    }
+
+    // Auto-sync state and manage heartbeat for all auth changes (including auto-login / session restore)
+    _authSubscription = _authService.authStateChanges.listen((user) {
+      state = AsyncValue.data(user);
+      if (user != null) {
+        PresenceService.instance.startHeartbeat(user.id);
+      } else {
+        PresenceService.instance.stopHeartbeat();
+      }
+    });
   }
 
   /// Sign in user with error handling and loading indicators.
@@ -70,6 +86,12 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
     } catch (e, stackTrace) {
       state = AsyncValue.error(e, stackTrace);
     }
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 }
 

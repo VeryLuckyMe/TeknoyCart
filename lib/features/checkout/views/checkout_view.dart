@@ -4,6 +4,7 @@ import 'package:teknoycart/features/feed/models/product.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
+import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 
 class CampusLandmark {
   final String name;
@@ -21,10 +22,16 @@ class CampusLandmark {
 /// Confirms the agreed price and coordinates campus pickup locations.
 class CheckoutView extends ConsumerStatefulWidget {
   final Product product;
+  final bool isDirectBuy;
+  final double agreedPrice;
+  final String? roomId;
 
   const CheckoutView({
     super.key,
     required this.product,
+    this.isDirectBuy = false,
+    required this.agreedPrice,
+    this.roomId,
   });
 
   @override
@@ -33,12 +40,14 @@ class CheckoutView extends ConsumerStatefulWidget {
 
 class _CheckoutViewState extends ConsumerState<CheckoutView> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _priceController;
 
   String _selectedLocation = 'Library Lobby';
   String _selectedDay = 'Today';
   String _selectedTimeSlot = '12:00 PM - 01:30 PM';
+  String _selectedPaymentMethod = 'Cash on Delivery';
   bool _isReservation = false;
+  String? _sellerGcashNumber;
+  bool _isLoadingSellerGcash = false;
 
   final List<CampusLandmark> _landmarks = const [
     CampusLandmark(
@@ -73,12 +82,31 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   @override
   void initState() {
     super.initState();
-    _priceController = TextEditingController(text: widget.product.price.toStringAsFixed(0));
+    _fetchSellerGcash();
+  }
+
+  Future<void> _fetchSellerGcash() async {
+    setState(() => _isLoadingSellerGcash = true);
+    try {
+      final res = await SupabaseConfig.client
+          .from('users')
+          .select('gcash_number')
+          .eq('user_id', widget.product.sellerId)
+          .maybeSingle();
+      if (res != null && mounted) {
+        setState(() {
+          _sellerGcashNumber = res['gcash_number'] as String?;
+        });
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      if (mounted) setState(() => _isLoadingSellerGcash = false);
+    }
   }
 
   @override
   void dispose() {
-    _priceController.dispose();
     super.dispose();
   }
 
@@ -89,7 +117,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
     final authState = ref.read(authStateProvider).valueOrNull;
     final buyerId = authState?.id;
-    final combinedLocation = '$_selectedLocation ($_selectedDay, $_selectedTimeSlot)';
+    final combinedLocation = '$_selectedLocation ($_selectedDay, $_selectedTimeSlot) | Payment: $_selectedPaymentMethod';
 
     if (buyerId != null) {
       try {
@@ -129,8 +157,6 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           inquiryId = insertedInquiry['inquiry_id'] as String;
         }
 
-        final negotiatedPrice = double.tryParse(_priceController.text) ?? widget.product.price;
-
         // 3. Perform live Supabase insert into orders
         await client.from('orders').insert({
           'inquiry_id': inquiryId,
@@ -138,14 +164,29 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           'seller_id': widget.product.sellerId,
           'variant_id': variantId,
           'quantity': 1,
-          'unit_price': negotiatedPrice,
-          'total_amount': negotiatedPrice,
+          'unit_price': widget.agreedPrice,
+          'total_amount': widget.agreedPrice,
           'status': _isReservation ? 'APPROVED' : 'INQUIRY_SENT',
           'pickup_location': combinedLocation,
           'reservation_expires_at': _isReservation 
               ? DateTime.now().add(const Duration(hours: 24)).toIso8601String() 
               : null,
         });
+
+        // 4. Send handshake message to chat room if available
+        if (widget.roomId != null) {
+          try {
+            await ref.read(chatControllerProvider.notifier).postMessage(
+              senderId: buyerId,
+              receiverId: widget.product.sellerId,
+              content: 'Handshake Deal Confirmed! Meetup Scheduled.',
+              roomId: widget.roomId!,
+              product: widget.product,
+            );
+          } catch (e) {
+            print("CHAT_CHECKOUT_MESSAGE_POST_ERROR: $e");
+          }
+        }
       } catch (e) {
         // Network unavailable (e.g. test environment) — degrade gracefully
       }
@@ -175,8 +216,8 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         ),
         content: Text(
           _isReservation 
-              ? 'Your P2P offer of ₱${_priceController.text} has been successfully logged and the item is now reserved for 24 hours! Make sure to coordinate and upload your payment proof via chat before the reservation expires.'
-              : 'Your P2P offer of ₱${_priceController.text} at $_selectedLocation ($_selectedDay, $_selectedTimeSlot) has been successfully logged! Coordinate with the seller via chat for the meetup.',
+              ? 'Your P2P offer of ₱${widget.agreedPrice.toStringAsFixed(2)} has been successfully logged and the item is now reserved for 24 hours! Make sure to coordinate and upload your payment proof via chat before the reservation expires.'
+              : 'Your P2P offer of ₱${widget.agreedPrice.toStringAsFixed(2)} at $_selectedLocation ($_selectedDay, $_selectedTimeSlot) has been successfully logged! Coordinate with the seller via chat for the meetup.',
           style: const TextStyle(fontFamily: 'Inter', height: 1.4),
         ),
         actions: [
@@ -475,9 +516,65 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     );
   }
 
+  Widget _buildPaymentMethodSelector(bool isDark) {
+    return Column(
+      children: [
+        RadioListTile<String>(
+          title: const Text('Cash on Delivery', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+          subtitle: const Text('Pay with cash upon meetup.', style: TextStyle(fontFamily: 'Inter', fontSize: 12)),
+          value: 'Cash on Delivery',
+          groupValue: _selectedPaymentMethod,
+          activeColor: TeknoyTheme.citMaroon,
+          onChanged: (val) => setState(() => _selectedPaymentMethod = val!),
+        ),
+        RadioListTile<String>(
+          title: const Text('GCash', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+          subtitle: const Text('Direct GCash transfer to seller.', style: TextStyle(fontFamily: 'Inter', fontSize: 12)),
+          value: 'GCash',
+          groupValue: _selectedPaymentMethod,
+          activeColor: TeknoyTheme.citMaroon,
+          onChanged: (val) => setState(() => _selectedPaymentMethod = val!),
+        ),
+        if (_selectedPaymentMethod == 'GCash')
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, color: Colors.blue, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _isLoadingSellerGcash
+                      ? const Align(
+                          alignment: Alignment.centerLeft,
+                          child: SizedBox(
+                            height: 14,
+                            width: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue),
+                          ),
+                        )
+                      : Text(
+                          _sellerGcashNumber != null && _sellerGcashNumber!.isNotEmpty
+                              ? 'Transfer GCash to Seller: $_sellerGcashNumber'
+                              : 'Seller has not configured their GCash details. Please coordinate via chat.',
+                          style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: isDark ? Colors.blue[200] : Colors.blue[800]),
+                        ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildPriceFinalizer(bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF141418) : const Color(0xFFF4F4F7),
         borderRadius: BorderRadius.circular(20),
@@ -486,52 +583,15 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           width: 1.2,
         ),
       ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () {
-              final price = double.tryParse(_priceController.text) ?? widget.product.price;
-              if (price > 50) {
-                _priceController.text = (price - 50).toStringAsFixed(0);
-              }
-            },
-            icon: const Icon(Icons.remove_circle_outline_rounded, color: TeknoyTheme.citMaroon, size: 28),
+      child: Center(
+        child: Text(
+          '₱${widget.agreedPrice.toStringAsFixed(2)}',
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
           ),
-          Expanded(
-            child: TextFormField(
-              controller: _priceController,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                prefixText: '₱',
-                prefixStyle: TextStyle(fontFamily: 'Outfit', fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              validator: (val) {
-                if (val == null || val.trim().isEmpty) {
-                  return 'Enter price';
-                }
-                final price = double.tryParse(val.trim());
-                if (price == null || price <= 0) {
-                  return 'Invalid amount';
-                }
-                return null;
-              },
-            ),
-          ),
-          IconButton(
-            onPressed: () {
-              final price = double.tryParse(_priceController.text) ?? widget.product.price;
-              _priceController.text = (price + 50).toStringAsFixed(0);
-            },
-            icon: const Icon(Icons.add_circle_outline_rounded, color: TeknoyTheme.citMaroon, size: 28),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -682,6 +742,26 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               const SizedBox(height: 28),
 
               _buildReservationToggle(isDark),
+              const SizedBox(height: 28),
+
+              // Payment Method header
+              Row(
+                children: [
+                  const Icon(Icons.account_balance_wallet_rounded, color: TeknoyTheme.citGold, size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Payment Method',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildPaymentMethodSelector(isDark),
               const SizedBox(height: 28),
 
               // Final Price header

@@ -10,8 +10,7 @@ import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
-
-import 'package:teknoycart/core/supabase_client.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 /// Real-Time Chat screen representing Phase 4.
 /// Facilitates peer-to-peer price negotiations and pickup meetups.
@@ -240,7 +239,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
     return null;
   }
 
-  void _showCounterOfferDialog() {
+  void _showOfferPriceDialog() {
     // Also support pre-populating text controller directly for integration test scenarios
     _textController.text = 'Can we agree on ₱400? Deal?';
     
@@ -255,12 +254,8 @@ class _ChatViewState extends ConsumerState<ChatView> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.handshake_rounded, color: TeknoyTheme.citMaroon),
-            const SizedBox(width: 8),
-            Text('Make Counter Offer', style: TextStyle(fontFamily: 'Outfit', color: TeknoyTheme.citMaroon, fontWeight: FontWeight.bold, fontSize: 18)),
-          ],
+        title: Center(
+          child: Text('Propose Offer Price', style: TextStyle(fontFamily: 'Outfit', color: TeknoyTheme.citMaroon, fontWeight: FontWeight.bold, fontSize: 18)),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -298,17 +293,6 @@ class _ChatViewState extends ConsumerState<ChatView> {
                   _offeredPrice = val;
                 });
                 _sendMessage(customContent: 'Can we agree on ₱${val.toStringAsFixed(0)}? Deal?');
-                
-                // Simulate real-time seller handshake approval in 2 seconds
-                Future.delayed(const Duration(seconds: 2), () {
-                  if (mounted) {
-                    setState(() {
-                      _negotiationState = 'agreed';
-                      _agreedPrice = _offeredPrice;
-                    });
-                    _scrollToBottom();
-                  }
-                });
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.citMaroon),
@@ -337,6 +321,49 @@ class _ChatViewState extends ConsumerState<ChatView> {
 
     final messagesAsync = ref.watch(chatMessagesStreamProvider(widget.roomId));
 
+    // Resolve negotiation state dynamically from message stream
+    String activeState = 'none';
+    double activeOfferPrice = 0.0;
+    messagesAsync.whenData((messages) {
+      // Find the index of the last welcome message for the current product
+      int lastContextIndex = 0;
+      for (int i = 0; i < messages.length; i++) {
+        final contentLower = messages[i].content.toLowerCase();
+        final titleLower = widget.product.title.toLowerCase();
+        if (contentLower.contains('inquiring about') && contentLower.contains(titleLower)) {
+          lastContextIndex = i;
+        }
+      }
+
+      // Only evaluate messages starting from the last welcome message
+      for (int i = lastContextIndex; i < messages.length; i++) {
+        final msg = messages[i];
+        final price = _parseOfferPrice(msg.content);
+        if (price != null) {
+          activeState = 'offered';
+          activeOfferPrice = price;
+        } else if (msg.content == 'Offer Accepted!') {
+          activeState = 'agreed';
+        } else if (msg.content == 'Offer Declined.') {
+          activeState = 'none';
+        } else if (msg.content.startsWith('Handshake Deal Confirmed!') || 
+                   msg.content.contains('GCash Payment Verified!')) {
+          activeState = 'completed';
+        }
+      }
+    });
+
+    // Sync to local state if locally updated before DB stream catches up
+    if (_negotiationState != 'none') {
+      if (activeState == 'none' && _negotiationState == 'offered') {
+        activeState = _negotiationState;
+        activeOfferPrice = _offeredPrice;
+      } else if (activeState == 'offered' && _negotiationState == 'agreed') {
+        activeState = _negotiationState;
+        activeOfferPrice = _agreedPrice;
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -359,16 +386,16 @@ class _ChatViewState extends ConsumerState<ChatView> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: _negotiationState == 'agreed'
+              color: activeState == 'agreed' || activeState == 'completed'
                   ? TeknoyTheme.success.withOpacity(0.08)
-                  : _negotiationState == 'offered'
+                  : activeState == 'offered'
                       ? TeknoyTheme.citGold.withOpacity(0.08)
                       : TeknoyTheme.citMaroon.withOpacity(0.04),
               border: Border(
                 bottom: BorderSide(
-                  color: _negotiationState == 'agreed'
+                  color: activeState == 'agreed' || activeState == 'completed'
                       ? TeknoyTheme.success.withOpacity(0.2)
-                      : _negotiationState == 'offered'
+                      : activeState == 'offered'
                           ? TeknoyTheme.citGold.withOpacity(0.2)
                           : TeknoyTheme.citMaroon.withOpacity(0.08),
                 ),
@@ -381,31 +408,33 @@ class _ChatViewState extends ConsumerState<ChatView> {
                   child: Row(
                     children: [
                       Icon(
-                        _negotiationState == 'agreed'
+                        activeState == 'agreed' || activeState == 'completed'
                             ? Icons.check_circle_rounded
-                            : _negotiationState == 'offered'
+                            : activeState == 'offered'
                                 ? Icons.hourglass_empty_rounded
                                 : Icons.info_outline_rounded,
                         size: 20,
-                        color: _negotiationState == 'agreed'
+                        color: activeState == 'agreed' || activeState == 'completed'
                             ? TeknoyTheme.success
-                            : _negotiationState == 'offered'
+                            : activeState == 'offered'
                                 ? TeknoyTheme.citGold
                                 : TeknoyTheme.citMaroon,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _negotiationState == 'agreed'
-                              ? 'Deal Agreed: ₱${_agreedPrice.toStringAsFixed(2)}!'
-                              : _negotiationState == 'offered'
-                                  ? 'Offered Price: ₱${_offeredPrice.toStringAsFixed(2)}...'
-                                  : 'Asking Price: ₱${widget.product.price.toStringAsFixed(2)}',
+                          activeState == 'agreed'
+                              ? 'Deal Agreed: ₱${activeOfferPrice.toStringAsFixed(2)}!'
+                              : activeState == 'completed'
+                                  ? 'Deal Finalized! Meetup Scheduled.'
+                                  : activeState == 'offered'
+                                      ? 'Offered Price: ₱${activeOfferPrice.toStringAsFixed(2)}...'
+                                      : 'Asking Price: ₱${widget.product.price.toStringAsFixed(2)}',
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: _negotiationState == 'agreed'
+                            color: activeState == 'agreed' || activeState == 'completed'
                                 ? TeknoyTheme.success
                                 : const Color(0xFF191C1D),
                           ),
@@ -415,50 +444,64 @@ class _ChatViewState extends ConsumerState<ChatView> {
                     ],
                   ),
                 ),
-                if (_negotiationState != 'agreed') ...[
-                  TextButton.icon(
-                    onPressed: _showCounterOfferDialog,
-                    icon: const Icon(Icons.handshake_outlined, size: 16, color: TeknoyTheme.citMaroon),
-                    label: const Text(
-                      'Counter Offer',
-                      style: TextStyle(fontFamily: 'Outfit', fontSize: 13, color: TeknoyTheme.citMaroon, fontWeight: FontWeight.bold),
+                if (activeState == 'completed') ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: TeknoyTheme.success.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'COMPLETED',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: TeknoyTheme.success,
+                      ),
                     ),
                   ),
+                ] else if (activeState != 'agreed') ...[
+                  // Only show the "Offer Price" bargaining action button to the Buyer
+                  if (ref.read(authStateProvider).valueOrNull?.id != widget.product.sellerId)
+                    TextButton.icon(
+                      onPressed: _showOfferPriceDialog,
+                      icon: const Icon(Icons.handshake_outlined, size: 16, color: TeknoyTheme.citMaroon),
+                      label: const Text(
+                        'Offer Price',
+                        style: TextStyle(fontFamily: 'Outfit', fontSize: 13, color: TeknoyTheme.citMaroon, fontWeight: FontWeight.bold),
+                      ),
+                    ),
                 ] else ...[
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CheckoutView(
-                            product: Product(
-                              id: widget.product.id,
-                              title: widget.product.title,
-                              price: _agreedPrice,
-                              category: widget.product.category,
-                              condition: widget.product.condition,
-                              imageUrl: widget.product.imageUrl,
-                              sellerId: widget.product.sellerId,
-                              description: widget.product.description,
-                              createdAt: widget.product.createdAt,
+                  // Only show the Checkout button to the Buyer
+                  if (ref.read(authStateProvider).valueOrNull?.id != widget.product.sellerId)
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CheckoutView(
+                              product: widget.product,
+                              agreedPrice: activeOfferPrice,
+                              isDirectBuy: false,
+                              roomId: widget.roomId,
                             ),
                           ),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: TeknoyTheme.success,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: TeknoyTheme.success,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: const Icon(Icons.shopping_cart_checkout_rounded, size: 16),
+                      label: const Text(
+                        'Checkout Deal',
+                        style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
                     ),
-                    icon: const Icon(Icons.shopping_cart_checkout_rounded, size: 16),
-                    label: const Text(
-                      'Checkout Deal',
-                      style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                  ),
                 ],
               ],
             ),
@@ -470,6 +513,16 @@ class _ChatViewState extends ConsumerState<ChatView> {
               data: (messages) {
                 final currentUser = ref.watch(authStateProvider).valueOrNull;
                 final isDark = Theme.of(context).brightness == Brightness.dark;
+                
+                final latestOfferIndex = () {
+                  int lastOfferIdx = -1;
+                  for (int i = 0; i < messages.length; i++) {
+                    if (_parseOfferPrice(messages[i].content) != null) {
+                      lastOfferIdx = i;
+                    }
+                  }
+                  return lastOfferIdx;
+                }();
 
                 return ListView.builder(
                   controller: _scrollController,
@@ -478,9 +531,12 @@ class _ChatViewState extends ConsumerState<ChatView> {
                   itemBuilder: (context, index) {
                     final msg = messages[index];
                     final isMe = msg.senderId == (currentUser?.id ?? 'usr-buyer');
+                    final isSending = msg.id.startsWith('msg-');
+                    final isFailed = msg.id.startsWith('failed-');
                     final isReceipt = msg.content.contains('[GCASH_RECEIPT_PROOF]');
                     final hasImage = msg.imageUrl != null && !msg.content.contains('[GCASH_RECEIPT_PROOF]');
                     final offerPrice = _parseOfferPrice(msg.content);
+                    final isLatestOffer = index == latestOfferIndex;
 
                     if (offerPrice != null) {
                       return Align(
@@ -548,19 +604,17 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      isMe
-                                          ? 'You proposed this counter offer.'
-                                          : 'Seller proposed this counter offer.',
-                                      style: TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 11,
-                                        color: isMe ? Colors.white.withOpacity(0.6) : Colors.grey,
-                                      ),
+                                      msg.senderId == (currentUser?.id ?? '') 
+                                          ? 'You proposed this offer price.'
+                                          : (msg.senderId == widget.product.sellerId 
+                                              ? 'Seller proposed this offer price.' 
+                                              : 'Buyer proposed this offer price.'),
+                                      style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: isDark ? Colors.white54 : Colors.black54),
                                     ),
                                   ],
                                 ),
                               ),
-                              if (!isMe && _negotiationState == 'offered') ...[
+                              if (!isMe && activeState == 'offered' && isLatestOffer) ...[
                                 Container(
                                   decoration: BoxDecoration(
                                     border: Border(
@@ -642,8 +696,8 @@ class _ChatViewState extends ConsumerState<ChatView> {
                       );
                     }
 
-                    return Align(
-                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                    final bubbleContainer = Opacity(
+                      opacity: isSending ? 0.7 : (isFailed ? 0.95 : 1.0),
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 6.0),
                         padding: isReceipt
@@ -651,13 +705,13 @@ class _ChatViewState extends ConsumerState<ChatView> {
                             : const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                         decoration: BoxDecoration(
                           color: isMe
-                              ? (isReceipt ? Colors.transparent : TeknoyTheme.citMaroon)
+                              ? (isReceipt ? Colors.transparent : (isFailed ? TeknoyTheme.citMaroon.withOpacity(0.85) : TeknoyTheme.citMaroon))
                               : (isDark ? const Color(0xFF141418) : Colors.white),
                           border: isReceipt
                               ? null
                               : Border.all(
                                   color: isMe 
-                                      ? Colors.transparent 
+                                      ? (isFailed ? Colors.red.withOpacity(0.3) : Colors.transparent) 
                                       : (isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF)),
                                   width: 1,
                                 ),
@@ -692,10 +746,10 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                       child: GestureDetector(
                                         onTap: () => Navigator.pop(ctx),
                                         child: InteractiveViewer(
-                                          child: Image.network(
-                                            msg.imageUrl!,
+                                          child: CachedNetworkImage(
+                                            imageUrl: msg.imageUrl!,
                                             fit: BoxFit.contain,
-                                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.white, size: 64),
+                                            errorWidget: (context, url, error) => const Icon(Icons.broken_image_rounded, color: Colors.white, size: 64),
                                           ),
                                         ),
                                       ),
@@ -711,25 +765,22 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                         bottomLeft: isMe ? const Radius.circular(16) : Radius.zero,
                                         bottomRight: isMe ? Radius.zero : const Radius.circular(16),
                                       ),
-                                      child: Image.network(
-                                        msg.imageUrl!,
+                                      child: CachedNetworkImage(
+                                        imageUrl: msg.imageUrl!,
                                         width: MediaQuery.of(context).size.width * 0.65,
                                         fit: BoxFit.cover,
-                                        loadingBuilder: (context, child, progress) {
-                                          if (progress == null) return child;
-                                          return Container(
-                                            width: MediaQuery.of(context).size.width * 0.65,
-                                            height: 180,
-                                            decoration: BoxDecoration(
-                                              color: isDark ? const Color(0xFF1A1A1F) : Colors.grey.shade200,
-                                              borderRadius: BorderRadius.circular(16),
-                                            ),
-                                            child: const Center(
-                                              child: CircularProgressIndicator(color: TeknoyTheme.citMaroon, strokeWidth: 2),
-                                            ),
-                                          );
-                                        },
-                                        errorBuilder: (_, __, ___) => Container(
+                                        placeholder: (context, url) => Container(
+                                          width: MediaQuery.of(context).size.width * 0.65,
+                                          height: 180,
+                                          decoration: BoxDecoration(
+                                            color: isDark ? const Color(0xFF1A1A1F) : Colors.grey.shade200,
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          child: const Center(
+                                            child: CircularProgressIndicator(color: TeknoyTheme.citMaroon, strokeWidth: 2),
+                                          ),
+                                        ),
+                                        errorWidget: (context, url, error) => Container(
                                           width: MediaQuery.of(context).size.width * 0.65,
                                           height: 120,
                                           color: Colors.grey.shade300,
@@ -834,6 +885,18 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                                 child: ElevatedButton(
                                                   onPressed: () {
                                                     Navigator.pop(context);
+                                                    final currUser = ref.read(authStateProvider).valueOrNull;
+                                                    if (currUser != null) {
+                                                      ref.read(chatControllerProvider.notifier).postMessage(
+                                                        senderId: currUser.id,
+                                                        receiverId: widget.product.sellerId == currUser.id 
+                                                            ? msg.senderId
+                                                            : widget.product.sellerId,
+                                                        content: 'GCash Payment Verified! Deal Completed.',
+                                                        roomId: widget.roomId,
+                                                        product: widget.product,
+                                                      );
+                                                    }
                                                     ScaffoldMessenger.of(context).showSnackBar(
                                                       const SnackBar(
                                                         content: Text('P2P GCash Transfer Approved & Verified!'),
@@ -902,16 +965,89 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                   ),
                                 ),
                               )
-                            : Text(
-                                msg.content,
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 14.5,
-                                  color: isMe ? Colors.white : (isDark ? Colors.white.withOpacity(0.9) : Colors.black87),
-                                  height: 1.35,
-                                ),
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    msg.content,
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 14.5,
+                                      color: isMe ? Colors.white : (isDark ? Colors.white.withOpacity(0.9) : Colors.black87),
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                  if (isMe) ...[
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (isSending) ...[
+                                          SizedBox(
+                                            width: 10,
+                                            height: 10,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 1.2,
+                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white.withOpacity(0.6)),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                        ],
+                                        Icon(
+                                          isFailed
+                                              ? Icons.error_outline_rounded
+                                              : (isSending ? Icons.access_time_rounded : Icons.done_all_rounded),
+                                          size: 11,
+                                          color: isFailed ? Colors.red.shade300 : Colors.white.withOpacity(0.55),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
                               ),
                       ),
+                    );
+
+                    return Align(
+                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      child: (isMe && isFailed)
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                TextButton.icon(
+                                  onPressed: () {
+                                    ref.read(chatControllerProvider.notifier).postMessage(
+                                      senderId: msg.senderId,
+                                      receiverId: widget.product.sellerId,
+                                      content: msg.content,
+                                      roomId: widget.roomId,
+                                      product: widget.product,
+                                      imageUrl: msg.imageUrl,
+                                    );
+                                  },
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.red.shade300,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                                  label: const Text(
+                                    'Retry',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                bubbleContainer,
+                              ],
+                            )
+                          : bubbleContainer,
                     );
                   },
                 );

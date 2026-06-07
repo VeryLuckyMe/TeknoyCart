@@ -49,6 +49,8 @@ class ProductDetailsSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final currentUser = ref.watch(authStateProvider).valueOrNull;
+    final isMyProduct = currentUser?.id == product.sellerId;
     
     return Container(
       decoration: BoxDecoration(
@@ -307,108 +309,141 @@ class ProductDetailsSheet extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 18),
-
                       // Action Button Deck
                       Row(
                         children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () async {
-                                final buyerId = ref.read(authStateProvider).valueOrNull?.id;
-                                if (buyerId == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please log in to negotiate with the seller.')),
+                          if (isMyProduct)
+                            Expanded(
+                              child: Container(
+                                alignment: Alignment.center,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                decoration: BoxDecoration(
+                                  color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: TeknoyTheme.citMaroon.withOpacity(0.15)),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.info_outline_rounded, color: TeknoyTheme.citMaroon, size: 18),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'This is your own product listing.',
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontWeight: FontWeight.bold,
+                                        color: TeknoyTheme.citMaroon,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          else ...[
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  final buyerId = ref.read(authStateProvider).valueOrNull?.id;
+                                  if (buyerId == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Please log in to negotiate with the seller.')),
+                                    );
+                                    return;
+                                  }
+
+                                  if (buyerId == product.sellerId) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('You cannot start a negotiation chat on your own product.')),
+                                    );
+                                    return;
+                                  }
+
+                                  // Show micro-loading dialog
+                                  showDialog(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (context) => const Center(
+                                      child: CircularProgressIndicator(color: TeknoyTheme.citMaroon),
+                                    ),
                                   );
-                                  return;
-                                }
 
-                                if (buyerId == product.sellerId) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('You cannot start a negotiation chat on your own product.')),
-                                  );
-                                  return;
-                                }
+                                  try {
+                                    final chatService = ref.read(chatServiceProvider);
+                                    final roomId = await chatService.getOrCreateChatRoom(
+                                      buyerId: buyerId,
+                                      sellerId: product.sellerId,
+                                      productId: product.id,
+                                    );
 
-                                // Show micro-loading dialog
-                                showDialog(
-                                  context: context,
-                                  barrierDismissible: false,
-                                  builder: (context) => const Center(
-                                    child: CircularProgressIndicator(color: TeknoyTheme.citMaroon),
-                                  ),
-                                );
+                                    Navigator.pop(context); // close loader
+                                    Navigator.pop(context); // close sheet
 
-                                try {
-                                  final chatService = ref.read(chatServiceProvider);
-                                  final roomId = await chatService.getOrCreateChatRoom(
-                                    buyerId: buyerId,
-                                    sellerId: product.sellerId,
-                                    productId: product.id,
-                                  );
-
-                                  Navigator.pop(context); // close loader
-                                  Navigator.pop(context); // close sheet
-
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ChatView(
+                                          product: product,
+                                          roomId: roomId,
+                                        ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    Navigator.pop(context); // close loader
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Failed to initialize chat: $e')),
+                                    );
+                                  }
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
+                                  foregroundColor: TeknoyTheme.citMaroon,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  padding: const EdgeInsets.symmetric(vertical: 18),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('Chat Seller', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => ChatView(
+                                      builder: (context) => CheckoutView(
                                         product: product,
-                                        roomId: roomId,
+                                        agreedPrice: product.price,
+                                        isDirectBuy: true,
                                       ),
                                     ),
                                   );
-                                } catch (e) {
-                                  Navigator.pop(context); // close loader
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Failed to initialize chat: $e')),
-                                  );
-                                }
-                              },
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
-                                foregroundColor: TeknoyTheme.citMaroon,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                padding: const EdgeInsets.symmetric(vertical: 18),
-                              ),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.chat_bubble_outline_rounded, size: 18),
-                                  SizedBox(width: 8),
-                                  Text('Chat Seller', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15)),
-                                ],
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: TeknoyTheme.citMaroon,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  padding: const EdgeInsets.symmetric(vertical: 18),
+                                  elevation: 0,
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.shopping_cart_checkout_rounded, size: 18, color: Colors.white),
+                                    SizedBox(width: 8),
+                                    Text('Buy Now', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15)),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => CheckoutView(product: product),
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: TeknoyTheme.citMaroon,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                padding: const EdgeInsets.symmetric(vertical: 18),
-                                elevation: 0,
-                              ),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.shopping_cart_checkout_rounded, size: 18, color: Colors.white),
-                                  SizedBox(width: 8),
-                                  Text('Buy Now', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15)),
-                                ],
-                              ),
-                            ),
-                          ),
+                          ],
                         ],
                       ),
                     ],

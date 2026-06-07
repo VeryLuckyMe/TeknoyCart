@@ -9,6 +9,7 @@ class Profile {
   final String? department;
   final String? contact;
   final String? studentId;
+  final String? gcashNumber;
   final DateTime createdAt;
 
   const Profile({
@@ -19,6 +20,7 @@ class Profile {
     this.department,
     this.contact,
     this.studentId,
+    this.gcashNumber,
     required this.createdAt,
   });
 
@@ -32,6 +34,7 @@ class Profile {
       department: json['department'] as String?,
       contact: json['contact'] as String?,
       studentId: json['student_id'] as String?,
+      gcashNumber: json['gcash_number'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
@@ -46,6 +49,7 @@ class Profile {
       'department': department,
       'contact': contact,
       'student_id': studentId,
+      'gcash_number': gcashNumber,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -59,6 +63,7 @@ class Profile {
     String? department,
     String? contact,
     String? studentId,
+    String? gcashNumber,
     DateTime? createdAt,
   }) {
     return Profile(
@@ -69,6 +74,7 @@ class Profile {
       department: department ?? this.department,
       contact: contact ?? this.contact,
       studentId: studentId ?? this.studentId,
+      gcashNumber: gcashNumber ?? this.gcashNumber,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -85,6 +91,7 @@ class Profile {
           department == other.department &&
           contact == other.contact &&
           studentId == other.studentId &&
+          gcashNumber == other.gcashNumber &&
           createdAt == other.createdAt;
 
   @override
@@ -96,5 +103,6 @@ class Profile {
       department.hashCode ^
       contact.hashCode ^
       studentId.hashCode ^
+      gcashNumber.hashCode ^
       createdAt.hashCode;
 }
