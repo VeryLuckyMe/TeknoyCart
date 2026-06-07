@@ -353,19 +353,22 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
+      child: Material(
         color: isActive
             ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.15 : 0.08)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isActive
-              ? TeknoyTheme.citGold.withOpacity(0.3)
-              : Colors.transparent,
-          width: 1,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: isActive
+                ? TeknoyTheme.citGold.withOpacity(0.3)
+                : Colors.transparent,
+            width: 1,
+          ),
         ),
-      ),
-      child: ListTile(
+        child: ListTile(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
