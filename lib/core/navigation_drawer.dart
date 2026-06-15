@@ -357,7 +357,6 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
         color: isActive
             ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.15 : 0.08)
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
