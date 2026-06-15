@@ -14,8 +14,8 @@ class PresenceService {
   static const Duration _heartbeatInterval = Duration(seconds: 30);
 
   /// Threshold for considering a user "online" — if their last_seen_at
-  /// is within this duration from now, they are online.
-  static const Duration onlineThreshold = Duration(minutes: 2);
+  /// is within this duration from now, they are online. (Increased to 10 mins to handle clock drifts).
+  static const Duration onlineThreshold = Duration(minutes: 10);
 
   PresenceService._();
 
