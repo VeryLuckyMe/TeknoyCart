@@ -29,6 +29,15 @@ class _InboxViewState extends ConsumerState<InboxView> {
   void initState() {
     super.initState();
     _loadChatRooms();
+    
+    // Auto-trigger immediate heartbeat for current user when inbox view is opened
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final currentUser = ref.read(authStateProvider).valueOrNull;
+      if (currentUser != null) {
+        PresenceService.instance.startHeartbeat(currentUser.id);
+      }
+    });
+
     // Refresh presence indicators every 15 seconds so online/offline updates live
     _presenceRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) setState(() {});

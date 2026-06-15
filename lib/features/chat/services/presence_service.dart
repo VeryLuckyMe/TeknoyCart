@@ -28,12 +28,12 @@ class PresenceService {
   /// Start the heartbeat timer for the given user.
   /// Call this after successful login.
   void startHeartbeat(String userId) {
+    // Send an immediate heartbeat to force-update status instantly
+    _sendHeartbeat(userId);
+
     if (_isRunning) return;
     _isRunning = true;
     _currentUserId = userId;
-
-    // Send an immediate heartbeat
-    _sendHeartbeat(userId);
 
     // Then send periodically
     _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) {
@@ -96,6 +96,7 @@ class PresenceService {
       if (lastSeen == null) return false;
 
       final diff = DateTime.now().toUtc().difference(lastSeen.toUtc());
+      print('PRESENCE: User $userId last seen at: $lastSeen (UTC), local now: ${DateTime.now().toUtc()} (UTC), diff: ${diff.inSeconds}s, threshold: ${onlineThreshold.inSeconds}s');
       return diff < onlineThreshold;
     } catch (e) {
       print('PRESENCE_CHECK_ERROR: $e');
