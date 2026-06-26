@@ -33,6 +33,43 @@ class ProductDetailsSheet extends ConsumerWidget {
     }
   }
 
+  /// Helper to fetch available stock info
+  Future<Map<String, int>> _getInventoryStatus(String productId) async {
+    try {
+      final client = SupabaseConfig.client;
+      final variants = await client
+          .from('product_variants')
+          .select('variant_id')
+          .eq('product_id', productId)
+          .limit(1);
+
+      if ((variants as List).isEmpty) {
+        return {'stock': 0, 'reserved': 0, 'available': 0};
+      }
+
+      final String variantId = variants[0]['variant_id'] as String;
+
+      final inventoryRecord = await client
+          .from('inventory')
+          .select('stock_qty, reserved_qty')
+          .eq('variant_id', variantId)
+          .maybeSingle();
+
+      if (inventoryRecord != null) {
+        final int stock = inventoryRecord['stock_qty'] as int? ?? 0;
+        final int reserved = inventoryRecord['reserved_qty'] as int? ?? 0;
+        return {
+          'stock': stock,
+          'reserved': reserved,
+          'available': stock - reserved,
+        };
+      }
+    } catch (e) {
+      // ignore
+    }
+    return {'stock': 0, 'reserved': 0, 'available': 0};
+  }
+
   /// Displays the sheet programmatically with a modern modal design
   static void show(BuildContext context, Product product) {
     showModalBottomSheet(
@@ -178,6 +215,42 @@ class ProductDetailsSheet extends ConsumerWidget {
                                     letterSpacing: 0.8,
                                   ),
                                 ),
+                              ),
+                              const SizedBox(width: 8),
+                              FutureBuilder<Map<String, int>>(
+                                future: _getInventoryStatus(product.id),
+                                builder: (context, snapshot) {
+                                  final inv = snapshot.data ?? {'stock': 0, 'reserved': 0, 'available': 0};
+                                  final available = inv['available'] ?? 0;
+                                  final isOutOfStock = available <= 0;
+                                  
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: isOutOfStock 
+                                          ? Colors.red.withOpacity(isDark ? 0.15 : 0.08)
+                                          : Colors.green.withOpacity(isDark ? 0.15 : 0.08),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: isOutOfStock
+                                            ? Colors.red.withOpacity(0.3)
+                                            : Colors.green.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      isOutOfStock 
+                                          ? 'OUT OF STOCK (RESERVABLE)' 
+                                          : '$available IN STOCK',
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: isOutOfStock ? Colors.red : Colors.green,
+                                        letterSpacing: 0.8,
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                           ),
