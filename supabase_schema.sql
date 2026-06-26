@@ -109,8 +109,7 @@ CREATE TABLE IF NOT EXISTS inventory (
     low_stock_threshold INT NOT NULL DEFAULT 5,
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     
-    FOREIGN KEY (variant_id) REFERENCES product_variants(variant_id) ON DELETE CASCADE,
-    CONSTRAINT check_stock_allocation CHECK (stock_qty >= reserved_qty)
+    FOREIGN KEY (variant_id) REFERENCES product_variants(variant_id) ON DELETE CASCADE
 );
 
 -- INQUIRIES

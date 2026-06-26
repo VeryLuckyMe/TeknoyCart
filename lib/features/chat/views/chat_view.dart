@@ -240,15 +240,6 @@ class _ChatViewState extends ConsumerState<ChatView> {
   }
 
   void _showOfferPriceDialog() {
-    // Also support pre-populating text controller directly for integration test scenarios
-    _textController.text = 'Can we agree on ₱400? Deal?';
-    
-    // During integration test execution, let's bypass the showDialog so the automated test can immediately send the text
-    final isTestMode = WidgetsBinding.instance.lifecycleState == null;
-    if (isTestMode) {
-      return;
-    }
-    
     final offerController = TextEditingController();
     showDialog(
       context: context,

@@ -48,6 +48,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   bool _isReservation = false;
   String? _sellerGcashNumber;
   bool _isLoadingSellerGcash = false;
+  String? _variantId;
+  int _availableQty = 0;
+  bool _isLoadingInventory = true;
 
   final List<CampusLandmark> _landmarks = const [
     CampusLandmark(
@@ -83,6 +86,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   void initState() {
     super.initState();
     _fetchSellerGcash();
+    _fetchInventoryStatus();
   }
 
   Future<void> _fetchSellerGcash() async {
@@ -105,6 +109,43 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     }
   }
 
+  Future<void> _fetchInventoryStatus() async {
+    try {
+      final client = SupabaseConfig.client;
+      final variants = await client
+          .from('product_variants')
+          .select('variant_id')
+          .eq('product_id', widget.product.id)
+          .limit(1);
+
+      _variantId = (variants as List).isNotEmpty
+          ? (variants[0]['variant_id'] as String)
+          : '00000000-0000-0000-0000-000000000000';
+
+      final inventoryRecord = await client
+          .from('inventory')
+          .select('stock_qty, reserved_qty')
+          .eq('variant_id', _variantId!)
+          .maybeSingle();
+
+      if (inventoryRecord != null) {
+        final int stockQty = inventoryRecord['stock_qty'] as int? ?? 0;
+        final int reservedQty = inventoryRecord['reserved_qty'] as int? ?? 0;
+        
+        if (mounted) {
+          setState(() {
+            _availableQty = stockQty - reservedQty;
+            _isReservation = _availableQty <= 0;
+          });
+        }
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      if (mounted) setState(() => _isLoadingInventory = false);
+    }
+  }
+
   @override
   void dispose() {
     super.dispose();
@@ -123,47 +164,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       try {
         final client = SupabaseConfig.client;
 
-        // 1. Fetch variant ID for product
-        final variants = await client
-            .from('product_variants')
-            .select('variant_id')
-            .eq('product_id', widget.product.id)
-            .limit(1);
-
-        final String variantId = (variants as List).isNotEmpty
-            ? (variants[0]['variant_id'] as String)
-            : '00000000-0000-0000-0000-000000000000'; // fallback
-
-        // 2. Fetch inventory status for stock validation (NFR-04 / FR-09)
-        final inventoryRecord = await client
-            .from('inventory')
-            .select('stock_qty, reserved_qty')
-            .eq('variant_id', variantId)
-            .maybeSingle();
-
-        if (inventoryRecord != null) {
-          final int stockQty = inventoryRecord['stock_qty'] as int? ?? 0;
-          final int reservedQty = inventoryRecord['reserved_qty'] as int? ?? 0;
-
-          if (stockQty <= 0) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Transaction Failed: This item is currently out of stock.'),
-                  backgroundColor: TeknoyTheme.error,
-                ),
-              );
-            }
-            setState(() => _isSubmitting = false);
-            return;
-          }
-
-          // Update inventory: decrement stock, and increment reserved if instantly reserving
-          await client.from('inventory').update({
-            'stock_qty': stockQty - 1,
-            'reserved_qty': _isReservation ? reservedQty + 1 : reservedQty,
-          }).eq('variant_id', variantId);
-        }
+        final String variantId = _variantId ?? '00000000-0000-0000-0000-000000000000';
 
         // 3. Find or create matching inquiry row
         final existingInquiries = await client
@@ -218,14 +219,25 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             print("CHAT_CHECKOUT_MESSAGE_POST_ERROR: $e");
           }
         }
-      } catch (e) {
-        // Network unavailable (e.g. test environment) — degrade gracefully
-      }
-    }
 
-    if (mounted) {
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+          _showSuccessDialog();
+        }
+      } catch (e) {
+        print("CHECKOUT_SUBMIT_ERROR: $e");
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Checkout failed: $e'),
+              backgroundColor: TeknoyTheme.error,
+            ),
+          );
+        }
+      }
+    } else {
       setState(() => _isSubmitting = false);
-      _showSuccessDialog();
     }
   }
 
@@ -628,6 +640,17 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   }
 
   Widget _buildReservationToggle(bool isDark) {
+    if (_isLoadingInventory) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF141418) : const Color(0xFFF4F4F7),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: TeknoyTheme.citMaroon)),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -663,9 +686,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Instantly Reserve Item',
-                  style: TextStyle(
+                Text(
+                  _isReservation ? 'Automatic Reservation' : 'Instant Purchase',
+                  style: const TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
@@ -673,7 +696,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Locks stock for 24 hours. Auto-cancels if payment is not uploaded.',
+                  _isReservation
+                      ? 'Item is out of stock. Proceeding as a reservation.'
+                      : 'Item is in stock. Proceeding as a regular purchase.',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 11,
@@ -682,13 +707,6 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 ),
               ],
             ),
-          ),
-          Switch.adaptive(
-            value: _isReservation,
-            activeColor: TeknoyTheme.citMaroon,
-            onChanged: (val) {
-              setState(() => _isReservation = val);
-            },
           ),
         ],
       ),
