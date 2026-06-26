@@ -177,7 +177,9 @@ class ProductDetailsSheet extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Category & Condition Tags
-                          Row(
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -197,7 +199,6 @@ class ProductDetailsSheet extends ConsumerWidget {
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                                 decoration: BoxDecoration(
@@ -216,7 +217,6 @@ class ProductDetailsSheet extends ConsumerWidget {
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 8),
                               FutureBuilder<Map<String, int>>(
                                 future: _getInventoryStatus(product.id),
                                 builder: (context, snapshot) {
