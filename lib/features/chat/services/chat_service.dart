@@ -445,6 +445,8 @@ class ChatService {
             // Fetch custom seller settings dynamically from store_profiles
             String? customActiveHours;
             String? customMeetupSpots;
+            String? sellerGcash;
+            String? latestOrderStatus;
             try {
               final profile = await _client
                   .from('store_profiles')
@@ -455,6 +457,27 @@ class ChatService {
                 customActiveHours = profile['usual_active_hours'] as String?;
                 customMeetupSpots = profile['preferred_meetup_spots'] as String?;
               }
+
+              final sellerUser = await _client
+                  .from('users')
+                  .select('gcash_number')
+                  .eq('user_id', receiverId)
+                  .maybeSingle();
+              if (sellerUser != null) {
+                sellerGcash = sellerUser['gcash_number'] as String?;
+              }
+
+              final orderRecord = await _client
+                  .from('orders')
+                  .select('status')
+                  .eq('buyer_id', senderId)
+                  .eq('seller_id', receiverId)
+                  .order('created_at', ascending: false)
+                  .limit(1)
+                  .maybeSingle();
+              if (orderRecord != null) {
+                latestOrderStatus = orderRecord['status'] as String?;
+              }
             } catch (e) {
               print("AUTO_REPLY_FETCH_PROFILE_ERROR: $e");
             }
@@ -464,6 +487,8 @@ class ChatService {
               product,
               activeHours: customActiveHours,
               meetupSpots: customMeetupSpots,
+              gcashNumber: sellerGcash,
+              orderStatus: latestOrderStatus,
             );
 
             if (responseText != null) {
@@ -502,7 +527,12 @@ class ChatService {
     // Demo negotiation auto-reply simulation using the Automated Chat Assistant rules
     // Only trigger if the buyer is the one sending the message (prevent self-reply/loops)
     if (senderId != receiverId && product != null) {
-      final responseText = _getAssistantResponse(content, product);
+      final responseText = _getAssistantResponse(
+        content,
+        product,
+        gcashNumber: '09171234567',
+        orderStatus: 'APPROVED',
+      );
       if (responseText != null) {
         Future.delayed(const Duration(seconds: 2), () {
           final sellerReply = Message(
@@ -526,12 +556,16 @@ class ChatService {
   /// 1. Price
   /// 2. Availability
   /// 3. Meetup Location / Time (When & Where)
+  /// 4. Payment instructions
+  /// 5. Order status
   String? _getAssistantResponse(
     String messageText, 
     Product product, {
     String? sellerFirstName,
     String? activeHours,
     String? meetupSpots,
+    String? gcashNumber,
+    String? orderStatus,
   }) {
     final msg = messageText.toLowerCase().trim();
 
@@ -572,6 +606,28 @@ class ChatService {
              "Please confirm if this schedule or location works for you!";
     }
 
+    // 4. Payment Instructions Inquiry
+    if (msg.contains('pay') || msg.contains('bayad') || msg.contains('gcash') || msg.contains('payment') || msg.contains('cash') || msg.contains('cod') || msg.contains('mode of payment') || msg.contains('mop')) {
+      final gcashInfo = (gcashNumber != null && gcashNumber.isNotEmpty)
+          ? "You can send GCash to the seller at: **$gcashNumber**."
+          : "You can pay the seller directly in cash upon meetup.";
+      return "For payment instructions, we support both Cash on Delivery/Meetup and GCash.\n$gcashInfo\nPlease verify references if using GCash.";
+    }
+
+    // 5. Order Status Inquiry
+    if (msg.contains('status') || msg.contains('order') || msg.contains('delivered') || msg.contains('track') || msg.contains('delivery') || msg.contains('nasaan') || msg.contains('update')) {
+      if (orderStatus != null && orderStatus.isNotEmpty) {
+        String displayStatus = orderStatus;
+        if (orderStatus == 'APPROVED') displayStatus = 'Approved (Reserved)';
+        if (orderStatus == 'INQUIRY_SENT') displayStatus = 'Inquiry Sent / Pending Approval';
+        if (orderStatus == 'COMPLETED') displayStatus = 'Completed';
+        if (orderStatus == 'REJECTED') displayStatus = 'Rejected/Declined';
+        return "Your latest order status is: **$displayStatus**.\nSellers fulfill orders in real-time. Please check the Web Admin dashboard or your inbox messages for details.";
+      } else {
+        return "You don't have any active orders with $resolvedSellerName yet. Proceed to checkout to place an order!";
+      }
+    }
+
     // No reply for unrecognized/ambiguous messages
     return null;
   }
@@ -584,7 +640,9 @@ class ChatService {
         c.contains('final fixed price!') ||
         c.contains('is available. feel free to ask') ||
         c.contains('currently out of stock') ||
-        c.contains('preferred meetup spots & schedule for');
+        c.contains('preferred meetup spots & schedule for') ||
+        c.contains('for payment instructions, we support') ||
+        c.contains('your latest order status is:');
   }
 
   /// Soft deletes/clears a chat room for the current user.
