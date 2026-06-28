@@ -622,7 +622,7 @@ class ChatService {
         if (orderStatus == 'INQUIRY_SENT') displayStatus = 'Inquiry Sent / Pending Approval';
         if (orderStatus == 'COMPLETED') displayStatus = 'Completed';
         if (orderStatus == 'REJECTED') displayStatus = 'Rejected/Declined';
-        return "Your latest order status is: **$displayStatus**.\nSellers fulfill orders in real-time. Please check the Web Admin dashboard or your inbox messages for details.";
+        return "Your latest order status is: **$displayStatus**.\nPlease check your order details in the app or let me know if you have any questions!";
       } else {
         return "You don't have any active orders with $resolvedSellerName yet. Proceed to checkout to place an order!";
       }
