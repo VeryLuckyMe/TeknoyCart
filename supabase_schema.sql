@@ -216,3 +216,17 @@ CREATE TRIGGER trigger_users_email_domain_check
 BEFORE INSERT OR UPDATE ON users
 FOR EACH ROW
 EXECUTE FUNCTION verify_user_email_domain();
+
+-- =============================================================
+-- 5. REALTIME & SECURITY INITIALIZATION
+-- =============================================================
+-- Enable realtime updates for messaging & chat logs
+ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.chats;
+
+-- Disable RLS for development/testing convenience (re-enable in production)
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chats DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inquiries DISABLE ROW LEVEL SECURITY;
+

@@ -370,7 +370,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         duration: const Duration(milliseconds: 250),
         width: 170,
         margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: isSelected
               ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.9 : 0.85)
@@ -736,7 +736,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
               // Horizontal scroll of Campus Landmark Cards
               SizedBox(
-                height: 145,
+                height: 155,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: _landmarks.length,
