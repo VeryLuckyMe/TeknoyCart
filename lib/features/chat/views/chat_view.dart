@@ -522,7 +522,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                   itemBuilder: (context, index) {
                     final msg = messages[index];
                     final isMe = msg.senderId == (currentUser?.id ?? 'usr-buyer');
-                    final isSending = msg.id.startsWith('msg-');
+                    final isSending = msg.id.startsWith('temp-');
                     final isFailed = msg.id.startsWith('failed-');
                     final isReceipt = msg.content.contains('[GCASH_RECEIPT_PROOF]');
                     final hasImage = msg.imageUrl != null && !msg.content.contains('[GCASH_RECEIPT_PROOF]');

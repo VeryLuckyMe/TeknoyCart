@@ -324,7 +324,7 @@ class ChatService {
             // Check if this message is already tracked (or exists locally as an optimistic send)
             final exists = _activeMessages.any((m) => 
               m.id == msg.id || 
-              (m.senderId == msg.senderId && m.content == msg.content && m.id.startsWith('msg-'))
+              (m.senderId == msg.senderId && m.content == msg.content && m.id.startsWith('temp-'))
             );
             
             if (!exists) {
@@ -333,7 +333,7 @@ class ChatService {
             } else {
               // Update the optimistic temporary message with the actual database UUID and timestamp
               final index = _activeMessages.indexWhere((m) => 
-                m.senderId == msg.senderId && m.content == msg.content && m.id.startsWith('msg-')
+                m.senderId == msg.senderId && m.content == msg.content && m.id.startsWith('temp-')
               );
               if (index != -1) {
                 _activeMessages[index] = msg;
@@ -365,8 +365,11 @@ class ChatService {
         m.senderId == senderId &&
         m.id.startsWith('failed-'));
 
+    final isDemo = roomId == 'room-demo' || roomId.startsWith('demo-');
     final userMessage = Message(
-      id: 'msg-${DateTime.now().millisecondsSinceEpoch}',
+      id: isDemo
+          ? 'demo-msg-${DateTime.now().millisecondsSinceEpoch}'
+          : 'temp-${DateTime.now().millisecondsSinceEpoch}',
       senderId: senderId,
       receiverId: receiverId,
       content: content,

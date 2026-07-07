@@ -18,6 +18,7 @@ import 'package:teknoycart/features/auth/services/auth_service.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
+import 'package:teknoycart/features/chat/services/chat_service.dart';
 import 'mock_http_client.dart';
 
 void main() {
@@ -67,6 +68,11 @@ void main() {
           overrides: [
             productsListProvider.overrideWith((ref) => Future.value([testProduct])),
             authServiceProvider.overrideWith((ref) => MockAuthService()),
+            chatServiceProvider.overrideWith((ref) {
+              final service = FakeChatService();
+              ref.onDispose(() => service.dispose());
+              return service;
+            }),
             authStateProvider.overrideWith((ref) async* {
               final notifierState = ref.watch(authNotifierProvider);
               yield notifierState.valueOrNull;
@@ -96,10 +102,12 @@ void main() {
                 ),
               ];
 
-              // Emit seeds immediately via microtask
-              Future.microtask(() {
-                if (!controller.isClosed) controller.add(List.from(allMessages));
-              });
+              // Emit seeds immediately when stream is listened to
+              controller.onListen = () {
+                if (!controller.isClosed) {
+                  controller.add(List.from(allMessages));
+                }
+              };
 
               // Bridge real ChatService sends into our mock stream
               chatService.watchMessages(roomId).listen((msgs) {
@@ -139,7 +147,7 @@ void main() {
 
       // Verify the app starts on the Auth Gate (since authStateProvider yields null)
       expect(find.byType(AuthGateView), findsOneWidget);
-      expect(find.text('TeknoyCart'), findsWidgets);
+      expect(find.text('Teknoy'), findsWidgets);
       expect(find.text('CIT-U Email'), findsOneWidget);
 
       // 2. Perform Authenticated Sign-In using a valid @cit.edu email address
@@ -179,19 +187,22 @@ void main() {
       expect(find.text('Negotiation Chat'), findsOneWidget);
       expect(find.text('Asking Price: ₱450.00'), findsOneWidget);
 
-      // Tap "Counter Offer" shortcut to automatically compose bargain request
-      await tester.tap(find.text('Counter Offer'));
+      // Tap "Offer Price" shortcut to automatically compose bargain request
+      await tester.tap(find.text('Offer Price'));
       await tester.pump();
 
       // Verify text field contains the proposed price offer
-      expect(find.widgetWithText(TextField, 'Can we agree on ₱400? Deal?'), findsOneWidget);
+      final textField = tester.widget<TextField>(find.byType(TextField));
+      expect(textField.controller?.text, 'Can we agree on ₱400? Deal?');
 
       // Send the bargaining counter offer message
       await tester.tap(find.byIcon(Icons.send_rounded));
       await tester.pumpAndSettle();
 
-      // Verify our offer message is logged in chat bubbles
-      expect(find.text('Can we agree on ₱400? Deal?'), findsOneWidget);
+      // Verify our offer message is logged in chat bubbles as a custom bargaining card
+      expect(find.text('Bargaining Offer'), findsOneWidget);
+      expect(find.text('₱400.00'), findsOneWidget);
+      expect(find.text('You proposed this offer price.'), findsOneWidget);
 
       // Let the seller's mock peer-negotiation stream emit after 2 seconds
       await tester.pump(const Duration(seconds: 3));
@@ -219,11 +230,8 @@ void main() {
       // Verify Checkout page is visible
       expect(find.byType(CheckoutView), findsOneWidget);
       expect(find.text('Confirm P2P Deal'), findsOneWidget);
-      expect(find.widgetWithText(TextFormField, 'Agreed Negotiated Price (₱)'), findsOneWidget);
-
-      // Input the negotiated agreed price of ₱400 in the checkout form
-      await tester.enterText(find.widgetWithText(TextFormField, 'Agreed Negotiated Price (₱)'), '400');
-      await tester.pump();
+      // Verify the final price of ₱450.00 is displayed
+      expect(find.text('₱450.00'), findsOneWidget);
 
       // Campus Meetup Location is set to 'Library Lobby' by default
       // Confirm deal by tapping the submit action button
@@ -235,7 +243,7 @@ void main() {
 
       // Verify Deal Logged Success dialog appears with parameters
       expect(find.text('Deal Logged!'), findsOneWidget);
-      expect(find.textContaining('Your P2P offer of ₱400 at Library Lobby has been successfully logged!'), findsOneWidget);
+      expect(find.textContaining('Your P2P offer of ₱450.00 at Library Lobby'), findsOneWidget);
 
       // 6. Tap back to feed to complete the transaction user journey
       await tester.tap(find.text('Back to Feed'));
@@ -259,5 +267,18 @@ class MockAuthService extends AuthService {
       email: email.trim(),
       createdAt: DateTime.now(),
     );
+  }
+}
+
+class FakeChatService extends ChatService {
+  @override
+  Future<String> getOrCreateChatRoom({
+    required String buyerId,
+    required String sellerId,
+    required String productId,
+  }) async {
+    // Add a tiny delay to allow the loading dialog to mount in tests
+    await Future.delayed(const Duration(milliseconds: 50));
+    return 'room-demo';
   }
 }

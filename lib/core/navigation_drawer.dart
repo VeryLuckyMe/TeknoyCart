@@ -291,25 +291,28 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                   ),
                   child: Column(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.security_rounded,
-                            size: 14,
-                            color: TeknoyTheme.citGold.withOpacity(0.6),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'TeknoyCart Platform v1.0.0',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.45),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.security_rounded,
+                              size: 14,
+                              color: TeknoyTheme.citGold.withOpacity(0.6),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            Text(
+                              'TeknoyCart Platform v1.0.0',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.45),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -368,41 +371,41 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
           ),
         ),
         child: ListTile(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        leading: Icon(
-          icon,
-          color: isActive
-              ? TeknoyTheme.citGold
-              : isDanger
-                  ? TeknoyTheme.error.withOpacity(0.8)
-                  : (isDark ? Colors.white60 : Colors.black54),
-          size: 22,
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontSize: 15,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-            color: isActive
-                ? (isDark ? Colors.white : TeknoyTheme.citMaroon)
-                : isDanger
-                    ? TeknoyTheme.error.withOpacity(0.9)
-                    : (isDark ? Colors.white.withOpacity(0.8) : Colors.black87),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
+          leading: Icon(
+            icon,
+            color: isActive
+                ? TeknoyTheme.citGold
+                : isDanger
+                    ? TeknoyTheme.error.withOpacity(0.8)
+                    : (isDark ? Colors.white60 : Colors.black54),
+            size: 22,
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 15,
+              fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+              color: isActive
+                  ? (isDark ? Colors.white : TeknoyTheme.citMaroon)
+                  : isDanger
+                      ? TeknoyTheme.error.withOpacity(0.9)
+                      : (isDark ? Colors.white.withOpacity(0.8) : Colors.black87),
+            ),
+          ),
+          trailing: Icon(
+            Icons.arrow_forward_ios_rounded,
+            size: 12,
+            color: isActive
+                ? TeknoyTheme.citGold.withOpacity(0.7)
+                : (isDark ? Colors.white24 : Colors.black26),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          onTap: onTap,
         ),
-        trailing: Icon(
-          Icons.arrow_forward_ios_rounded,
-          size: 12,
-          color: isActive
-              ? TeknoyTheme.citGold.withOpacity(0.7)
-              : (isDark ? Colors.white24 : Colors.black26),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-        onTap: onTap,
-      ),
       ),
     );
   }
