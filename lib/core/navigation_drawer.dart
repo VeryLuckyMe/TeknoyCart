@@ -6,6 +6,8 @@ import 'package:teknoycart/core/theme.dart';
 
 import 'package:teknoycart/features/reports/views/financial_reports_view.dart';
 import 'package:teknoycart/features/chat/views/inbox_view.dart';
+import 'package:teknoycart/features/feed/views/manage_listings_view.dart';
+import 'package:teknoycart/features/checkout/views/order_history_view.dart';
 
 /// Upgraded sliding Navigation Drawer reflecting a multi-billion-dollar brand layout.
 class TeknoyNavigationDrawer extends ConsumerWidget {
@@ -228,13 +230,9 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                         title: 'Manage My Listings',
                         onTap: () {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Manage Listings view coming in Phase 4!'),
-                              backgroundColor: TeknoyTheme.citMaroon,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const ManageListingsView()),
                           );
                         },
                       ),
@@ -244,13 +242,9 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                         title: 'Order History',
                         onTap: () {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Order History coming in Phase 4!'),
-                              backgroundColor: TeknoyTheme.citMaroon,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const OrderHistoryView()),
                           );
                         },
                       ),
