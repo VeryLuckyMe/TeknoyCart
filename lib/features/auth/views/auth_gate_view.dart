@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/supabase_client.dart';
@@ -336,9 +337,9 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     );
   }
 
-  /// Opens a modal sheet allowing the user to enter and confirm their new password
-  /// after following a Supabase password reset link.
-  static void showSetNewPasswordSheet(BuildContext context) {
+/// Opens a modal sheet allowing the user to enter and confirm their new password
+/// after following a Supabase password reset link.
+void showSetNewPasswordSheet(BuildContext context) {
     final newPassCtrl = TextEditingController();
     final confirmPassCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -350,7 +351,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      barrierDismissible: false,
+      isDismissible: false,
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) {
         return StatefulBuilder(

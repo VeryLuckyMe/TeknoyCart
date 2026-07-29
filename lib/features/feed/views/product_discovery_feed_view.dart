@@ -53,7 +53,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       if (data.event == AuthChangeEvent.passwordRecovery) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            _AuthGateViewState.showSetNewPasswordSheet(context);
+            showSetNewPasswordSheet(context);
           }
         });
       }
