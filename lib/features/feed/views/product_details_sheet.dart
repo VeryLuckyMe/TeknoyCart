@@ -257,6 +257,26 @@ class ProductDetailsSheet extends ConsumerWidget {
                           ),
                           const SizedBox(height: 16),
 
+                          // Store Name Header (if available)
+                          if (product.sellerStoreName != null && product.sellerStoreName!.trim().isNotEmpty) ...[
+                            Row(
+                              children: [
+                                const Icon(Icons.storefront_rounded, size: 14, color: TeknoyTheme.citMaroon),
+                                const SizedBox(width: 4),
+                                Text(
+                                  product.sellerStoreName!,
+                                  style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: TeknoyTheme.citMaroon,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                          ],
+
                           // Title & Price Info (State of the art layout)
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -346,15 +366,29 @@ class ProductDetailsSheet extends ConsumerWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    if (product.sellerStoreName != null && product.sellerStoreName!.trim().isNotEmpty) ...[
+                                      Text(
+                                        product.sellerStoreName!,
+                                        style: const TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                    ],
                                     FutureBuilder<String>(
                                       future: _getSellerName(product.sellerId),
                                       builder: (context, snapshot) {
+                                        final sellerName = snapshot.data ?? 'Wildcat Student Seller';
+                                        final hasStore = product.sellerStoreName != null && product.sellerStoreName!.trim().isNotEmpty;
                                         return Text(
-                                          snapshot.data ?? 'Wildcat Student Seller',
-                                          style: const TextStyle(
-                                            fontFamily: 'Outfit',
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.bold,
+                                          hasStore ? 'Owner: $sellerName' : sellerName,
+                                          style: TextStyle(
+                                            fontFamily: hasStore ? 'Inter' : 'Outfit',
+                                            fontSize: hasStore ? 12 : 15,
+                                            fontWeight: hasStore ? FontWeight.normal : FontWeight.bold,
+                                            color: hasStore ? (isDark ? Colors.white70 : Colors.black87) : null,
                                           ),
                                         );
                                       },

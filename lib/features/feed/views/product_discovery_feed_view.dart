@@ -3025,21 +3025,50 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                       ],
                     ),
 
-                    // Title
+                    // Store Name & Title
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6.0),
-                        child: Text(
-                          product.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            height: 1.25,
-                            color: isDark ? Colors.white : const Color(0xFF191C1D),
-                          ),
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (product.sellerStoreName != null && product.sellerStoreName!.trim().isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 2.0),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.storefront_rounded, size: 12, color: TeknoyTheme.citMaroon),
+                                    const SizedBox(width: 3),
+                                    Expanded(
+                                      child: Text(
+                                        product.sellerStoreName!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: TeknoyTheme.citMaroon,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            Text(
+                              product.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                height: 1.2,
+                                color: isDark ? Colors.white : const Color(0xFF191C1D),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
