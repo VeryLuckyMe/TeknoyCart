@@ -348,7 +348,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                                 children: [
                                   Positioned.fill(
                                     child: Image.network(
-                                      product.imageUrl,
+                                      product.imageUrl ?? '',
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => Container(
                                         color: isDark ? const Color(0xFF222228) : const Color(0xFFEFEFEF),
