@@ -1342,7 +1342,7 @@ class _VerificationCountdownDialogState extends State<_VerificationCountdownDial
         if (widget.parentMounted()) {
           ScaffoldMessenger.of(widget.parentContext).showSnackBar(
             const SnackBar(
-              content: Text('New verification email sent! Check your Outlook inbox.'),
+              content: Text('New verification email sent! Check your inbox.'),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
             ),
@@ -1494,7 +1494,7 @@ class _VerificationCountdownDialogState extends State<_VerificationCountdownDial
                         text: widget.email,
                         style: const TextStyle(fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
                       ),
-                      const TextSpan(text: ') is not verified yet. Check your Outlook inbox for the activation link.'),
+                      const TextSpan(text: ') is not verified yet. Check your email inbox for the activation link.'),
                     ]
                   : [
                       const TextSpan(text: 'Account created! A verification link was sent to '),
@@ -1504,7 +1504,7 @@ class _VerificationCountdownDialogState extends State<_VerificationCountdownDial
                       ),
                       const TextSpan(text: '. Check your '),
                       const TextSpan(
-                        text: 'Outlook inbox',
+                        text: 'email inbox',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const TextSpan(text: ' and click the verification button to activate your account.'),
