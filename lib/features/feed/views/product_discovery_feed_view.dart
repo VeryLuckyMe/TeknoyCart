@@ -1461,6 +1461,30 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           .order('created_at', ascending: false);
       final sellOrders = List<Map<String, dynamic>>.from(sellRes as List);
 
+      for (var o in buyOrders) {
+        try {
+          final sellerRes = await SupabaseConfig.client
+              .from('users')
+              .select('full_name, contact')
+              .eq('user_id', o['seller_id'])
+              .maybeSingle();
+          o['seller_name'] = sellerRes?['full_name'] ?? 'Seller';
+          o['seller_contact'] = sellerRes?['contact'];
+        } catch (_) {}
+      }
+
+      for (var o in sellOrders) {
+        try {
+          final buyerRes = await SupabaseConfig.client
+              .from('users')
+              .select('full_name, contact')
+              .eq('user_id', o['buyer_id'])
+              .maybeSingle();
+          o['buyer_name'] = buyerRes?['full_name'] ?? 'Buyer';
+          o['buyer_contact'] = buyerRes?['contact'];
+        } catch (_) {}
+      }
+
       return {'buy': buyOrders, 'sell': sellOrders};
     } catch (e) {
       return {'buy': [], 'sell': []};
@@ -1625,7 +1649,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           Widget? cardActionButton;
 
           if (isBuyer) {
-            if ((status == 'APPROVED' || status == 'INQUIRY_SENT') && isGcash) {
+            if ((status == 'APPROVED' || status == 'INQUIRY_SENT' || status == 'PENDING_SELLER_ACCEPT') && isGcash) {
               cardActionButton = Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: SizedBox(
@@ -1640,27 +1664,16 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               );
             }
           } else {
-            if (status == 'INQUIRY_SENT') {
+            if (status == 'INQUIRY_SENT' || status == 'PENDING_SELLER_ACCEPT') {
               cardActionButton = Padding(
                 padding: const EdgeInsets.only(top: 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => _updateOrderStatus(orderId, 'APPROVED'),
-                        style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.success, foregroundColor: Colors.white),
-                        child: const Text('Accept Deal', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _updateOrderStatus(orderId, 'REJECTED'),
-                        style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red), foregroundColor: Colors.red),
-                        child: const Text('Decline', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ],
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => _updateOrderStatus(orderId, 'APPROVED'),
+                    style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.success, foregroundColor: Colors.white),
+                    child: const Text('Accept Deal', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+                  ),
                 ),
               );
             } else if (status == 'PAYMENT_SUBMITTED') {
@@ -1698,6 +1711,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             }
           }
 
+          final String partyName = isBuyer
+              ? 'Seller: ${o['seller_name'] ?? 'Wildcat Seller'}'
+              : 'Buyer: ${o['buyer_name'] ?? 'Wildcat Student'}';
+
           return Padding(
             padding: const EdgeInsets.only(bottom: 16.0),
             child: _buildActiveOrderTimelineCard(
@@ -1705,6 +1722,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               orderId: displayId,
               productTitle: productTitle,
               amount: '₱${price.toStringAsFixed(2)}',
+              partyName: partyName,
               landmark: o['pickup_location'] as String? ?? 'Library Lobby',
               time: 'Confirm meetup at agreed campus landmark',
               status: statusDisplay,
@@ -1722,6 +1740,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     required String orderId,
     required String productTitle,
     required String amount,
+    required String partyName,
     required String landmark,
     required String time,
     required String status,
@@ -1764,6 +1783,11 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               ],
             ),
             const SizedBox(height: 12),
+            Text(
+              partyName,
+              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13, color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon),
+            ),
+            const SizedBox(height: 4),
             Text(
               productTitle,
               style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15),
