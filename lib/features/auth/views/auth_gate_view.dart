@@ -943,7 +943,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                           controller: _emailController,
                                           label: _selectedRole == 'SELLER'
                                               ? 'Store / Contact Email (e.g. Gmail)'
-                                              : 'CIT-U Email (@cit.edu or @my.cit.edu)',
+                                              : 'CIT-U Email (@cit.edu)',
                                           icon: Icons.email_outlined,
                                           keyboardType: TextInputType.emailAddress,
                                           validator: (val) {
@@ -952,8 +952,8 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                             }
                                             final email = val.trim().toLowerCase();
                                             if (_selectedRole == 'BUYER') {
-                                              if (!email.endsWith('@cit.edu') && !email.endsWith('@my.cit.edu')) {
-                                                return 'Buyers must use an @cit.edu or @my.cit.edu email';
+                                              if (!email.endsWith('@cit.edu')) {
+                                                return 'Buyers must use an official @cit.edu email';
                                               }
                                             } else {
                                               final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
