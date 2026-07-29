@@ -204,9 +204,18 @@ CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id);
 CREATE OR REPLACE FUNCTION verify_user_email_domain()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.email NOT LIKE '%@cit.edu' AND NEW.email NOT LIKE '%@cit.edu' THEN
-        RAISE EXCEPTION 'Registration restricted to official Cebu Institute of Technology - University (@cit.edu / @cit.edu) institutional accounts.';
+    -- Buyers must be @cit.edu
+    IF NEW.role = 'BUYER' THEN
+        IF NEW.email NOT LIKE '%@cit.edu' THEN
+            RAISE EXCEPTION 'Registration restricted to official Cebu Institute of Technology - University (@cit.edu) institutional accounts.';
+        END IF;
     END IF;
+    
+    -- Sellers and Admins can use any valid email address
+    IF NEW.email NOT LIKE '%@%.%' THEN
+        RAISE EXCEPTION 'Please enter a valid email address.';
+    END IF;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
