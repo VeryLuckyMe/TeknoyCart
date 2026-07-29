@@ -16,7 +16,7 @@ void main() {
     // ── Email domain validation (pure logic, no network required) ──
     test('should correctly validate valid CIT-U institutional domains', () {
       expect(authService.isValidCituEmail('student@cit.edu'), isTrue);
-      expect(authService.isValidCituEmail('john.doe@my.cit.edu'), isTrue);
+      expect(authService.isValidCituEmail('john.doe@cit.edu'), isTrue);
       expect(authService.isValidCituEmail('ADMIN@CIT.EDU'), isTrue);
     });
 

@@ -46,7 +46,7 @@ class AuthService {
 
   bool isValidCituEmail(String email) {
     final lower = email.toLowerCase().trim();
-    return lower.endsWith('@cit.edu') || lower.endsWith('@my.cit.edu');
+    return lower.endsWith('@cit.edu');
   }
 
   bool isValidGeneralEmail(String email) {
@@ -166,7 +166,7 @@ class AuthService {
     if (role == 'BUYER') {
       if (!isValidCituEmail(email)) {
         throw const FormatException(
-          'Strict Security Policy: Buyers must use an official @cit.edu or @my.cit.edu email.',
+          'Strict Security Policy: Buyers must use an official @cit.edu email.',
         );
       }
     } else {
