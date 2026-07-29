@@ -4,7 +4,7 @@ import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 
-/// Full-screen order detail view with status stepper, party info, and action buttons.
+/// Full-screen order detail view with status stepper, party info, cancellation & return request capabilities.
 class OrderDetailView extends ConsumerStatefulWidget {
   final Map<String, dynamic> order;
   final bool isSeller;
@@ -58,7 +58,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       final update = <String, dynamic>{'status': newStatus};
       if (newStatus == 'SELLER_CONFIRMED') {
         update['seller_confirmed_at'] = DateTime.now().toIso8601String();
-        newStatus == 'SELLER_CONFIRMED'; // will check combined below
       }
       await SupabaseConfig.client.from('orders').update(update).eq('order_id', _order['order_id']);
       await _refreshOrder();
@@ -66,15 +65,141 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         String msg = '';
         if (newStatus == 'SELLER_ACCEPTED') msg = 'Order accepted! Buyer notified.';
         if (newStatus == 'DECLINED') msg = 'Order declined.';
+        if (newStatus == 'CANCELLED') msg = 'Order cancelled successfully.';
         if (newStatus == 'PAYMENT_VERIFIED') msg = 'Payment verified!';
         if (newStatus == 'PAYMENT_REJECTED') msg = 'Payment rejected. Buyer notified.';
-        if (msg.isNotEmpty) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: newStatus == 'DECLINED' || newStatus == 'PAYMENT_REJECTED' ? Colors.red : Colors.green));
+        if (newStatus == 'RETURN_REQUESTED') msg = 'Return & refund request submitted to seller.';
+        if (newStatus == 'RETURN_APPROVED') msg = 'Return approved! Please coordinate item return & refund.';
+        if (newStatus == 'RETURN_DECLINED') msg = 'Return request declined.';
+        if (msg.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(msg),
+              backgroundColor: newStatus.contains('DECLINED') || newStatus.contains('REJECTED') || newStatus == 'CANCELLED'
+                  ? Colors.red
+                  : Colors.green,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Action failed: $e')));
     } finally {
       if (mounted) setState(() => _isActing = false);
     }
+  }
+
+  void _showCancelConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancel Order?', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Are you sure you want to cancel this order? This will release the item reservation and notify the seller.',
+          style: TextStyle(fontFamily: 'Inter', fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('No, Keep Order', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _updateStatus('CANCELLED');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Yes, Cancel Order', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReturnRequestDialog() {
+    String selectedReason = 'Defective or Damaged Item';
+    final notesController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Row(
+            children: [
+              Icon(Icons.assignment_return_rounded, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Request Return / Refund', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Please select a reason for returning this item:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: selectedReason,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  items: [
+                    'Defective or Damaged Item',
+                    'Wrong Product / Variant',
+                    'Item Condition Misrepresented',
+                    'Other Reason',
+                  ].map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontFamily: 'Inter', fontSize: 13)))).toList(),
+                  onChanged: (val) {
+                    if (val != null) setModalState(() => selectedReason = val);
+                  },
+                ),
+                const SizedBox(height: 14),
+                const Text('Additional Explanation (Optional):', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: notesController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'Describe why you are requesting a return...',
+                    hintStyle: const TextStyle(fontFamily: 'Inter', fontSize: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final user = ref.read(authStateProvider).valueOrNull;
+                if (user != null) {
+                  try {
+                    await SupabaseConfig.client.from('order_returns').insert({
+                      'order_id': _order['order_id'],
+                      'requested_by': user.id,
+                      'reason': selectedReason,
+                      'explanation': notesController.text.trim(),
+                      'status': 'PENDING',
+                    });
+                  } catch (_) {}
+                }
+                if (mounted) Navigator.pop(context);
+                _updateStatus('RETURN_REQUESTED');
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              child: const Text('Submit Request', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _confirmHandoff(bool isSeller) async {
@@ -85,7 +210,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
           : {'buyer_confirmed_at': DateTime.now().toIso8601String()};
       await SupabaseConfig.client.from('orders').update(update).eq('order_id', _order['order_id']);
 
-      // Check if both parties have now confirmed
       await _refreshOrder();
       final sellerConfirmed = _order['seller_confirmed_at'] != null;
       final buyerConfirmed = _order['buyer_confirmed_at'] != null;
@@ -250,6 +374,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             'PAYMENT_REJECTED': 2,
             'COMPLETED': 4,
             'DECLINED': -1,
+            'CANCELLED': -1,
+            'RETURN_REQUESTED': 4,
+            'RETURN_APPROVED': 4,
+            'RETURN_DECLINED': 4,
           }
         : {
             'PENDING_SELLER_ACCEPT': 0,
@@ -257,24 +385,65 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             'SELLER_ACCEPTED': 1,
             'COMPLETED': 3,
             'DECLINED': -1,
+            'CANCELLED': -1,
+            'RETURN_REQUESTED': 3,
+            'RETURN_APPROVED': 3,
+            'RETURN_DECLINED': 3,
           };
 
     final currentStep = statusToStep[_status] ?? 0;
     final isDeclined = _status == 'DECLINED';
+    final isCancelled = _status == 'CANCELLED';
+    final isReturnRequested = _status == 'RETURN_REQUESTED';
+    final isReturnApproved = _status == 'RETURN_APPROVED';
+    final isReturnDeclined = _status == 'RETURN_DECLINED';
 
     return _section(isDark, child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionTitle(Icons.timeline_rounded, 'Order Status', isDark),
         const SizedBox(height: 14),
-        if (isDeclined)
+        if (isDeclined || isCancelled)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.withOpacity(0.2))),
+            child: Row(children: [
+              const Icon(Icons.cancel_outlined, color: Colors.red, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                isCancelled ? 'This order was cancelled.' : 'This order was declined by the seller.',
+                style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.red),
+              ),
+            ]),
+          )
+        else if (isReturnRequested)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.orange.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.withOpacity(0.25))),
+            child: const Row(children: [
+              Icon(Icons.assignment_return_rounded, color: Colors.orange, size: 16),
+              SizedBox(width: 8),
+              Expanded(child: Text('Return / Refund requested by buyer. Awaiting seller response.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.orange))),
+            ]),
+          )
+        else if (isReturnApproved)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.teal.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.teal.withOpacity(0.25))),
+            child: const Row(children: [
+              Icon(Icons.check_circle_outline_rounded, color: Colors.teal, size: 16),
+              SizedBox(width: 8),
+              Expanded(child: Text('Return Approved! Meet up at landmark for item & refund exchange.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.teal))),
+            ]),
+          )
+        else if (isReturnDeclined)
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: Colors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.withOpacity(0.2))),
             child: const Row(children: [
-              Icon(Icons.cancel_outlined, color: Colors.red, size: 16),
+              Icon(Icons.gavel_rounded, color: Colors.red, size: 16),
               SizedBox(width: 8),
-              Text('This order was declined by the seller.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.red)),
+              Expanded(child: Text('Return request was declined by the seller.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.red))),
             ]),
           )
         else
@@ -328,10 +497,42 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       if ((_status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') && !sellerConfirmed) {
         buttons.add(_actionBtn('Mark as Handed Off', TeknoyTheme.citMaroon, Icons.handshake_outlined, () => _confirmHandoff(true)));
       }
+      // Seller: Handle Return Request
+      if (_status == 'RETURN_REQUESTED') {
+        buttons.add(_actionBtn('Decline Return Request', Colors.red, Icons.close_rounded, () => _updateStatus('RETURN_DECLINED')));
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn('Approve Return & Refund', Colors.teal, Icons.check_circle_outline_rounded, () => _updateStatus('RETURN_APPROVED')));
+      }
     } else {
       // Buyer: Confirm received
       if ((_status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') && !buyerConfirmed) {
         buttons.add(_actionBtn('Confirm I Received This', Colors.green, Icons.check_circle_outline_rounded, () => _confirmHandoff(false)));
+      }
+
+      // Buyer: Request Return / Refund (if accepted or completed)
+      if (_status == 'COMPLETED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') {
+        if (_status != 'RETURN_REQUESTED' && _status != 'RETURN_APPROVED' && _status != 'RETURN_DECLINED') {
+          buttons.add(const SizedBox(height: 10));
+          buttons.add(_actionBtn('Request Return / Refund', Colors.orange, Icons.assignment_return_rounded, _showReturnRequestDialog));
+        }
+      }
+
+      // Buyer: Cancel Order (if order is still pending/active before handoff)
+      if (_status == 'PENDING_SELLER_ACCEPT' || _status == 'INQUIRY_SENT' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_SUBMITTED') {
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _isActing ? null : _showCancelConfirmationDialog,
+            icon: const Icon(Icons.cancel_outlined, size: 18, color: Colors.red),
+            label: const Text('Cancel Order', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red)),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.red, width: 1.5),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ));
       }
     }
 

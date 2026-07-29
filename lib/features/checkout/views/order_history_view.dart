@@ -185,6 +185,9 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       case 'PAYMENT_VERIFIED':
       case 'SELLER_ACCEPTED': return Colors.blue;
       case 'PAYMENT_SUBMITTED': return Colors.indigo;
+      case 'RETURN_REQUESTED': return Colors.orange;
+      case 'RETURN_APPROVED': return Colors.teal;
+      case 'RETURN_DECLINED':
       case 'DECLINED':
       case 'CANCELLED': return Colors.red;
       case 'PENDING_SELLER_ACCEPT':
@@ -201,6 +204,10 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       case 'PAYMENT_VERIFIED': return 'Payment Verified';
       case 'COMPLETED': return 'Completed';
       case 'DECLINED': return 'Declined';
+      case 'CANCELLED': return 'Cancelled';
+      case 'RETURN_REQUESTED': return 'Return Requested';
+      case 'RETURN_APPROVED': return 'Return Approved';
+      case 'RETURN_DECLINED': return 'Return Declined';
       case 'INQUIRY_SENT': return 'Pending';
       default: return status;
     }

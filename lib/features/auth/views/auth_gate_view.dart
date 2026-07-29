@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/core/theme.dart';
+import 'package:teknoycart/core/supabase_client.dart';
 import 'package:http/http.dart' as http;
+
 
 /// Authentication gate view upgraded to a premium, world-class mobile visual standard.
 class AuthGateView extends ConsumerStatefulWidget {
@@ -116,6 +118,209 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
       return true;
     }
     return true;
+  }
+
+  /// Opens a bottom sheet where the user enters their @cit.edu email.
+  /// Calls Supabase Auth resetPasswordForEmail() to send the reset link.
+  void _showForgotPasswordSheet() {
+    final resetEmailCtrl = TextEditingController();
+    final sheetFormKey = GlobalKey<FormState>();
+    bool isSending = false;
+    String? sheetError;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF1A1A1F)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.08)
+                        : const Color(0xFFECECEF),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+                  child: Form(
+                    key: sheetFormKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Handle bar
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            margin: const EdgeInsets.only(bottom: 20),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.lock_reset_rounded,
+                          size: 40,
+                          color: TeknoyTheme.citMaroon,
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Reset Your Password',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Enter your CIT-U email and we will send a secure password reset link to your inbox.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 13,
+                            color: Colors.grey,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        _buildInputField(
+                          controller: resetEmailCtrl,
+                          label: 'CIT-U Email',
+                          icon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (val) {
+                            if (val == null || val.trim().isEmpty) {
+                              return 'Please enter your email address';
+                            }
+                            if (!val.trim().toLowerCase().endsWith('@cit.edu')) {
+                              return 'Only @cit.edu emails are permitted';
+                            }
+                            return null;
+                          },
+                        ),
+                        if (sheetError != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            sheetError!,
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12,
+                              color: TeknoyTheme.error,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          height: 52,
+                          child: ElevatedButton(
+                            onPressed: isSending
+                                ? null
+                                : () async {
+                                    if (!sheetFormKey.currentState!.validate()) return;
+                                    setSheetState(() {
+                                      isSending = true;
+                                      sheetError = null;
+                                    });
+                                    try {
+                                      await SupabaseConfig.client.auth.resetPasswordForEmail(
+                                        resetEmailCtrl.text.trim().toLowerCase(),
+                                        redirectTo: 'io.teknoycart://reset-callback',
+                                      );
+                                      if (mounted) {
+                                        Navigator.of(sheetCtx).pop();
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Row(
+                                              children: [
+                                                const Icon(Icons.check_circle_outline_rounded,
+                                                    color: Colors.white, size: 20),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Reset link sent to ${resetEmailCtrl.text.trim()}. Check your CIT-U inbox!',
+                                                    style: const TextStyle(
+                                                        fontFamily: 'Inter', fontSize: 13),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            backgroundColor: const Color(0xFF2D7D32),
+                                            behavior: SnackBarBehavior.floating,
+                                            margin: const EdgeInsets.all(16),
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(16)),
+                                            duration: const Duration(seconds: 5),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      setSheetState(() {
+                                        isSending = false;
+                                        sheetError = 'Failed to send reset link. Check your email and try again.';
+                                      });
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: TeknoyTheme.citMaroon,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16)),
+                            ),
+                            child: isSending
+                                ? const SizedBox(
+                                    height: 22,
+                                    width: 22,
+                                    child: CircularProgressIndicator(
+                                        color: Colors.white, strokeWidth: 2.5),
+                                  )
+                                : const Text(
+                                    'Send Reset Link',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () => Navigator.of(sheetCtx).pop(),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _submitForm() async {
@@ -511,7 +716,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                       Align(
                                         alignment: Alignment.centerRight,
                                         child: TextButton(
-                                          onPressed: () {},
+                                          onPressed: _showForgotPasswordSheet,
                                           style: TextButton.styleFrom(
                                             padding: EdgeInsets.zero,
                                             minimumSize: Size.zero,
