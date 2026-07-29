@@ -200,14 +200,15 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
           // 3. Products List Header
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, child: Text(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: const Text(
                 'Store Catalog',
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
-              )),
+              ),
             ),
           ),
 
