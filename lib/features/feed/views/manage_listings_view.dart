@@ -114,31 +114,31 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
     }
   }
 
-  Future<void> _updateStock(String? variantId, int currentStock) async {
+  Future<void> _addStock(String? variantId, int currentStock) async {
     if (variantId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Product variant not found. Cannot update stock.')),
+        const SnackBar(content: Text('Product variant not found. Cannot add stock.')),
       );
       return;
     }
 
-    final controller = TextEditingController(text: currentStock.toString());
+    final controller = TextEditingController();
     
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Update Stock'),
+        title: const Text('Add Stock'),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Stock Quantity', border: OutlineInputBorder()),
+          decoration: InputDecoration(labelText: 'Amount to add (Current: $currentStock)', border: const OutlineInputBorder()),
           autofocus: true,
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(context, true), 
-            child: const Text('Save')
+            child: const Text('Add')
           ),
         ],
       )
@@ -146,21 +146,27 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
 
     if (!confirm) return;
     
-    final newStock = int.tryParse(controller.text.trim());
-    if (newStock == null) return;
+    final amountToAdd = int.tryParse(controller.text.trim());
+    if (amountToAdd == null || amountToAdd <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid amount to add.')),
+      );
+      return;
+    }
 
     try {
+      final newStock = currentStock + amountToAdd;
       await SupabaseConfig.client
           .from('inventory')
           .update({'stock_qty': newStock})
           .eq('variant_id', variantId);
       _fetchListings();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Stock updated successfully')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Stock added successfully')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update stock: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to add stock: $e')));
       }
     }
   }
@@ -189,65 +195,108 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                         ? (images.firstWhere((img) => img['is_primary'] == true, orElse: () => images[0])['image_url'] as String? ?? '')
                         : '';
                         
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 2,
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(12),
-                        leading: imageUrl.isNotEmpty
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(imageUrl, width: 60, height: 60, fit: BoxFit.cover),
-                              )
-                            : Container(
-                                width: 60, height: 60, 
-                                decoration: BoxDecoration(color: Colors.grey.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                                child: const Icon(Icons.image_not_supported, color: Colors.grey),
-                              ),
-                        title: Text(item['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Outfit')),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 4),
-                            Text('₱ ${item['base_price']}', style: const TextStyle(color: TeknoyTheme.citMaroon, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: item['status'] == 'ACTIVE' ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    item['status'] ?? 'PENDING',
-                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: item['status'] == 'ACTIVE' ? Colors.green : Colors.orange),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Builder(
-                                  builder: (context) {
-                                    final variants = item['product_variants'] as List<dynamic>? ?? [];
-                                    int stock = 0;
-                                    if (variants.isNotEmpty) {
-                                      final inv = variants[0]['inventory'];
-                                      if (inv is List && inv.isNotEmpty) {
-                                        stock = inv[0]['stock_qty'] ?? 0;
-                                      } else if (inv is Map) {
-                                        stock = inv['stock_qty'] ?? 0;
-                                      }
-                                    }
-                                    return Text(
-                                      'Stock: $stock', 
-                                      style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black54)
-                                    );
-                                  }
-                                ),
-                              ],
+                    return TweenAnimationBuilder<double>(
+                      duration: Duration(milliseconds: 300 + (index * 50).clamp(0, 500)),
+                      curve: Curves.easeOutCubic,
+                      tween: Tween<double>(begin: 0, end: 1),
+                      builder: (context, value, child) {
+                        return Transform.translate(
+                          offset: Offset(0, 16 * (1 - value)),
+                          child: Opacity(
+                            opacity: value,
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 14),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF141418) : Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(isDark ? 0.3 : 0.04),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
                             ),
                           ],
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                            width: 1,
+                          ),
                         ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          leading: imageUrl.isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.network(imageUrl, width: 64, height: 64, fit: BoxFit.cover),
+                                )
+                              : Container(
+                                  width: 64, height: 64, 
+                                  decoration: BoxDecoration(
+                                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.withOpacity(0.1), 
+                                    borderRadius: BorderRadius.circular(10)
+                                  ),
+                                  child: Icon(Icons.image_not_supported, color: isDark ? Colors.white30 : Colors.grey),
+                                ),
+                          title: Text(item['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontFamily: 'Outfit', fontSize: 16)),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 6),
+                              Text('₱ ${item['base_price']}', style: const TextStyle(color: TeknoyTheme.citMaroon, fontWeight: FontWeight.bold, fontSize: 14)),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: item['status'] == 'ACTIVE' 
+                                          ? (isDark ? Colors.green.withOpacity(0.15) : Colors.green.withOpacity(0.1)) 
+                                          : (isDark ? Colors.orange.withOpacity(0.15) : Colors.orange.withOpacity(0.1)),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: item['status'] == 'ACTIVE' 
+                                            ? Colors.green.withOpacity(0.3) 
+                                            : Colors.orange.withOpacity(0.3),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      item['status'] ?? 'PENDING',
+                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: item['status'] == 'ACTIVE' ? Colors.green : Colors.orange),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Builder(
+                                    builder: (context) {
+                                      final variants = item['product_variants'] as List<dynamic>? ?? [];
+                                      int stock = 0;
+                                      if (variants.isNotEmpty) {
+                                        final inv = variants[0]['inventory'];
+                                        if (inv is List && inv.isNotEmpty) {
+                                          stock = inv[0]['stock_qty'] ?? 0;
+                                        } else if (inv is Map) {
+                                          stock = inv['stock_qty'] ?? 0;
+                                        }
+                                      }
+                                      return Row(
+                                        children: [
+                                          Icon(Icons.inventory_2_outlined, size: 14, color: isDark ? Colors.white54 : Colors.black54),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '$stock in stock', 
+                                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: isDark ? Colors.white70 : Colors.black87)
+                                          ),
+                                        ],
+                                      );
+                                    }
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         trailing: PopupMenuButton<String>(
                           icon: Icon(Icons.more_vert, color: isDark ? Colors.white70 : Colors.black54),
                           onSelected: (value) {
@@ -266,7 +315,7 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                   stock = inv['stock_qty'] ?? 0;
                                 }
                               }
-                              _updateStock(variantId, stock);
+                              _addStock(variantId, stock);
                             } else if (value == 'delete') {
                               _deleteProduct(item['product_id']);
                             }
@@ -288,7 +337,7 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                 children: [
                                   Icon(Icons.inventory_2_outlined, size: 20),
                                   SizedBox(width: 8),
-                                  Text('Update Stock'),
+                                  Text('Add Stock'),
                                 ],
                               ),
                             ),
@@ -305,8 +354,9 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                           ],
                         ),
                       ),
-                    );
-                  },
+                    ),
+                  );
+                },
                 ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
