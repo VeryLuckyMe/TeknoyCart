@@ -1986,33 +1986,58 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           .select('role, is_verified, student_id')
           .eq('user_id', userId)
           .single();
+
+      String storeName = '';
+      try {
+        final storeRes = await SupabaseConfig.client
+            .from('store_profiles')
+            .select('store_name')
+            .eq('seller_id', userId)
+            .maybeSingle();
+        if (storeRes != null) {
+          storeName = storeRes['store_name'] as String? ?? '';
+        }
+      } catch (_) {}
+
       return {
         'role': res['role'] as String? ?? 'BUYER',
         'is_verified': res['is_verified'] as bool? ?? false,
         'student_id': res['student_id'] as String?,
+        'store_name': storeName,
       };
     } catch (e) {
-      return {'role': 'BUYER', 'is_verified': false};
+      return {'role': 'BUYER', 'is_verified': false, 'store_name': ''};
     }
   }
 
-  Future<void> _updateProfileMetadata(String dept, String contact, String gcashNumber) async {
+  Future<void> _updateProfileMetadata(String dept, String contact, String gcashNumber, {String? storeName}) async {
     try {
-      await SupabaseConfig.client.auth.updateUser(
-        UserAttributes(
-          data: {
-            'department': dept,
-            'contact': contact,
-            'gcash_number': gcashNumber,
-          },
-        ),
-      );
       final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
+      final updateData = <String, dynamic>{
+        'department': dept,
+        'contact': contact,
+        'gcash_number': gcashNumber,
+      };
+      if (storeName != null) {
+        updateData['store_name'] = storeName;
+      }
+
+      await SupabaseConfig.client.auth.updateUser(
+        UserAttributes(data: updateData),
+      );
+
       if (currentUserId != null) {
         await SupabaseConfig.client
             .from('users')
             .update({'gcash_number': gcashNumber})
             .eq('user_id', currentUserId);
+
+        if (storeName != null && storeName.trim().isNotEmpty) {
+          await SupabaseConfig.client.from('store_profiles').upsert({
+            'seller_id': currentUserId,
+            'store_name': storeName.trim(),
+          });
+        }
       }
       ref.invalidate(authStateProvider);
       if (!mounted) return;
@@ -2231,6 +2256,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         final badgeColor = isVerified ? const Color(0xFF22C55E) : const Color(0xFF10B981);
         final badgeIcon = isVerified ? Icons.verified_user_rounded : Icons.shield_rounded;
 
+        final String rawStoreName = user?.userMetadata?['store_name'] as String?
+            ?? (roleInfo['store_name'] as String? ?? '');
+        final String storeName = rawStoreName.trim().isNotEmpty ? rawStoreName.trim() : 'Not Configured';
+
         return Container(
           color: bgColor,
           child: SingleChildScrollView(
@@ -2427,6 +2456,23 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
 
                       const SizedBox(height: 14),
 
+                      // Store Display Name
+                      _buildProfileInfoField(
+                        context,
+                        label: 'Store Display Name',
+                        value: storeName,
+                        icon: Icons.storefront_outlined,
+                        isEditable: true,
+                        labelColor: labelColor,
+                        valueColor: valueColor,
+                        cardBg: cardBg,
+                        cardBorder: cardBorder,
+                        isDark: isDark,
+                        onSave: (newStore) => _updateProfileMetadata(dept, contact, gcashNumber, storeName: newStore),
+                      ),
+
+                      const SizedBox(height: 14),
+
                       // Department
                       _buildProfileInfoField(
                         context,
@@ -2439,7 +2485,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                         cardBg: cardBg,
                         cardBorder: cardBorder,
                         isDark: isDark,
-                        onSave: (newDept) => _updateProfileMetadata(newDept, contact, gcashNumber),
+                        onSave: (newDept) => _updateProfileMetadata(newDept, contact, gcashNumber, storeName: storeName == 'Not Configured' ? null : storeName),
                       ),
 
                       const SizedBox(height: 14),
@@ -2456,7 +2502,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                         cardBg: cardBg,
                         cardBorder: cardBorder,
                         isDark: isDark,
-                        onSave: (newContact) => _updateProfileMetadata(dept, newContact, gcashNumber),
+                        onSave: (newContact) => _updateProfileMetadata(dept, newContact, gcashNumber, storeName: storeName == 'Not Configured' ? null : storeName),
                       ),
 
                       const SizedBox(height: 14),
@@ -2473,7 +2519,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                         cardBg: cardBg,
                         cardBorder: cardBorder,
                         isDark: isDark,
-                        onSave: (newGcash) => _updateProfileMetadata(dept, contact, newGcash),
+                        onSave: (newGcash) => _updateProfileMetadata(dept, contact, newGcash, storeName: storeName == 'Not Configured' ? null : storeName),
                       ),
                     ],
                   ),
