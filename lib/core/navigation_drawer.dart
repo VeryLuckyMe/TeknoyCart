@@ -239,7 +239,7 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                       _buildNavTile(
                         context,
                         icon: Icons.receipt_long_rounded,
-                        title: 'Order History',
+                        title: 'Orders Hub',
                         onTap: () {
                           Navigator.pop(context);
                           Navigator.push(

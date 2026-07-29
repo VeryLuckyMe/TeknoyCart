@@ -198,8 +198,11 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           'quantity': 1,
           'unit_price': widget.agreedPrice,
           'total_amount': widget.agreedPrice,
-          'status': _isReservation ? 'APPROVED' : 'INQUIRY_SENT',
-          'pickup_location': combinedLocation,
+          'status': 'PENDING_SELLER_ACCEPT',
+          'pickup_location': _selectedLocation,
+          'pickup_day': _selectedDay,
+          'pickup_time': _selectedTimeSlot,
+          'payment_method': _selectedPaymentMethod,
           'reservation_expires_at': _isReservation 
               ? DateTime.now().add(const Duration(hours: 24)).toIso8601String() 
               : null,
@@ -247,21 +250,44 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.check_circle_rounded, color: TeknoyTheme.success, size: 28),
-            const SizedBox(width: 10),
-            Text(
-              _isReservation ? 'Item Reserved!' : 'Deal Logged!',
-              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
-            ),
+            Icon(Icons.check_circle_rounded, color: TeknoyTheme.success, size: 28),
+            SizedBox(width: 10),
+            Text('Order Placed!', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
           ],
         ),
-        content: Text(
-          _isReservation 
-              ? 'Your P2P offer of ₱${widget.agreedPrice.toStringAsFixed(2)} has been successfully logged and the item is now reserved for 24 hours! Make sure to coordinate and upload your payment proof via chat before the reservation expires.'
-              : 'Your P2P offer of ₱${widget.agreedPrice.toStringAsFixed(2)} at $_selectedLocation ($_selectedDay, $_selectedTimeSlot) has been successfully logged! Coordinate with the seller via chat for the meetup.',
-          style: const TextStyle(fontFamily: 'Inter', height: 1.4),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your order for ₱${widget.agreedPrice.toStringAsFixed(2)} has been sent to the seller.',
+              style: const TextStyle(fontFamily: 'Inter', height: 1.5),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orange.withOpacity(0.25)),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.hourglass_top_rounded, color: Colors.orange, size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Awaiting seller acceptance. You can track this order in the Orders Hub.',
+                      style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.orange),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         actions: [
           ElevatedButton(
@@ -274,10 +300,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
-            child: const Text(
-              'Back to Feed',
-              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
-            ),
+            child: const Text('Go to Orders Hub', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
           ),
         ],
       ),
