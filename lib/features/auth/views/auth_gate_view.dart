@@ -35,6 +35,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
 
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
+  StreamSubscription<AuthState>? _recoverySub;
 
   @override
   void initState() {
@@ -44,10 +45,21 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
       duration: const Duration(milliseconds: 500),
     )..forward();
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOutCubic);
+
+    _recoverySub = SupabaseConfig.client.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            showSetNewPasswordSheet(context);
+          }
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
+    _recoverySub?.cancel();
     _emailController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
@@ -310,6 +322,215 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                               fontWeight: FontWeight.w600,
                               color: Colors.grey,
                             ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Opens a modal sheet allowing the user to enter and confirm their new password
+  /// after following a Supabase password reset link.
+  static void showSetNewPasswordSheet(BuildContext context) {
+    final newPassCtrl = TextEditingController();
+    final confirmPassCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+    bool isUpdating = false;
+    String? errorMessage;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      barrierDismissible: false,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1A1A1F) : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFECECEF),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            margin: const EdgeInsets.only(bottom: 20),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.key_rounded,
+                          size: 44,
+                          color: TeknoyTheme.citMaroon,
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Set New Password',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Enter a new password for your TeknoyCart account.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 13,
+                            color: Colors.grey,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        TextFormField(
+                          controller: newPassCtrl,
+                          obscureText: obscureNew,
+                          decoration: InputDecoration(
+                            labelText: 'New Password',
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscureNew ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              ),
+                              onPressed: () => setSheetState(() => obscureNew = !obscureNew),
+                            ),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                          validator: (val) {
+                            if (val == null || val.isEmpty) return 'Please enter a new password';
+                            if (val.length < 6) return 'Password must be at least 6 characters';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: confirmPassCtrl,
+                          obscureText: obscureConfirm,
+                          decoration: InputDecoration(
+                            labelText: 'Confirm New Password',
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              ),
+                              onPressed: () => setSheetState(() => obscureConfirm = !obscureConfirm),
+                            ),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                          validator: (val) {
+                            if (val != newPassCtrl.text) return 'Passwords do not match';
+                            return null;
+                          },
+                        ),
+                        if (errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            errorMessage!,
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 13,
+                              color: TeknoyTheme.error,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          height: 52,
+                          child: ElevatedButton(
+                            onPressed: isUpdating
+                                ? null
+                                : () async {
+                                    if (!formKey.currentState!.validate()) return;
+                                    setSheetState(() {
+                                      isUpdating = true;
+                                      errorMessage = null;
+                                    });
+                                    try {
+                                      await SupabaseConfig.client.auth.updateUser(
+                                        UserAttributes(password: newPassCtrl.text.trim()),
+                                      );
+                                      if (context.mounted) {
+                                        Navigator.of(sheetCtx).pop();
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: const Row(
+                                              children: [
+                                                Icon(Icons.check_circle_outline_rounded, color: Colors.white),
+                                                SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Password updated successfully! Your account is now secured.',
+                                                    style: TextStyle(fontFamily: 'Inter', fontSize: 13),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            backgroundColor: const Color(0xFF2D7D32),
+                                            behavior: SnackBarBehavior.floating,
+                                            margin: const EdgeInsets.all(16),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      setSheetState(() {
+                                        isUpdating = false;
+                                        errorMessage = 'Failed to update password: $e';
+                                      });
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: TeknoyTheme.citMaroon,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            child: isUpdating
+                                ? const SizedBox(
+                                    height: 22,
+                                    width: 22,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                  )
+                                : const Text(
+                                    'Save New Password',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                           ),
                         ),
                       ],

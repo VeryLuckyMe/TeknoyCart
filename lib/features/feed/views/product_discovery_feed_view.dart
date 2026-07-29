@@ -16,6 +16,7 @@ import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/feed/views/search_results_view.dart';
 import 'package:teknoycart/features/chat/views/inbox_view.dart';
+import 'package:teknoycart/features/auth/views/auth_gate_view.dart';
 
 /// Product Discovery Feed representing Figma Node 1:39.
 /// Main marketplace landing hub for listing, browsing, and searching products.
@@ -43,8 +44,25 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   bool _isUploadingProductImage = false;
   final _imagePicker = ImagePicker();
 
+  StreamSubscription<AuthState>? _recoverySub;
+
+  @override
+  void initState() {
+    super.initState();
+    _recoverySub = SupabaseConfig.client.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _AuthGateViewState.showSetNewPasswordSheet(context);
+          }
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _recoverySub?.cancel();
     _sellTitleController.dispose();
     _sellPriceController.dispose();
     _sellDescController.dispose();
