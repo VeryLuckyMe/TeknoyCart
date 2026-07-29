@@ -201,15 +201,16 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                         const SizedBox(height: 24),
                         _buildInputField(
                           controller: resetEmailCtrl,
-                          label: 'CIT-U Email',
+                          label: 'Account Email Address',
                           icon: Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
                           validator: (val) {
                             if (val == null || val.trim().isEmpty) {
                               return 'Please enter your email address';
                             }
-                            if (!val.trim().toLowerCase().endsWith('@cit.edu')) {
-                              return 'Only @cit.edu emails are permitted';
+                            final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                            if (!emailRegex.hasMatch(val.trim())) {
+                              return 'Please enter a valid email address';
                             }
                             return null;
                           },
@@ -674,16 +675,16 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                     if (_isLoginTab) ...[
                                       _buildInputField(
                                         controller: _emailController,
-                                        label: 'CIT-U Email',
+                                        label: 'Email Address',
                                         icon: Icons.email_outlined,
                                         keyboardType: TextInputType.emailAddress,
                                         validator: (val) {
                                           if (val == null || val.trim().isEmpty) {
                                             return 'Please enter your email';
                                           }
-                                          final email = val.trim().toLowerCase();
-                                          if (!email.endsWith('@cit.edu')) {
-                                            return 'Only @cit.edu emails are permitted';
+                                          final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                                          if (!emailRegex.hasMatch(val.trim())) {
+                                            return 'Please enter a valid email address';
                                           }
                                           return null;
                                         },
@@ -940,7 +941,9 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                       if (_registerStep == 2) ...[
                                         _buildInputField(
                                           controller: _emailController,
-                                          label: 'CIT-U Email',
+                                          label: _selectedRole == 'SELLER'
+                                              ? 'Store / Contact Email (e.g. Gmail)'
+                                              : 'CIT-U Email (@cit.edu or @my.cit.edu)',
                                           icon: Icons.email_outlined,
                                           keyboardType: TextInputType.emailAddress,
                                           validator: (val) {
@@ -948,8 +951,15 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                               return 'Please enter your email';
                                             }
                                             final email = val.trim().toLowerCase();
-                                            if (!email.endsWith('@cit.edu')) {
-                                              return 'Only @cit.edu emails are permitted';
+                                            if (_selectedRole == 'BUYER') {
+                                              if (!email.endsWith('@cit.edu') && !email.endsWith('@my.cit.edu')) {
+                                                return 'Buyers must use an @cit.edu or @my.cit.edu email';
+                                              }
+                                            } else {
+                                              final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                                              if (!emailRegex.hasMatch(email)) {
+                                                return 'Please enter a valid email address';
+                                              }
                                             }
                                             return null;
                                           },

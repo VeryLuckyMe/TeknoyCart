@@ -46,7 +46,12 @@ class AuthService {
 
   bool isValidCituEmail(String email) {
     final lower = email.toLowerCase().trim();
-    return lower.endsWith('@cit.edu');
+    return lower.endsWith('@cit.edu') || lower.endsWith('@my.cit.edu');
+  }
+
+  bool isValidGeneralEmail(String email) {
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    return emailRegex.hasMatch(email.trim());
   }
 
   // ── Sign In ──
@@ -54,9 +59,9 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    if (!isValidCituEmail(email)) {
+    if (!isValidGeneralEmail(email)) {
       throw const FormatException(
-        'Strict Security Policy: Only @cit.edu emails are allowed.',
+        'Please enter a valid email address.',
       );
     }
 
@@ -68,6 +73,7 @@ class AuthService {
         .select('is_locked, failed_attempts, lock_until, is_verified, full_name')
         .eq('email', emailTrimmed)
         .maybeSingle();
+
 
     if (userRecord != null) {
       final isVerified = userRecord['is_verified'] as bool? ?? false;
@@ -157,11 +163,20 @@ class AuthService {
     String? department,
     String? storeName,
   }) async {
-    if (!isValidCituEmail(email)) {
-      throw const FormatException(
-        'Strict Security Policy: Only @cit.edu domains are permitted.',
-      );
+    if (role == 'BUYER') {
+      if (!isValidCituEmail(email)) {
+        throw const FormatException(
+          'Strict Security Policy: Buyers must use an official @cit.edu or @my.cit.edu email.',
+        );
+      }
+    } else {
+      if (!isValidGeneralEmail(email)) {
+        throw const FormatException(
+          'Please enter a valid store or contact email address.',
+        );
+      }
     }
+
     if (username.trim().isEmpty) {
       throw const FormatException('Username cannot be empty.');
     }
