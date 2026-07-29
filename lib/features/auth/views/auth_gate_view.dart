@@ -1842,9 +1842,10 @@ void showSetNewPasswordSheet(BuildContext context) {
                   ),
                 ),
               ),
-            );
-          },
-        );
-      },
-    );
-  }
+            ),
+          );
+        },
+      );
+    },
+  );
+}
