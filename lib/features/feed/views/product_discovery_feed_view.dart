@@ -2256,7 +2256,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         final badgeColor = isVerified ? const Color(0xFF22C55E) : const Color(0xFF10B981);
         final badgeIcon = isVerified ? Icons.verified_user_rounded : Icons.shield_rounded;
 
-        final String rawStoreName = user?.userMetadata?['store_name'] as String?
+        final String rawStoreName = (SupabaseConfig.client.auth.currentUser?.userMetadata?['store_name'] as String?)
             ?? (roleInfo['store_name'] as String? ?? '');
         final String storeName = rawStoreName.trim().isNotEmpty ? rawStoreName.trim() : 'Not Configured';
 
