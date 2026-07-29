@@ -360,3 +360,59 @@ final filteredProductsProvider = Provider<List<Product>>((ref) {
     orElse: () => [],
   );
 });
+
+class StoreResult {
+  final String sellerId;
+  final String storeName;
+  final String ownerName;
+  final bool isVerified;
+  final int trustScore;
+
+  const StoreResult({
+    required this.sellerId,
+    required this.storeName,
+    required this.ownerName,
+    required this.isVerified,
+    required this.trustScore,
+  });
+}
+
+final matchingStoresProvider = FutureProvider.family<List<StoreResult>, String>((ref, query) async {
+  if (query.trim().isEmpty) return [];
+  final searchTerm = query.trim().toLowerCase();
+  try {
+    final response = await SupabaseConfig.client
+        .from('store_profiles')
+        .select('''
+          seller_id,
+          store_name,
+          users (
+            full_name,
+            is_verified
+          )
+        ''');
+    final rows = response as List<dynamic>;
+    final List<StoreResult> results = [];
+
+    for (final r in rows) {
+      final storeName = r['store_name'] as String? ?? '';
+      final usersMap = r['users'] as Map<String, dynamic>?;
+      final ownerName = usersMap?['full_name'] as String? ?? 'Campus Vendor';
+      final isVerified = usersMap?['is_verified'] as bool? ?? true;
+
+      if (storeName.toLowerCase().contains(searchTerm) || ownerName.toLowerCase().contains(searchTerm)) {
+        results.add(StoreResult(
+          sellerId: r['seller_id'] as String? ?? '',
+          storeName: storeName.isEmpty ? '$ownerName Store' : storeName,
+          ownerName: ownerName,
+          isVerified: isVerified,
+          trustScore: 98,
+        ));
+      }
+    }
+    return results;
+  } catch (e) {
+    return [];
+  }
+});
+

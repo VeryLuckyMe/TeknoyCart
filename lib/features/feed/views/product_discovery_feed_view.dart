@@ -14,6 +14,7 @@ import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
 import 'package:teknoycart/features/feed/models/product.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
+import 'package:teknoycart/features/feed/views/search_results_view.dart';
 import 'package:teknoycart/features/chat/views/inbox_view.dart';
 
 /// Product Discovery Feed representing Figma Node 1:39.
@@ -635,6 +636,17 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   ),
                   child: TextField(
                     onChanged: (val) => ref.read(searchQueryProvider.notifier).state = val,
+                    onSubmitted: (val) {
+                      if (val.trim().isNotEmpty) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SearchResultsView(initialQuery: val.trim()),
+                          ),
+                        );
+                      }
+                    },
+                    textInputAction: TextInputAction.search,
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 16,
