@@ -390,7 +390,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         const SizedBox(width: 8),
         Text('$label: ', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: isDark ? Colors.white54 : Colors.black45)),
         Expanded(
-          child: Text(value, style: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white87 : Colors.black87), overflow: TextOverflow.ellipsis),
+          child: Text(value, style: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.black87), overflow: TextOverflow.ellipsis),
         ),
       ],
     );
