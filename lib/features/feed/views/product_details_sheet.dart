@@ -6,6 +6,7 @@ import 'package:teknoycart/features/feed/models/product.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
+import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
 
 import 'package:teknoycart/core/supabase_client.dart';
 
@@ -308,77 +309,93 @@ class ProductDetailsSheet extends ConsumerWidget {
                     children: [
                       const SizedBox(height: 8),
                       // P2P Seller Card details with high-trust indicators
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF141418) : Colors.white,
-                          border: Border.all(
-                            color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                      GestureDetector(
+                        onTap: () async {
+                          final sellerName = await _getSellerName(product.sellerId);
+                          if (context.mounted) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SellerStorefrontView(
+                                  sellerId: product.sellerId,
+                                  sellerName: sellerName,
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF141418) : Colors.white,
+                            border: Border.all(
+                              color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: TeknoyTheme.kElevationLow,
                           ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: TeknoyTheme.kElevationLow,
-                        ),
-                        child: Row(
-                          children: [
-                            const CircleAvatar(
-                              backgroundColor: TeknoyTheme.citMaroon,
-                              radius: 20,
-                              child: Icon(Icons.person_rounded, color: Colors.white, size: 20),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  FutureBuilder<String>(
-                                    future: _getSellerName(product.sellerId),
-                                    builder: (context, snapshot) {
-                                      return Text(
-                                        snapshot.data ?? 'Wildcat Student Seller',
-                                        style: const TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                  const Text(
-                                    'Verified Student Account',
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 11,
-                                      color: Colors.grey,
+                          child: Row(
+                            children: [
+                              const CircleAvatar(
+                                backgroundColor: TeknoyTheme.citMaroon,
+                                radius: 20,
+                                child: Icon(Icons.person_rounded, color: Colors.white, size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    FutureBuilder<String>(
+                                      future: _getSellerName(product.sellerId),
+                                      builder: (context, snapshot) {
+                                        return Text(
+                                          snapshot.data ?? 'Wildcat Student Seller',
+                                          style: const TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        );
+                                      },
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.green.withOpacity(0.3)),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(Icons.verified_user_rounded, color: Colors.green, size: 12),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    '98% TRUST',
-                                    style: TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.green,
-                                      letterSpacing: 0.5,
+                                    const Text(
+                                      'Verified Student Account',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 11,
+                                        color: Colors.grey,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.verified_user_rounded, color: Colors.green, size: 12),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      '98% TRUST',
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.green,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 18),

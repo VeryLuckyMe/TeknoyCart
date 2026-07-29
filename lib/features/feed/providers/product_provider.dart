@@ -130,6 +130,12 @@ class ProductListNotifier
             category_id,
             seller_id,
             created_at,
+            users (
+              full_name,
+              store_profiles (
+                store_name
+              )
+            ),
             product_images (
               image_url,
               is_primary
@@ -175,6 +181,23 @@ class ProductListNotifier
           imageUrl = _categoryImage(category);
         }
 
+        final usersMap = row['users'] as Map<String, dynamic>?;
+        String storeName = '';
+        if (usersMap != null) {
+          final storeProfiles = usersMap['store_profiles'];
+          if (storeProfiles is Map<String, dynamic>) {
+            storeName = storeProfiles['store_name'] as String? ?? '';
+          } else if (storeProfiles is List && storeProfiles.isNotEmpty) {
+            final firstProfile = storeProfiles[0];
+            if (firstProfile is Map<String, dynamic>) {
+              storeName = firstProfile['store_name'] as String? ?? '';
+            }
+          }
+          if (storeName.isEmpty) {
+            storeName = usersMap['full_name'] as String? ?? '';
+          }
+        }
+
         return Product(
           id: row['product_id'] as String,
           title: row['name'] as String? ?? 'Untitled Product',
@@ -186,6 +209,7 @@ class ProductListNotifier
               ? (variants[0]['variant_value'] as String? ?? 'Standard')
               : 'Standard',
           sellerId: row['seller_id'] as String? ?? '',
+          sellerStoreName: storeName,
           createdAt: DateTime.tryParse(row['created_at'] as String? ?? '') ??
               DateTime.now(),
         );
@@ -322,7 +346,8 @@ final filteredProductsProvider = Provider<List<Product>>((ref) {
     data: (products) {
       return products.where((product) {
         final matchesSearch = product.title.toLowerCase().contains(search) ||
-            product.description.toLowerCase().contains(search);
+            product.description.toLowerCase().contains(search) ||
+            (product.sellerStoreName?.toLowerCase().contains(search) ?? false);
         final matchesCategory =
             category == 'All' || product.category == category;
         final matchesCondition =

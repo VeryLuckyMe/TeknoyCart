@@ -24,6 +24,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
   final _passwordController = TextEditingController();
   final _studentIdController = TextEditingController();
   final _departmentController = TextEditingController(text: 'CCS');
+  final _storeNameController = TextEditingController();
 
   String _selectedRole = 'BUYER';
   bool _isLoginTab = true;
@@ -51,6 +52,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     _passwordController.dispose();
     _studentIdController.dispose();
     _departmentController.dispose();
+    _storeNameController.dispose();
     _fadeCtrl.dispose();
     super.dispose();
   }
@@ -71,6 +73,16 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Please enter your last name'),
+            backgroundColor: TeknoyTheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return false;
+      }
+      if (_selectedRole == 'SELLER' && _storeNameController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter your store name'),
             backgroundColor: TeknoyTheme.error,
             behavior: SnackBarBehavior.floating,
           ),
@@ -129,6 +141,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
           role: _selectedRole,
           studentId: studentId,
           department: _departmentController.text.trim().toUpperCase(),
+          storeName: _selectedRole == 'SELLER' ? _storeNameController.text.trim() : null,
         );
         if (mounted) {
           // Clear inputs on successful signup
@@ -618,6 +631,14 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                             ),
                                           ],
                                         ),
+                                        if (_selectedRole == 'SELLER') ...[
+                                          const SizedBox(height: 20),
+                                          _buildInputField(
+                                            controller: _storeNameController,
+                                            label: 'Store Name',
+                                            icon: Icons.store_mall_directory_outlined,
+                                          ),
+                                        ],
                                         const SizedBox(height: 24),
                                         SizedBox(
                                           height: 52,

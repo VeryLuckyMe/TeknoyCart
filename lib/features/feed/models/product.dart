@@ -10,6 +10,7 @@ class Product {
   final String category;
   final String condition; // e.g., 'New', 'Like New', 'Gently Used', 'Fair'
   final String sellerId;
+  final String? sellerStoreName;
   final DateTime createdAt;
 
   const Product({
@@ -21,6 +22,7 @@ class Product {
     required this.category,
     required this.condition,
     required this.sellerId,
+    this.sellerStoreName,
     required this.createdAt,
   });
 
@@ -35,6 +37,7 @@ class Product {
       category: json['category'] as String,
       condition: json['condition'] as String,
       sellerId: json['seller_id'] as String,
+      sellerStoreName: json['seller_store_name'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
@@ -50,6 +53,7 @@ class Product {
       'category': category,
       'condition': condition,
       'seller_id': sellerId,
+      'seller_store_name': sellerStoreName,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -64,6 +68,7 @@ class Product {
     String? category,
     String? condition,
     String? sellerId,
+    String? sellerStoreName,
     DateTime? createdAt,
   }) {
     return Product(
@@ -75,6 +80,7 @@ class Product {
       category: category ?? this.category,
       condition: condition ?? this.condition,
       sellerId: sellerId ?? this.sellerId,
+      sellerStoreName: sellerStoreName ?? this.sellerStoreName,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -92,6 +98,7 @@ class Product {
           category == other.category &&
           condition == other.condition &&
           sellerId == other.sellerId &&
+          sellerStoreName == other.sellerStoreName &&
           createdAt == other.createdAt;
 
   @override
@@ -104,5 +111,6 @@ class Product {
       category.hashCode ^
       condition.hashCode ^
       sellerId.hashCode ^
+      sellerStoreName.hashCode ^
       createdAt.hashCode;
 }

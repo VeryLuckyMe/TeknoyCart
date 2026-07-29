@@ -155,6 +155,7 @@ class AuthService {
     required String role,
     required String studentId,
     String? department,
+    String? storeName,
   }) async {
     if (!isValidCituEmail(email)) {
       throw const FormatException(
@@ -214,6 +215,13 @@ class AuthService {
         'is_verified': false, // Force Outlook email verification for all roles (FR-01)
         'student_id': studentIdTrimmed,
       });
+
+      if (role == 'SELLER' && storeName != null && storeName.trim().isNotEmpty) {
+        await _client.from('store_profiles').upsert({
+          'seller_id': user.id,
+          'store_name': storeName.trim(),
+        });
+      }
 
       try {
         final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/send-verification')
