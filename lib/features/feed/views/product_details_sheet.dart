@@ -12,13 +12,34 @@ import 'package:teknoycart/core/supabase_client.dart';
 
 /// Relational Bottom Sheet displaying detailed information about a selected product.
 /// Implements standard P2P cash agreements and price negotiation features.
-class ProductDetailsSheet extends ConsumerWidget {
+class ProductDetailsSheet extends ConsumerStatefulWidget {
   final Product product;
 
   const ProductDetailsSheet({
     super.key,
     required this.product,
   });
+
+  /// Displays the sheet programmatically with a modern modal design
+  static void show(BuildContext context, Product product) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: 0.85,
+        child: ProductDetailsSheet(product: product),
+      ),
+    );
+  }
+
+  @override
+  ConsumerState<ProductDetailsSheet> createState() => _ProductDetailsSheetState();
+}
+
+class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
+  int _quantity = 1;
+  Product get product => widget.product;
 
   /// Helper to fetch real seller name dynamically from the users table
   Future<String> _getSellerName(String sellerId) async {
@@ -71,24 +92,11 @@ class ProductDetailsSheet extends ConsumerWidget {
     return {'stock': 0, 'reserved': 0, 'available': 0};
   }
 
-  /// Displays the sheet programmatically with a modern modal design
-  static void show(BuildContext context, Product product) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => FractionallySizedBox(
-        heightFactor: 0.85,
-        child: ProductDetailsSheet(product: product),
-      ),
-    );
-  }
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentUser = ref.watch(authStateProvider).valueOrNull;
-    final isMyProduct = currentUser?.id == product.sellerId;
+    final isMyProduct = currentUser?.id == widget.product.sellerId;
     
     return Container(
       decoration: BoxDecoration(
@@ -284,7 +292,7 @@ class ProductDetailsSheet extends ConsumerWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  product.title,
+                                  widget.product.title,
                                   style: const TextStyle(
                                     fontFamily: 'Outfit',
                                     fontSize: 24,
@@ -294,16 +302,119 @@ class ProductDetailsSheet extends ConsumerWidget {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              Text(
-                                '₱${product.price.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w800,
-                                  color: TeknoyTheme.citMaroon,
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    '₱${(widget.product.price * _quantity).toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                      color: TeknoyTheme.citMaroon,
+                                    ),
+                                  ),
+                                  if (_quantity > 1)
+                                    Text(
+                                      '₱${widget.product.price.toStringAsFixed(2)} each',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 11,
+                                        color: isDark ? Colors.white54 : Colors.black45,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Quantity Selector Counter Deck
+                          FutureBuilder<Map<String, int>>(
+                            future: _getInventoryStatus(widget.product.id),
+                            builder: (context, snapshot) {
+                              final inv = snapshot.data ?? {'stock': 0, 'reserved': 0, 'available': 0};
+                              final available = inv['available'] ?? 0;
+                              final int maxAllowed = available > 0 ? available : 99;
+
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF141418) : Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                                  ),
+                                  boxShadow: TeknoyTheme.kElevationLow,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Select Quantity',
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        Text(
+                                          available > 0 ? 'Max $available units' : 'Pre-order / Reservation',
+                                          style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 11,
+                                            color: isDark ? Colors.white54 : Colors.black45,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: isDark ? const Color(0xFF1F1F26) : const Color(0xFFF4F4F7),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(Icons.remove_rounded, size: 18),
+                                            color: _quantity > 1 ? TeknoyTheme.citMaroon : Colors.grey,
+                                            onPressed: _quantity > 1
+                                                ? () => setState(() => _quantity--)
+                                                : null,
+                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                            padding: EdgeInsets.zero,
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                            child: Text(
+                                              '$_quantity',
+                                              style: const TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.add_rounded, size: 18),
+                                            color: _quantity < maxAllowed ? TeknoyTheme.citMaroon : Colors.grey,
+                                            onPressed: _quantity < maxAllowed
+                                                ? () => setState(() => _quantity++)
+                                                : null,
+                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                            padding: EdgeInsets.zero,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                           const SizedBox(height: 16),
 
@@ -544,8 +655,9 @@ class ProductDetailsSheet extends ConsumerWidget {
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => CheckoutView(
-                                        product: product,
-                                        agreedPrice: product.price,
+                                        product: widget.product,
+                                        agreedPrice: widget.product.price,
+                                        initialQuantity: _quantity,
                                         isDirectBuy: true,
                                       ),
                                     ),

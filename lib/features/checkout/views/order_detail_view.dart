@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Full-screen order detail view with status stepper, party info, cancellation & return request capabilities.
 class OrderDetailView extends ConsumerStatefulWidget {
@@ -18,16 +19,49 @@ class OrderDetailView extends ConsumerStatefulWidget {
 class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
   late Map<String, dynamic> _order;
   bool _isActing = false;
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
     super.initState();
     _order = Map<String, dynamic>.from(widget.order);
+    _subscribeToOrderUpdates();
+  }
+
+  void _subscribeToOrderUpdates() {
+    final orderId = _order['order_id'] as String?;
+    if (orderId == null) return;
+    _realtimeChannel = SupabaseConfig.client
+        .channel('order_detail_$orderId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'orders',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'order_id',
+            value: orderId,
+          ),
+          callback: (payload) {
+            if (mounted) {
+              setState(() {
+                _order = {..._order, ...Map<String, dynamic>.from(payload.newRecord)};
+              });
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
   }
 
   String get _status => _order['status'] as String? ?? '';
-  String get _paymentMethod => _order['payment_method'] as String? ?? 'Cash on Delivery';
-  bool get _isGCash => _paymentMethod == 'GCash';
+  String get _paymentMethod => _order['payment_method'] as String? ?? 'CASH_ON_PICKUP';
+  bool get _isGCash => _paymentMethod == 'GCash' || _paymentMethod == 'GCASH';
 
   Future<void> _refreshOrder() async {
     try {
@@ -56,18 +90,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     setState(() => _isActing = true);
     try {
       final update = <String, dynamic>{'status': newStatus};
-      if (newStatus == 'SELLER_CONFIRMED') {
-        update['seller_confirmed_at'] = DateTime.now().toIso8601String();
-      }
       await SupabaseConfig.client.from('orders').update(update).eq('order_id', _order['order_id']);
       await _refreshOrder();
       if (mounted) {
         String msg = '';
-        if (newStatus == 'SELLER_ACCEPTED') msg = 'Order accepted! Buyer notified.';
-        if (newStatus == 'DECLINED') msg = 'Order declined.';
+        if (newStatus == 'APPROVED') msg = 'Order accepted! Buyer notified.';
+        if (newStatus == 'REJECTED') msg = 'Order declined/rejected.';
         if (newStatus == 'CANCELLED') msg = 'Order cancelled successfully.';
+        if (newStatus == 'PAYMENT_SUBMITTED') msg = 'Payment submission recorded! Awaiting seller verification.';
         if (newStatus == 'PAYMENT_VERIFIED') msg = 'Payment verified!';
-        if (newStatus == 'PAYMENT_REJECTED') msg = 'Payment rejected. Buyer notified.';
         if (newStatus == 'RETURN_REQUESTED') msg = 'Return & refund request submitted to seller.';
         if (newStatus == 'RETURN_APPROVED') msg = 'Return approved! Please coordinate item return & refund.';
         if (newStatus == 'RETURN_DECLINED') msg = 'Return request declined.';
@@ -198,6 +229,85 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showGCashSubmitDialog() {
+    final refController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.send_to_mobile_rounded, color: Colors.indigo),
+            SizedBox(width: 8),
+            Text('GCash Payment Sent', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.indigo.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.indigo.withOpacity(0.2)),
+              ),
+              child: Text(
+                'Total to send: ₱ ${_order['total_amount']}',
+                style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: Colors.indigo),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text('Enter your GCash reference number:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: refController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: 'e.g. 1234567890',
+                hintStyle: const TextStyle(fontFamily: 'Inter', fontSize: 12),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                prefixIcon: const Icon(Icons.tag_rounded, color: Colors.indigo),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'The seller will verify your reference number and confirm payment.',
+              style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.black54),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              final referenceNumber = refController.text.trim();
+              Navigator.pop(context);
+              // Store reference number in order notes if needed
+              try {
+                await SupabaseConfig.client.from('orders').update({
+                  'gcash_reference': referenceNumber,
+                }).eq('order_id', _order['order_id']);
+              } catch (_) {}
+              _updateStatus('PAYMENT_SUBMITTED');
+            },
+            icon: const Icon(Icons.send_rounded, size: 16, color: Colors.white),
+            label: const Text('Confirm Payment Sent', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.indigo,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -338,12 +448,34 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             const SizedBox(height: 16),
 
             // Confirmation status
-            if (_status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED' || isCompleted)
+            if (_status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_SUBMITTED' || _status == 'PAYMENT_VERIFIED' || isCompleted)
               _section(isDark, child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _sectionTitle(Icons.handshake_rounded, 'Meetup Confirmation', isDark),
                   const SizedBox(height: 12),
+                  if (_isGCash && _status == 'PAYMENT_SUBMITTED')
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.indigo.withOpacity(0.2)),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.hourglass_top_rounded, color: Colors.indigo, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _order['gcash_reference'] != null && (_order['gcash_reference'] as String).isNotEmpty
+                                ? 'GCash ref: ${_order['gcash_reference']} — Awaiting seller verification.'
+                                : 'GCash payment submitted. Awaiting seller verification.',
+                            style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.indigo),
+                          ),
+                        ),
+                      ]),
+                    ),
                   _confirmRow('Seller handed off', sellerConfirmed, isDark),
                   const SizedBox(height: 8),
                   _confirmRow('Buyer confirmed receipt', buyerConfirmed, isDark),
@@ -368,10 +500,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         ? {
             'PENDING_SELLER_ACCEPT': 0,
             'INQUIRY_SENT': 0,
+            'APPROVED': 1,
             'SELLER_ACCEPTED': 1,
             'PAYMENT_SUBMITTED': 2,
             'PAYMENT_VERIFIED': 2,
-            'PAYMENT_REJECTED': 2,
+            'REJECTED': -1,
             'COMPLETED': 4,
             'DECLINED': -1,
             'CANCELLED': -1,
@@ -382,9 +515,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         : {
             'PENDING_SELLER_ACCEPT': 0,
             'INQUIRY_SENT': 0,
+            'APPROVED': 1,
             'SELLER_ACCEPTED': 1,
             'COMPLETED': 3,
             'DECLINED': -1,
+            'REJECTED': -1,
             'CANCELLED': -1,
             'RETURN_REQUESTED': 3,
             'RETURN_APPROVED': 3,
@@ -392,7 +527,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
           };
 
     final currentStep = statusToStep[_status] ?? 0;
-    final isDeclined = _status == 'DECLINED';
+    final isDeclined = _status == 'DECLINED' || _status == 'REJECTED';
     final isCancelled = _status == 'CANCELLED';
     final isReturnRequested = _status == 'RETURN_REQUESTED';
     final isReturnApproved = _status == 'RETURN_APPROVED';
@@ -483,18 +618,18 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     if (widget.isSeller) {
       // Seller: Accept/Decline
       if (_status == 'PENDING_SELLER_ACCEPT' || _status == 'INQUIRY_SENT') {
-        buttons.add(_actionBtn('Decline Order', Colors.red, Icons.close_rounded, () => _updateStatus('DECLINED')));
+        buttons.add(_actionBtn('Decline Order', Colors.red, Icons.close_rounded, () => _updateStatus('REJECTED')));
         buttons.add(const SizedBox(height: 10));
-        buttons.add(_actionBtn('Accept Order', Colors.green, Icons.check_circle_outline_rounded, () => _updateStatus('SELLER_ACCEPTED')));
+        buttons.add(_actionBtn('Accept Order', Colors.green, Icons.check_circle_outline_rounded, () => _updateStatus('APPROVED')));
       }
       // Seller: Verify GCash
       if (_isGCash && _status == 'PAYMENT_SUBMITTED') {
-        buttons.add(_actionBtn('Reject Payment', Colors.red, Icons.cancel_outlined, () => _updateStatus('PAYMENT_REJECTED')));
+        buttons.add(_actionBtn('Reject Payment', Colors.red, Icons.cancel_outlined, () => _updateStatus('REJECTED')));
         buttons.add(const SizedBox(height: 10));
         buttons.add(_actionBtn('✓ Verify GCash Payment', Colors.green, Icons.verified_outlined, () => _updateStatus('PAYMENT_VERIFIED')));
       }
       // Seller: Mark handed off
-      if ((_status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') && !sellerConfirmed) {
+      if ((_status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') && !sellerConfirmed) {
         buttons.add(_actionBtn('Mark as Handed Off', TeknoyTheme.citMaroon, Icons.handshake_outlined, () => _confirmHandoff(true)));
       }
       // Seller: Handle Return Request
@@ -504,13 +639,54 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         buttons.add(_actionBtn('Approve Return & Refund', Colors.teal, Icons.check_circle_outline_rounded, () => _updateStatus('RETURN_APPROVED')));
       }
     } else {
+      // Buyer: Submit GCash payment proof
+      if (_isGCash && (_status == 'APPROVED' || _status == 'SELLER_ACCEPTED')) {
+        buttons.add(_actionBtn(
+          '📤 I\'ve Sent GCash Payment',
+          Colors.indigo,
+          Icons.send_rounded,
+          () => _showGCashSubmitDialog(),
+        ));
+        buttons.add(const SizedBox(height: 10));
+      }
+
+      // Buyer: GCash payment was rejected alert + retry
+      if (_isGCash && _status == 'REJECTED') {
+        buttons.add(
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.red.withOpacity(0.3)),
+            ),
+            child: const Row(children: [
+              Icon(Icons.error_outline_rounded, color: Colors.red, size: 18),
+              SizedBox(width: 10),
+              Expanded(child: Text(
+                'Your GCash payment was rejected by the seller. Please verify the amount and reference number, then resubmit.',
+                style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.red),
+              )),
+            ]),
+          ),
+        );
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn(
+          '🔁 Resubmit GCash Payment',
+          Colors.indigo,
+          Icons.refresh_rounded,
+          () => _showGCashSubmitDialog(),
+        ));
+        buttons.add(const SizedBox(height: 10));
+      }
+
       // Buyer: Confirm received
-      if ((_status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') && !buyerConfirmed) {
+      if ((_status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') && !buyerConfirmed) {
         buttons.add(_actionBtn('Confirm I Received This', Colors.green, Icons.check_circle_outline_rounded, () => _confirmHandoff(false)));
       }
 
       // Buyer: Request Return / Refund (if accepted or completed)
-      if (_status == 'COMPLETED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') {
+      if (_status == 'COMPLETED' || _status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') {
         if (_status != 'RETURN_REQUESTED' && _status != 'RETURN_APPROVED' && _status != 'RETURN_DECLINED') {
           buttons.add(const SizedBox(height: 10));
           buttons.add(_actionBtn('Request Return / Refund', Colors.orange, Icons.assignment_return_rounded, _showReturnRequestDialog));
@@ -518,7 +694,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       }
 
       // Buyer: Cancel Order (if order is still pending/active before handoff)
-      if (_status == 'PENDING_SELLER_ACCEPT' || _status == 'INQUIRY_SENT' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_SUBMITTED') {
+      if (_status == 'PENDING_SELLER_ACCEPT' || _status == 'INQUIRY_SENT' || _status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_SUBMITTED') {
         buttons.add(const SizedBox(height: 10));
         buttons.add(SizedBox(
           width: double.infinity,

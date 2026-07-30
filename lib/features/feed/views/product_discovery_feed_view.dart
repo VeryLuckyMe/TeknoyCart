@@ -22,7 +22,8 @@ import 'package:teknoycart/features/auth/views/auth_gate_view.dart';
 /// Product Discovery Feed representing Figma Node 1:39.
 /// Main marketplace landing hub for listing, browsing, and searching products.
 class ProductDiscoveryFeedView extends ConsumerStatefulWidget {
-  const ProductDiscoveryFeedView({super.key});
+  final int initialTab;
+  const ProductDiscoveryFeedView({super.key, this.initialTab = 0});
 
   @override
   ConsumerState<ProductDiscoveryFeedView> createState() => _ProductDiscoveryFeedViewState();
@@ -50,6 +51,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   @override
   void initState() {
     super.initState();
+    _activeTab = widget.initialTab;
     _recoverySub = SupabaseConfig.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.passwordRecovery) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2084,7 +2086,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       if (currentUserId != null) {
         await SupabaseConfig.client
             .from('users')
-            .update({'gcash_number': gcashNumber})
+            .update({
+              'gcash_number': gcashNumber,
+              'contact': contact,
+            })
             .eq('user_id', currentUserId);
 
         if (storeName != null && storeName.trim().isNotEmpty) {

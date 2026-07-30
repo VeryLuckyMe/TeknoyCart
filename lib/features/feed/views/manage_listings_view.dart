@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
+import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 
 class ManageListingsView extends ConsumerStatefulWidget {
   const ManageListingsView({super.key});
@@ -360,9 +361,12 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                 ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          // Instruct user to use the Sell tab in marketplace feed
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Go to Marketplace Feed -> Sell tab to add a new listing!')),
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ProductDiscoveryFeedView(initialTab: 2),
+            ),
+            (route) => false,
           );
         },
         backgroundColor: TeknoyTheme.citMaroon,

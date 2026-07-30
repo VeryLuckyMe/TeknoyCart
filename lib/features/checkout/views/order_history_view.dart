@@ -157,7 +157,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     try {
       await SupabaseConfig.client
           .from('orders')
-          .update({'status': 'SELLER_ACCEPTED'})
+          .update({'status': 'APPROVED'})
           .eq('order_id', orderId);
       await _fetchSellerOrders();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order accepted! The buyer has been notified.'), backgroundColor: Colors.green));
@@ -170,7 +170,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     try {
       await SupabaseConfig.client
           .from('orders')
-          .update({'status': 'DECLINED'})
+          .update({'status': 'REJECTED'})
           .eq('order_id', orderId);
       await _fetchSellerOrders();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order declined.')));
