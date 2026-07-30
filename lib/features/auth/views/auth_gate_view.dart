@@ -421,6 +421,17 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
 
   String _formatAuthErrorMessage(dynamic err) {
     final str = err.toString();
+
+    // Preserve lockout and attempt counter messages
+    if (str.contains('attempts remaining before lockout') ||
+        str.contains('Account locked') ||
+        str.contains('Too many failed attempts')) {
+      return str
+          .replaceAll('FormatException: ', '')
+          .replaceAll('Exception: ', '')
+          .trim();
+    }
+
     if (str.contains('invalid_credentials') ||
         str.contains('Invalid login credentials') ||
         str.contains('invalid-credential')) {
@@ -445,6 +456,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     }
     return str
         .replaceAll(RegExp(r'^AuthApiException\(.*message:\s*'), '')
+        .replaceAll('FormatException: ', '')
         .replaceAll('Exception: ', '')
         .replaceAll('EMAIL_UNVERIFIED_PENDING:', '')
         .trim();
