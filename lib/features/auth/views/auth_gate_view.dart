@@ -33,6 +33,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
   bool _isLoginTab = true;
   bool _obscurePassword = true;
   int _registerStep = 0; // 0: Identity & Role, 1: Academic Verification, 2: Account Credentials
+  String? _formErrorMessage;
 
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
@@ -338,6 +339,9 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
   }
 
   void _submitForm() async {
+    setState(() {
+      _formErrorMessage = null;
+    });
     if (!_isLoginTab) {
       if (!_validateStep(0) || !_validateStep(1)) return;
     }
@@ -415,12 +419,44 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     );
   }
 
+  String _formatAuthErrorMessage(dynamic err) {
+    final str = err.toString();
+    if (str.contains('invalid_credentials') ||
+        str.contains('Invalid login credentials') ||
+        str.contains('invalid-credential')) {
+      return 'Invalid email or password. Please check your credentials and try again.';
+    }
+    if (str.contains('user_not_found') || str.contains('User not found')) {
+      return 'No account found with this email. Please check your email or sign up.';
+    }
+    if (str.contains('User already registered') || str.contains('user_already_exists')) {
+      return 'An account with this email already exists. Please log in instead.';
+    }
+    if (str.contains('rate_limit') || str.contains('Too many requests')) {
+      return 'Too many login attempts. Please wait a few moments before trying again.';
+    }
+    if (str.contains('SocketException') || str.contains('Failed host lookup')) {
+      return 'Network connection error. Please check your internet and try again.';
+    }
+    final regex = RegExp(r'AuthApiException\(message:\s*(.*?),\s*statusCode:');
+    final match = regex.firstMatch(str);
+    if (match != null && match.group(1) != null) {
+      return match.group(1)!;
+    }
+    return str
+        .replaceAll(RegExp(r'^AuthApiException\(.*message:\s*'), '')
+        .replaceAll('Exception: ', '')
+        .replaceAll('EMAIL_UNVERIFIED_PENDING:', '')
+        .trim();
+  }
+
   void _switchTab(bool toLogin) {
     if (_isLoginTab == toLogin) return;
     _fadeCtrl.reset();
     setState(() {
       _isLoginTab = toLogin;
       _registerStep = 0;
+      _formErrorMessage = null;
     });
     _fadeCtrl.forward();
   }
@@ -452,32 +488,9 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
             return;
           }
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      errorStr.replaceAll('Exception: ', '').replaceAll('EMAIL_UNVERIFIED_PENDING:', ''),
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w500,
-                        fontSize: 13,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: TeknoyTheme.error,
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              elevation: 4,
-            ),
-          );
+          setState(() {
+            _formErrorMessage = _formatAuthErrorMessage(err);
+          });
         },
       );
     });
@@ -661,6 +674,61 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                       ),
                                     ),
                                     const SizedBox(height: 20),
+
+                                    // ── Form Level Error Banner ──
+                                    if (_formErrorMessage != null) ...[
+                                      AnimatedContainer(
+                                        duration: const Duration(milliseconds: 300),
+                                        curve: Curves.easeInOut,
+                                        margin: const EdgeInsets.only(bottom: 16),
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          color: isDark
+                                              ? const Color(0xFF3B1E1E)
+                                              : const Color(0xFFFDE8E8),
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(
+                                            color: isDark
+                                                ? const Color(0xFF8A3333)
+                                                : const Color(0xFFF8B4B4),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.error_outline_rounded,
+                                              color: Color(0xFFE53935),
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                _formErrorMessage!,
+                                                style: TextStyle(
+                                                  fontFamily: 'Inter',
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: isDark ? const Color(0xFFFF9E9E) : const Color(0xFFC62828),
+                                                  height: 1.3,
+                                                ),
+                                              ),
+                                            ),
+                                            GestureDetector(
+                                              onTap: () => setState(() => _formErrorMessage = null),
+                                              child: Padding(
+                                                padding: const EdgeInsets.only(left: 6),
+                                                child: Icon(
+                                                  Icons.close_rounded,
+                                                  size: 18,
+                                                  color: isDark ? Colors.white54 : Colors.black45,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
 
                                     // ── Step Progress Indicator ──
                                     if (!_isLoginTab) ...[
