@@ -219,7 +219,33 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                       'explanation': notesController.text.trim(),
                       'status': 'PENDING',
                     });
-                  } catch (_) {}
+                    
+                    // Automated message to seller
+                    final chat = await SupabaseConfig.client
+                        .from('chats')
+                        .select('chat_id')
+                        .eq('buyer_id', _order['buyer_id'])
+                        .eq('seller_id', _order['seller_id'])
+                        .limit(1)
+                        .maybeSingle();
+                        
+                    if (chat != null) {
+                      String msg = '📢 [Automated Message]\nI have submitted a Return / Refund request for this order.\nReason: $selectedReason';
+                      if (notesController.text.trim().isNotEmpty) {
+                        msg += '\nNotes: ${notesController.text.trim()}';
+                      }
+                      msg += '\n\nPlease check the order details to review my request.';
+                      
+                      await SupabaseConfig.client.from('messages').insert({
+                        'chat_id': chat['chat_id'],
+                        'sender_id': user.id,
+                        'content': msg,
+                        'is_read': false,
+                      });
+                    }
+                  } catch (e) {
+                    print('Error submitting return: $e');
+                  }
                 }
                 if (mounted) Navigator.pop(context);
                 _updateStatus('RETURN_REQUESTED');

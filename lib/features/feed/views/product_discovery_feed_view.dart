@@ -56,11 +56,98 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       if (data.event == AuthChangeEvent.passwordRecovery) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            showSetNewPasswordSheet(context);
+            _showSetNewPasswordSheet(context);
           }
         });
       }
     });
+  }
+
+  void _showSetNewPasswordSheet(BuildContext context) {
+    final passCtrl = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Set New Password',
+                  style: TextStyle(fontFamily: 'Outfit', fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Please enter your new password below.',
+                  style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: isDark ? Colors.white60 : Colors.black54),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: passCtrl,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: 'New Password',
+                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () async {
+                    final newPass = passCtrl.text.trim();
+                    if (newPass.length < 6) return;
+                    Navigator.pop(ctx);
+                    try {
+                      await SupabaseConfig.client.auth.updateUser(UserAttributes(password: newPass));
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Password updated successfully!')),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(e.toString())),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF800000),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text('Update Password', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -132,13 +219,13 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       setState(() => _isUploadingProductImage = false);
     } else {
       // Dynamic mock visual based on category
-      imageUrl = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=400';
+      imageUrl = 'https://picsum.photos/seed/books-cs/400/300';
       if (_sellCategory == 'Apparel') {
-        imageUrl = 'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?auto=format&fit=crop&q=80&w=400';
+        imageUrl = 'https://picsum.photos/seed/uniforms/400/300';
       } else if (_sellCategory == 'Electronics') {
-        imageUrl = 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=400';
+        imageUrl = 'https://picsum.photos/seed/electronics/400/300';
       } else if (_sellCategory == 'Drawing Tools') {
-        imageUrl = 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&q=80&w=400';
+        imageUrl = 'https://picsum.photos/seed/drawing-tools/400/300';
       }
     }
 
@@ -1898,7 +1985,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
 
   void _showUploadReceiptDialog(BuildContext context, String orderId) {
     final refController = TextEditingController();
-    final proofController = TextEditingController(text: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c');
+    final proofController = TextEditingController(text: 'https://picsum.photos/seed/receipt/400/300');
 
     showDialog(
       context: context,
@@ -2951,7 +3038,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                       ],
                       image: const DecorationImage(
                         image: NetworkImage(
-                          'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&q=80&w=200',
+                          'https://picsum.photos/seed/books-cs/200/200',
                         ),
                         fit: BoxFit.cover,
                       ),

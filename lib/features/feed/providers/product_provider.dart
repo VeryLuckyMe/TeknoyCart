@@ -52,7 +52,7 @@ final List<Product> _fallbackProducts = [
         'Official CIT-U drawing board with adjustable stands. Very clean, lightly used for one semester.',
     price: 450.00,
     imageUrl:
-        'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&q=80&w=400',
+        'https://picsum.photos/seed/drawing-tools/400/300',
     category: 'Drawing Tools',
     condition: 'Like New',
     sellerId: 'demo-1',
@@ -65,7 +65,7 @@ final List<Product> _fallbackProducts = [
         'Complete set of official CIT-U physical education uniform. Unisex design, medium size.',
     price: 250.00,
     imageUrl:
-        'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?auto=format&fit=crop&q=80&w=400',
+        'https://picsum.photos/seed/uniforms/400/300',
     category: 'Uniforms',
     condition: 'Gently Used',
     sellerId: 'demo-2',
@@ -78,7 +78,7 @@ final List<Product> _fallbackProducts = [
         'Data Structures and Algorithms in Java, 6th Edition. Super helpful for second-year CS subjects.',
     price: 180.00,
     imageUrl:
-        'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=400',
+        'https://picsum.photos/seed/books-cs/400/300',
     category: 'Books',
     condition: 'New',
     sellerId: 'demo-3',
@@ -91,7 +91,7 @@ final List<Product> _fallbackProducts = [
         'Casio Scientific Calculator, perfect for Engineering and Math courses. All buttons working.',
     price: 350.00,
     imageUrl:
-        'https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=400',
+        'https://picsum.photos/seed/electronics/400/300',
     category: 'Electronics',
     condition: 'Gently Used',
     sellerId: 'demo-1',
@@ -302,15 +302,15 @@ class ProductListNotifier
   static String _categoryImage(String category) {
     switch (category) {
       case 'Books':
-        return 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=400';
+        return 'https://picsum.photos/seed/books-cs/400/300';
       case 'Drawing Tools':
-        return 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&q=80&w=400';
+        return 'https://picsum.photos/seed/drawing-tools/400/300';
       case 'Uniforms':
-        return 'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?auto=format&fit=crop&q=80&w=400';
+        return 'https://picsum.photos/seed/uniforms/400/300';
       case 'Electronics':
-        return 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=400';
+        return 'https://picsum.photos/seed/electronics/400/300';
       default:
-        return 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=400';
+        return 'https://picsum.photos/seed/others/400/300';
     }
   }
 }
