@@ -1372,12 +1372,41 @@ class _EmailVerificationDialogState extends State<_EmailVerificationDialog> {
   bool _expired = false;
   bool _resending = false;
   bool _resent = false;
-  Timer? _timer;
+  bool _verifiedSuccess = false;
+  Timer? _statusPollTimer;
 
   @override
   void initState() {
     super.initState();
     _startTimer();
+    _startStatusPoller();
+  }
+
+  void _startStatusPoller() {
+    _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (t) async {
+      if (!mounted) { t.cancel(); return; }
+      try {
+        final res = await Supabase.instance.client
+            .from('users')
+            .select('is_verified')
+            .eq('email', widget.email.trim())
+            .maybeSingle();
+
+        if (res != null && res['is_verified'] == true) {
+          t.cancel();
+          _timer?.cancel();
+          if (mounted) {
+            setState(() {
+              _verifiedSuccess = true;
+            });
+            await Future.delayed(const Duration(milliseconds: 1800));
+            if (mounted) {
+              Navigator.of(context).pop(true);
+            }
+          }
+        }
+      } catch (_) {}
+    });
   }
 
   void _startTimer() {
@@ -1427,6 +1456,7 @@ class _EmailVerificationDialogState extends State<_EmailVerificationDialog> {
   @override
   void dispose() {
     _timer?.cancel();
+    _statusPollTimer?.cancel();
     super.dispose();
   }
 
@@ -1448,6 +1478,55 @@ class _EmailVerificationDialogState extends State<_EmailVerificationDialog> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (_verifiedSuccess) {
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E7D32).withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  size: 54,
+                  color: Color(0xFF2E7D32),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Verification Successful!',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2E7D32),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Your institutional email has been verified.\nRedirecting to login...',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 13,
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
