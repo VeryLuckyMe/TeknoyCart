@@ -1,9 +1,9 @@
 -- =============================================================
--- TeknoyCart Fix: Bulletproof User Account Deletion RPC
+-- TeknoyCart Fix: Explicit Public Schema User Account Deletion RPC
 -- Execute this SQL script in Supabase SQL Editor
 -- =============================================================
 
-CREATE OR REPLACE FUNCTION delete_user_account()
+CREATE OR REPLACE FUNCTION public.delete_user_account()
 RETURNS void AS $$
 DECLARE
     uid UUID := auth.uid();
@@ -30,7 +30,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant execution permissions explicitly to authenticated & anon roles
 GRANT USAGE ON SCHEMA public TO authenticated, anon, service_role;
-GRANT EXECUTE ON FUNCTION delete_user_account() TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.delete_user_account() TO authenticated, anon, service_role;
 
 -- Force Supabase PostgREST API engine to reload schema cache immediately
 NOTIFY pgrst, 'reload schema';
