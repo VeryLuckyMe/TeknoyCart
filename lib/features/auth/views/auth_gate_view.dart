@@ -175,7 +175,17 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
               password: _passwordController.text,
             );
       } catch (e) {
-        if (mounted) _showErrorSnackBar(e.toString());
+        if (mounted) {
+          String msg = e.toString();
+          if (msg.contains('invalid_credentials') ||
+              msg.contains('Invalid login credentials') ||
+              msg.contains('400')) {
+            msg = 'No account found matching these credentials. Please check your email and password, or sign up.';
+          } else {
+            msg = msg.replaceAll('AuthException: ', '').replaceAll('Exception: ', '').trim();
+          }
+          _showErrorSnackBar(msg);
+        }
       }
     } else {
       if (!_validateStep(0) || !_validateStep(1)) return;

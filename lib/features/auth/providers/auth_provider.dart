@@ -48,6 +48,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
       state = AsyncValue.data(user);
     } catch (e, stackTrace) {
       state = AsyncValue.error(e, stackTrace);
+      rethrow;
     }
   }
 
