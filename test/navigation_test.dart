@@ -9,11 +9,22 @@ import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
 import 'package:teknoycart/core/navigation_drawer.dart';
+import 'package:flutter/services.dart';
+import 'package:teknoycart/core/supabase_client.dart';
 import 'mock_http_client.dart';
 
 void main() {
-  setUpAll(() {
+  setUpAll(() async {
     HttpOverrides.global = MockHttpOverrides();
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const MethodChannel('plugins.flutter.io/shared_preferences')
+        .setMockMethodCallHandler((MethodCall methodCall) async {
+      if (methodCall.method == 'getAll') {
+        return <String, dynamic>{};
+      }
+      return null;
+    });
+    await SupabaseConfig.initialize();
   });
 
   group('Relational Navigation & Modal Bottom Sheet Widget Tests', () {

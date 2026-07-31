@@ -147,11 +147,11 @@ void main() {
 
       // Verify the app starts on the Auth Gate (since authStateProvider yields null)
       expect(find.byType(AuthGateView), findsOneWidget);
-      expect(find.text('Teknoy'), findsWidgets);
-      expect(find.text('CIT-U Email'), findsOneWidget);
+      expect(find.text('TEKNOYCART'), findsWidgets);
+      expect(find.text('Email Address'), findsOneWidget);
 
       // 2. Perform Authenticated Sign-In using a valid @cit.edu email address
-      await tester.enterText(find.widgetWithText(TextFormField, 'CIT-U Email'), 'teknoy@cit.edu');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Email Address'), 'teknoy@cit.edu');
       await tester.enterText(find.widgetWithText(TextFormField, 'Password'), 'password123');
       await tester.pump();
 
@@ -179,7 +179,7 @@ void main() {
       expect(find.text('Verified Student Account'), findsOneWidget);
 
       // 4. Initiate negotiations by tapping "Chat Seller" button
-      await tester.tap(find.text('Chat Seller'));
+      await tester.tap(find.byIcon(Icons.chat_bubble_outline_rounded));
       await tester.pumpAndSettle();
 
       // Verify transition to ChatView
@@ -187,16 +187,22 @@ void main() {
       expect(find.text('Negotiation Chat'), findsOneWidget);
       expect(find.text('Asking Price: ₱450.00'), findsOneWidget);
 
-      // Tap "Offer Price" shortcut to automatically compose bargain request
+      // Tap "Offer Price" shortcut to open the bargain request dialog
       await tester.tap(find.text('Offer Price'));
+      await tester.pumpAndSettle();
+
+      // Enter the offer price (400) in the dialog's text field
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextField),
+        ),
+        '400',
+      );
       await tester.pump();
 
-      // Verify text field contains the proposed price offer
-      final textField = tester.widget<TextField>(find.byType(TextField));
-      expect(textField.controller?.text, 'Can we agree on ₱400? Deal?');
-
-      // Send the bargaining counter offer message
-      await tester.tap(find.byIcon(Icons.send_rounded));
+      // Tap "Send Offer" inside the dialog to send the counter offer
+      await tester.tap(find.text('Send Offer'));
       await tester.pumpAndSettle();
 
       // Verify our offer message is logged in chat bubbles as a custom bargaining card
@@ -243,7 +249,7 @@ void main() {
 
       // Verify Deal Logged Success dialog appears with parameters
       expect(find.text('Deal Logged!'), findsOneWidget);
-      expect(find.textContaining('Your P2P offer of ₱450.00 at Library Lobby'), findsOneWidget);
+      expect(find.textContaining('Your order for ₱450.00 has been successfully logged!'), findsOneWidget);
 
       // 6. Tap back to feed to complete the transaction user journey
       await tester.tap(find.text('Back to Feed'));

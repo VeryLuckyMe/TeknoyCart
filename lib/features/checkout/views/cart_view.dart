@@ -146,6 +146,33 @@ class _CartViewState extends ConsumerState<CartView> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.storefront_rounded,
+                                        size: 13,
+                                        color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          (item.product.sellerStoreName != null && item.product.sellerStoreName!.isNotEmpty)
+                                              ? item.product.sellerStoreName!
+                                              : 'Wildcat Student Store',
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
                                   Text(
                                     item.product.title,
                                     style: const TextStyle(

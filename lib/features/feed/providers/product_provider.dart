@@ -56,6 +56,7 @@ final List<Product> _fallbackProducts = [
     category: 'Drawing Tools',
     condition: 'Like New',
     sellerId: 'demo-1',
+    sellerStoreName: 'CEA Drawing Board Shop',
     createdAt: DateTime.now().subtract(const Duration(days: 1)),
   ),
   Product(
@@ -69,6 +70,7 @@ final List<Product> _fallbackProducts = [
     category: 'Uniforms',
     condition: 'Gently Used',
     sellerId: 'demo-2',
+    sellerStoreName: 'Wildcat Threads',
     createdAt: DateTime.now().subtract(const Duration(hours: 5)),
   ),
   Product(
@@ -82,6 +84,7 @@ final List<Product> _fallbackProducts = [
     category: 'Books',
     condition: 'New',
     sellerId: 'demo-3',
+    sellerStoreName: 'CS Book Depot',
     createdAt: DateTime.now().subtract(const Duration(days: 3)),
   ),
   Product(
@@ -95,6 +98,7 @@ final List<Product> _fallbackProducts = [
     category: 'Electronics',
     condition: 'Gently Used',
     sellerId: 'demo-1',
+    sellerStoreName: 'CEA Drawing Board Shop',
     createdAt: DateTime.now().subtract(const Duration(days: 2)),
   ),
 ];
