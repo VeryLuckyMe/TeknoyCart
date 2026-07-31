@@ -1373,6 +1373,7 @@ class _EmailVerificationDialogState extends State<_EmailVerificationDialog> {
   bool _resending = false;
   bool _resent = false;
   bool _verifiedSuccess = false;
+  Timer? _timer;
   Timer? _statusPollTimer;
 
   @override
