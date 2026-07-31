@@ -303,6 +303,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                     'Send Reset Link',
                     style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
                   ),
+                ),
               ],
             ),
           ),
