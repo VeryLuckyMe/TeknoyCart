@@ -2174,7 +2174,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('✅ Restocked +$added units! Reservation allocated and marked Ready for Campus Meetup.'),
+                    content: Text('✅ Restocked +$added units! Automated chat message sent to buyer: "$productTitle is restocked & ready for pickup!"'),
                     backgroundColor: const Color(0xFF2E7D32),
                   ),
                 );

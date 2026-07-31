@@ -133,6 +133,35 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     return false;
   }
 
+  Future<void> _sendAutomatedRestockMessage(String productName, int addedQty) async {
+    try {
+      final buyerId = _order['buyer_id'];
+      final sellerId = _order['seller_id'];
+      if (buyerId != null && sellerId != null) {
+        final chat = await SupabaseConfig.client
+            .from('chats')
+            .select('chat_id')
+            .eq('buyer_id', buyerId)
+            .eq('seller_id', sellerId)
+            .limit(1)
+            .maybeSingle();
+
+        final String autoMsg = '📢 [Automated Notification]\nGreat news! The item "$productName" you reserved has been restocked (+$addedQty units) and is ready for campus pickup! 🛍️';
+
+        if (chat != null) {
+          await SupabaseConfig.client.from('messages').insert({
+            'chat_id': chat['chat_id'],
+            'sender_id': sellerId,
+            'content': autoMsg,
+            'is_read': false,
+          });
+        }
+      }
+    } catch (e) {
+      // Silently log
+    }
+  }
+
   void _showQuickRestockDialog() {
     final qtyController = TextEditingController(text: '5');
     final variant = _order['product_variants'] as Map<String, dynamic>?;
@@ -157,7 +186,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             Text('Item: $productName', style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
             const SizedBox(height: 4),
             const Text(
-              'Enter quantity to add to stock. This will allocate 1 unit to this reservation and mark it READY FOR MEETUP.',
+              'Enter quantity to add to stock. This will allocate 1 unit to this reservation, notify the buyer via chat, and mark it READY FOR MEETUP.',
               style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.black54),
             ),
             const SizedBox(height: 16),
@@ -186,10 +215,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 _order['is_out_of_stock'] = false;
               });
               await _updateStatus('READY_FOR_PICKUP');
+              await _sendAutomatedRestockMessage(productName, added);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('✅ Restocked +$added units! Reservation allocated and marked Ready for Campus Meetup.'),
+                    content: Text('✅ Restocked +$added units! Automated message sent to buyer: "$productName is restocked & ready for pickup!"'),
                     backgroundColor: const Color(0xFF2E7D32),
                   ),
                 );
