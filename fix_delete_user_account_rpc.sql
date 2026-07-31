@@ -28,4 +28,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-GRANT EXECUTE ON FUNCTION delete_user_account() TO authenticated;
+-- Grant execution permissions explicitly to authenticated & anon roles
+GRANT USAGE ON SCHEMA public TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION delete_user_account() TO authenticated, anon, service_role;
+
+-- Force Supabase PostgREST API engine to reload schema cache immediately
+NOTIFY pgrst, 'reload schema';
