@@ -5,7 +5,6 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
-import 'package:teknoycart/features/checkout/views/order_history_view.dart';
 
 class CampusLandmark {
   final String name;
@@ -25,7 +24,6 @@ class CheckoutView extends ConsumerStatefulWidget {
   final Product product;
   final bool isDirectBuy;
   final double agreedPrice;
-  final int initialQuantity;
   final String? roomId;
 
   const CheckoutView({
@@ -33,7 +31,6 @@ class CheckoutView extends ConsumerStatefulWidget {
     required this.product,
     this.isDirectBuy = false,
     required this.agreedPrice,
-    this.initialQuantity = 1,
     this.roomId,
   });
 
@@ -44,7 +41,6 @@ class CheckoutView extends ConsumerStatefulWidget {
 class _CheckoutViewState extends ConsumerState<CheckoutView> {
   final _formKey = GlobalKey<FormState>();
 
-  late int _selectedQuantity;
   String _selectedLocation = 'Library Lobby';
   String _selectedDay = 'Today';
   String _selectedTimeSlot = '12:00 PM - 01:30 PM';
@@ -89,7 +85,6 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   @override
   void initState() {
     super.initState();
-    _selectedQuantity = widget.initialQuantity;
     _fetchSellerGcash();
     _fetchInventoryStatus();
   }
@@ -187,30 +182,24 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             'buyer_id': buyerId,
             'product_id': widget.product.id,
             'variant_id': variantId,
-            'quantity': _selectedQuantity,
+            'quantity': 1,
             'inquiry_type': 'AVAILABILITY',
             'message': 'Initiated checkout for ${widget.product.title}',
           }).select().single();
           inquiryId = insertedInquiry['inquiry_id'] as String;
         }
 
-        final String dbPaymentMethod = _selectedPaymentMethod == 'GCash' ? 'GCASH' : 'CASH_ON_PICKUP';
-
         // 4. Perform live Supabase insert into orders
-        final double totalAmount = widget.agreedPrice * _selectedQuantity;
         await client.from('orders').insert({
           'inquiry_id': inquiryId,
           'buyer_id': buyerId,
           'seller_id': widget.product.sellerId,
           'variant_id': variantId,
-          'quantity': _selectedQuantity,
+          'quantity': 1,
           'unit_price': widget.agreedPrice,
-          'total_amount': totalAmount,
-          'status': 'INQUIRY_SENT',
-          'pickup_location': _selectedLocation,
-          'pickup_day': _selectedDay,
-          'pickup_time': _selectedTimeSlot,
-          'payment_method': dbPaymentMethod,
+          'total_amount': widget.agreedPrice,
+          'status': _isReservation ? 'APPROVED' : 'INQUIRY_SENT',
+          'pickup_location': combinedLocation,
           'reservation_expires_at': _isReservation 
               ? DateTime.now().add(const Duration(hours: 24)).toIso8601String() 
               : null,
@@ -258,62 +247,37 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.check_circle_rounded, color: TeknoyTheme.success, size: 28),
-            SizedBox(width: 10),
-            Text('Order Placed!', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+            const Icon(Icons.check_circle_rounded, color: TeknoyTheme.success, size: 28),
+            const SizedBox(width: 10),
+            Text(
+              _isReservation ? 'Item Reserved!' : 'Deal Logged!',
+              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+            ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Your order for ₱${(widget.agreedPrice * _selectedQuantity).toStringAsFixed(2)} (${_selectedQuantity} ${_selectedQuantity == 1 ? "item" : "items"}) has been sent to the seller.',
-              style: const TextStyle(fontFamily: 'Inter', height: 1.5),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.withOpacity(0.25)),
-              ),
-              child: const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.hourglass_top_rounded, color: Colors.orange, size: 16),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Awaiting seller acceptance. You can track this order in the Orders Hub.',
-                      style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.orange),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        content: Text(
+          _isReservation 
+              ? 'Your P2P offer of ₱${widget.agreedPrice.toStringAsFixed(2)} has been successfully logged and the item is now reserved for 24 hours! Make sure to coordinate and upload your payment proof via chat before the reservation expires.'
+              : 'Your P2P offer of ₱${widget.agreedPrice.toStringAsFixed(2)} at $_selectedLocation ($_selectedDay, $_selectedTimeSlot) has been successfully logged! Coordinate with the seller via chat for the meetup.',
+          style: const TextStyle(fontFamily: 'Inter', height: 1.4),
         ),
         actions: [
           ElevatedButton(
             onPressed: () {
-              // Pop the dialog, then replace the entire stack up to root with Orders Hub
               Navigator.pop(context);
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const OrderHistoryView()),
-                (route) => route.isFirst,
-              );
+              Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: TeknoyTheme.citMaroon,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
-            child: const Text('Go to Orders Hub', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Back to Feed',
+              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -336,7 +300,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -350,7 +314,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: TeknoyTheme.citGold.withOpacity(0.3),
+                color: TeknoyTheme.citGold.withValues(alpha: 0.3),
                 width: 1.5,
               ),
               image: DecorationImage(
@@ -387,7 +351,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: TeknoyTheme.citGold.withOpacity(0.12),
+                    color: TeknoyTheme.citGold.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -421,7 +385,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: isSelected
-              ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.9 : 0.85)
+              ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.9 : 0.85)
               : (isDark ? const Color(0xFF16161B) : Colors.white),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
@@ -433,14 +397,14 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: TeknoyTheme.citGold.withOpacity(0.15),
+                    color: TeknoyTheme.citGold.withValues(alpha: 0.15),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   )
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
+                    color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   )
@@ -480,7 +444,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                     fontWeight: FontWeight.bold,
                     color: isSelected
                         ? Colors.white
-                        : (isDark ? Colors.white.withOpacity(0.9) : Colors.black87),
+                        : (isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -492,7 +456,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                     fontFamily: 'Inter',
                     fontSize: 10.5,
                     color: isSelected
-                        ? Colors.white.withOpacity(0.75)
+                        ? Colors.white.withValues(alpha: 0.75)
                         : (isDark ? Colors.white54 : Colors.black54),
                   ),
                   maxLines: 2,
@@ -568,7 +532,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: isSelected
-                  ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.9 : 0.8)
+                  ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.9 : 0.8)
                   : (isDark ? const Color(0xFF16161B) : const Color(0xFFF4F4F7)),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
@@ -586,7 +550,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 color: isSelected
                     ? Colors.white
-                    : (isDark ? Colors.white.withOpacity(0.9) : Colors.black87),
+                    : (isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
               ),
             ),
           ),
@@ -619,9 +583,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: Colors.blue.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -652,11 +616,8 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   }
 
   Widget _buildPriceFinalizer(bool isDark) {
-    final double totalPrice = widget.agreedPrice * _selectedQuantity;
-    final int maxAllowed = _availableQty > 0 ? _availableQty : 99;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF141418) : const Color(0xFFF4F4F7),
         borderRadius: BorderRadius.circular(20),
@@ -665,112 +626,15 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           width: 1.2,
         ),
       ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Quantity',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _availableQty > 0 ? 'Max available: $_availableQty' : 'Reservation item',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 12,
-                      color: isDark ? Colors.white60 : Colors.black54,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1F1F26) : Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isDark ? const Color(0xFF2E2E38) : Colors.grey.shade300,
-                  ),
-                  boxShadow: TeknoyTheme.kElevationLow,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove_rounded, size: 20),
-                      color: _selectedQuantity > 1
-                          ? TeknoyTheme.citMaroon
-                          : (isDark ? Colors.white24 : Colors.black26),
-                      onPressed: _selectedQuantity > 1
-                          ? () => setState(() => _selectedQuantity--)
-                          : null,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                      padding: EdgeInsets.zero,
-                    ),
-                    Container(
-                      constraints: const BoxConstraints(minWidth: 32),
-                      alignment: Alignment.center,
-                      child: Text(
-                        '$_selectedQuantity',
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.add_rounded, size: 20),
-                      color: _selectedQuantity < maxAllowed
-                          ? TeknoyTheme.citMaroon
-                          : (isDark ? Colors.white24 : Colors.black26),
-                      onPressed: _selectedQuantity < maxAllowed
-                          ? () => setState(() => _selectedQuantity++)
-                          : null,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                      padding: EdgeInsets.zero,
-                    ),
-                  ],
-                ),
-              ),
-            ],
+      child: Center(
+        child: Text(
+          '₱${widget.agreedPrice.toStringAsFixed(2)}',
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 14.0),
-            child: Divider(height: 1),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Total Price (${_selectedQuantity} ${_selectedQuantity == 1 ? "item" : "items"}):',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white70 : Colors.black87,
-                ),
-              ),
-              Text(
-                '₱${totalPrice.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: TeknoyTheme.citMaroon,
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -791,12 +655,12 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: _isReservation
-            ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.06)
+            ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.12 : 0.06)
             : (isDark ? const Color(0xFF141418) : const Color(0xFFF4F4F7)),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: _isReservation
-              ? TeknoyTheme.citMaroon.withOpacity(0.5)
+              ? TeknoyTheme.citMaroon.withValues(alpha: 0.5)
               : (isDark ? const Color(0xFF22222A) : const Color(0xFFE5E5E9)),
           width: 1.2,
         ),
