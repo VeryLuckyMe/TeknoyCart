@@ -18,7 +18,8 @@ import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/feed/views/search_results_view.dart';
 import 'package:teknoycart/features/chat/views/inbox_view.dart';
 import 'package:teknoycart/features/auth/views/auth_gate_view.dart';
-
+import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
+import 'package:teknoycart/features/checkout/views/cart_view.dart';
 /// Product Discovery Feed representing Figma Node 1:39.
 /// Main marketplace landing hub for listing, browsing, and searching products.
 class ProductDiscoveryFeedView extends ConsumerStatefulWidget {
@@ -588,6 +589,57 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         ),
         centerTitle: true,
         actions: [
+          Consumer(
+            builder: (context, ref, child) {
+              final cart = ref.watch(cartProvider);
+              final itemCount = cart.fold<int>(0, (sum, item) => sum + item.quantity);
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.shopping_cart_outlined,
+                      color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CartView(),
+                        ),
+                      );
+                    },
+                    tooltip: 'Shopping Cart',
+                  ),
+                  if (itemCount > 0)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          '$itemCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -2601,24 +2653,23 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                         onSave: (_) {},
                       ),
 
-                      const SizedBox(height: 14),
-
-                      // Store Display Name
-                      _buildProfileInfoField(
-                        context,
-                        label: 'Store Display Name',
-                        value: storeName,
-                        icon: Icons.storefront_outlined,
-                        isEditable: true,
-                        labelColor: labelColor,
-                        valueColor: valueColor,
-                        cardBg: cardBg,
-                        cardBorder: cardBorder,
-                        isDark: isDark,
-                        onSave: (newStore) => _updateProfileMetadata(dept, contact, gcashNumber, storeName: newStore),
-                      ),
-
-                      const SizedBox(height: 14),
+                      if (isSeller) ...[
+                        // Store Display Name
+                        _buildProfileInfoField(
+                          context,
+                          label: 'Store Display Name',
+                          value: storeName,
+                          icon: Icons.storefront_outlined,
+                          isEditable: true,
+                          labelColor: labelColor,
+                          valueColor: valueColor,
+                          cardBg: cardBg,
+                          cardBorder: cardBorder,
+                          isDark: isDark,
+                          onSave: (newStore) => _updateProfileMetadata(dept, contact, gcashNumber, storeName: newStore),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
 
                       // Department
                       _buildProfileInfoField(

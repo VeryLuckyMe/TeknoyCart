@@ -249,7 +249,8 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     final pickupLocation = order['pickup_location'] as String? ?? '—';
     final pickupDay = order['pickup_day'] as String? ?? '—';
     final pickupTime = order['pickup_time'] as String? ?? '—';
-    final paymentMethod = order['payment_method'] as String? ?? 'Cash on Delivery';
+    final rawPayment = order['payment_method'] as String? ?? 'CASH_ON_PICKUP';
+    final paymentMethod = (rawPayment == 'GCASH' || rawPayment == 'GCash') ? 'GCash' : 'Cash on Delivery';
 
     return TweenAnimationBuilder<double>(
       duration: const Duration(milliseconds: 350),

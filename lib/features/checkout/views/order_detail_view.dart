@@ -60,8 +60,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
   }
 
   String get _status => _order['status'] as String? ?? '';
-  String get _paymentMethod => _order['payment_method'] as String? ?? 'CASH_ON_PICKUP';
-  bool get _isGCash => _paymentMethod == 'GCash' || _paymentMethod == 'GCASH';
+  String get _rawPaymentMethod => _order['payment_method'] as String? ?? 'CASH_ON_PICKUP';
+  String get _paymentMethod => (_rawPaymentMethod == 'GCASH' || _rawPaymentMethod == 'GCash') ? 'GCash' : 'Cash on Delivery';
+  bool get _isGCash => _paymentMethod == 'GCash';
 
   Future<void> _refreshOrder() async {
     try {
