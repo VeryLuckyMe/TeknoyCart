@@ -248,19 +248,8 @@ class AuthService {
         });
       }
 
-      try {
-        final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/send-verification')
-            .replace(queryParameters: {
-              'email': email.trim(),
-              'fullName': username.trim(),
-            });
-        final httpResponse = await http.post(url);
-        if (httpResponse.statusCode != 200) {
-          print('SMTP Trigger status code: ${httpResponse.statusCode}, body: ${httpResponse.body}');
-        }
-      } catch (e) {
-        print('Failed to reach Spring Boot backend SMTP trigger: $e');
-      }
+      // Trigger Spring Boot backend SMTP verification with retry
+      await _sendVerificationEmailWithRetry(email, username);
 
       // Instantly sign out to clear the session locally, since we're still in registration mode
       await _client.auth.signOut();
@@ -277,6 +266,37 @@ class AuthService {
   // ── Sign Out ──
   Future<void> signOut() async {
     await _client.auth.signOut();
+  }
+
+  Future<void> resendVerificationEmail(String email, String fullName) async {
+    await _sendVerificationEmailWithRetry(email, fullName);
+  }
+
+  Future<void> _sendVerificationEmailWithRetry(String email, String fullName) async {
+    final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/send-verification')
+        .replace(queryParameters: {
+          'email': email.trim(),
+          'fullName': fullName.trim(),
+        });
+
+    int attempts = 0;
+    while (attempts < 3) {
+      attempts++;
+      try {
+        final httpResponse = await http.post(url).timeout(const Duration(seconds: 15));
+        if (httpResponse.statusCode == 200) {
+          print('✅ SMTP Verification email triggered successfully on attempt $attempts');
+          return;
+        } else {
+          print('SMTP Trigger returned status code: ${httpResponse.statusCode}, attempt $attempts');
+        }
+      } catch (e) {
+        print('Attempt $attempts: Failed to reach Spring Boot backend SMTP trigger ($e)');
+      }
+      if (attempts < 3) {
+        await Future.delayed(const Duration(seconds: 2));
+      }
+    }
   }
 
   void dispose() {

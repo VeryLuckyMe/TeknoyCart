@@ -1589,9 +1589,8 @@ class _EmailVerificationDialogState extends State<_EmailVerificationDialog> {
 
             const SizedBox(height: 24),
 
-            // Resend button (shown when expired)
-            if (_expired)
-              SizedBox(
+            // Resend button (allows instant resend or when expired)
+            SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton.icon(
