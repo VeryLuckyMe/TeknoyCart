@@ -1843,7 +1843,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           String statusDisplay = 'Inquiry Sent';
           switch (status) {
             case 'INQUIRY_SENT': progress = 0.2; statusDisplay = 'Inquiry Sent — Awaiting Seller'; break;
-            case 'APPROVED':     progress = 0.4; statusDisplay = isOos ? '⚠️ Out of Stock Reservation' : 'Approved — Awaiting Payment'; break;
+            case 'APPROVED':     progress = 0.4; statusDisplay = isOos ? '⚠️ Out of Stock Reservation' : 'Reserved — Awaiting Meetup'; break;
             case 'REJECTED':     progress = 0.1; statusDisplay = 'Offer Declined'; break;
             case 'PAYMENT_SUBMITTED': progress = 0.6; statusDisplay = 'GCash Proof Submitted'; break;
             case 'PAYMENT_VERIFIED':  progress = 0.8; statusDisplay = 'Payment Verified — Ready'; break;

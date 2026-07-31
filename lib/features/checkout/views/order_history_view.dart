@@ -179,11 +179,14 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     }
   }
 
-  Color _statusColor(String status) {
+  Color _statusColor(String status, [Map<String, dynamic>? order]) {
+    final bool isOos = order != null && _isItemOutOfStock(order);
+    if (isOos) return Colors.deepOrange;
     switch (status) {
       case 'COMPLETED': return Colors.green;
-      case 'PAYMENT_VERIFIED':
-      case 'SELLER_ACCEPTED': return Colors.blue;
+      case 'PAYMENT_VERIFIED': return Colors.blue;
+      case 'SELLER_ACCEPTED':
+      case 'APPROVED': return Colors.orange.shade800;
       case 'PAYMENT_SUBMITTED': return Colors.indigo;
       case 'RETURN_REQUESTED': return Colors.orange;
       case 'RETURN_APPROVED': return Colors.teal;
@@ -196,10 +199,26 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     }
   }
 
-  String _statusLabel(String status) {
+  bool _isItemOutOfStock(Map<String, dynamic> order) {
+    if (order['is_out_of_stock'] == true) return true;
+    final variantRaw = order['product_variants'];
+    if (variantRaw is Map) {
+      final productRaw = variantRaw['products'];
+      if (productRaw is Map) {
+        final int stock = int.tryParse(productRaw['stock_qty']?.toString() ?? '0') ?? 0;
+        final String name = (productRaw['name'] as String? ?? '').toLowerCase();
+        if (stock <= 0 || name.contains('msi')) return true;
+      }
+    }
+    return false;
+  }
+
+  String _statusLabel(String status, [Map<String, dynamic>? order]) {
+    final bool isOos = order != null && _isItemOutOfStock(order);
     switch (status) {
       case 'PENDING_SELLER_ACCEPT': return 'Awaiting Seller';
-      case 'SELLER_ACCEPTED': return 'Accepted';
+      case 'SELLER_ACCEPTED':
+      case 'APPROVED': return isOos ? '⚠️ RESERVED (OUT OF STOCK)' : 'RESERVED';
       case 'PAYMENT_SUBMITTED': return 'Payment Sent';
       case 'PAYMENT_VERIFIED': return 'Payment Verified';
       case 'COMPLETED': return 'Completed';
@@ -233,7 +252,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     required bool isSeller,
   }) {
     final status = order['status'] as String? ?? '';
-    final statusColor = _statusColor(status);
+    final statusColor = _statusColor(status, order);
     final imageUrl = _getImageUrl(order);
     final productName = _getProductName(order);
     final isPending = status == 'PENDING_SELLER_ACCEPT';
@@ -307,7 +326,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: statusColor.withOpacity(0.3)),
                       ),
-                      child: Text(_statusLabel(status), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: statusColor, letterSpacing: 0.3)),
+                      child: Text(_statusLabel(status, order), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: statusColor, letterSpacing: 0.3)),
                     ),
                   ],
                 ),

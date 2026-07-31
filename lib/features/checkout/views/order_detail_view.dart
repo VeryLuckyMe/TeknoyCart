@@ -520,8 +520,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
 
   Widget _buildStatusStepper(bool isDark) {
     final steps = _isGCash
-        ? ['Placed', 'Accepted', 'Payment', 'Meetup', 'Done']
-        : ['Placed', 'Accepted', 'Meetup', 'Done'];
+        ? ['Placed', 'Reserved', 'Payment', 'Meetup', 'Done']
+        : ['Placed', 'Reserved', 'Meetup', 'Done'];
 
     final statusToStep = _isGCash
         ? {
