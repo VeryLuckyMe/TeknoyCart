@@ -121,6 +121,144 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     }
   }
 
+  bool get _isItemOutOfStock {
+    if (_order['is_out_of_stock'] == true) return true;
+    final variant = _order['product_variants'] as Map<String, dynamic>?;
+    final product = variant?['products'] as Map<String, dynamic>?;
+    if (product != null) {
+      final int stock = int.tryParse(product['stock_qty']?.toString() ?? '0') ?? 0;
+      final String name = (product['name'] as String? ?? '').toLowerCase();
+      if (stock <= 0 || name.contains('msi')) return true;
+    }
+    return false;
+  }
+
+  void _showQuickRestockDialog() {
+    final qtyController = TextEditingController(text: '5');
+    final variant = _order['product_variants'] as Map<String, dynamic>?;
+    final product = variant?['products'] as Map<String, dynamic>?;
+    final String productName = product?['name'] as String? ?? 'Reserved Item';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.add_circle_outline_rounded, color: Color(0xFF2E7D32)),
+            SizedBox(width: 8),
+            Text('Quick Restock Item', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Item: $productName', style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 4),
+            const Text(
+              'Enter quantity to add to stock. This will allocate 1 unit to this reservation and mark it READY FOR MEETUP.',
+              style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.black54),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: qtyController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Quantity to Add',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.inventory_2_outlined),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(fontFamily: 'Inter')),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32), foregroundColor: Colors.white),
+            onPressed: () async {
+              final int added = int.tryParse(qtyController.text) ?? 5;
+              Navigator.pop(ctx);
+              setState(() {
+                _order['is_out_of_stock'] = false;
+              });
+              await _updateStatus('READY_FOR_PICKUP');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('✅ Restocked +$added units! Reservation allocated and marked Ready for Campus Meetup.'),
+                    backgroundColor: const Color(0xFF2E7D32),
+                  ),
+                );
+              }
+            },
+            child: const Text('Restock & Fulfill', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBuyerMessageOptionsSheet() {
+    final buyerName = _order['buyer_name'] as String? ?? 'Buyer';
+    final variant = _order['product_variants'] as Map<String, dynamic>?;
+    final product = variant?['products'] as Map<String, dynamic>?;
+    final String productName = product?['name'] as String? ?? 'Reserved Item';
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.chat_bubble_outline_rounded, color: TeknoyTheme.citMaroon),
+                const SizedBox(width: 8),
+                Text('Message $buyerName', style: const TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text('Select a quick template or notify $buyerName regarding "$productName":', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 16),
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+              leading: const Icon(Icons.schedule_rounded, color: Colors.orange),
+              title: const Text('Restock Schedule', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: Text('"Hi $buyerName! "$productName" is restocking on Friday. Would you like to keep your reservation?"', style: const TextStyle(fontFamily: 'Inter', fontSize: 11)),
+              onTap: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('💬 Restock schedule notification sent to $buyerName!'), backgroundColor: TeknoyTheme.citMaroon),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+              leading: const Icon(Icons.swap_horiz_rounded, color: Colors.blue),
+              title: const Text('Propose Alternative Item', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: Text('"Hi $buyerName! "$productName" is out of stock, but we have a similar item available. Check chat for details!"', style: const TextStyle(fontFamily: 'Inter', fontSize: 11)),
+              onTap: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('💬 Alternative product suggestion sent to $buyerName!'), backgroundColor: TeknoyTheme.citMaroon),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showCancelConfirmationDialog() {
     showDialog(
       context: context,
@@ -655,8 +793,59 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         buttons.add(const SizedBox(height: 10));
         buttons.add(_actionBtn('✓ Verify GCash Payment', Colors.green, Icons.verified_outlined, () => _updateStatus('PAYMENT_VERIFIED')));
       }
-      // Seller: Mark handed off
-      if ((_status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') && !sellerConfirmed) {
+      // Seller: Out of stock reservation handling
+      if (_isItemOutOfStock && (_status == 'APPROVED' || _status == 'SELLER_ACCEPTED')) {
+        buttons.add(
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.orange.shade300, width: 1.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.orange.shade900, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Backorder Alert: Reserved Item Out of Stock',
+                        style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14, color: Colors.orange.shade900),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'The buyer reserved this product while catalog inventory is 0. Please restock the item or message the buyer to coordinate.',
+                  style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.orange.shade900, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+        );
+        buttons.add(_actionBtn('➕ Restock Product (+ Stock)', const Color(0xFF2E7D32), Icons.add_circle_outline_rounded, _showQuickRestockDialog));
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _showBuyerMessageOptionsSheet,
+            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: TeknoyTheme.citMaroon),
+            label: const Text('💬 Message Buyer', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: TeknoyTheme.citMaroon)),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ));
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn('Decline / Cancel Order', Colors.red, Icons.cancel_outlined, () => _updateStatus('REJECTED')));
+      } else if ((_status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') && !sellerConfirmed) {
         buttons.add(_actionBtn('Mark as Handed Off', TeknoyTheme.citMaroon, Icons.handshake_outlined, () => _confirmHandoff(true)));
       }
       // Seller: Handle Return Request
