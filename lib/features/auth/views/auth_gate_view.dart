@@ -1,16 +1,11 @@
 import 'dart:async';
 import 'dart:ui';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:teknoycart/features/auth/providers/auth_provider.dart';
-import 'package:teknoycart/core/theme.dart';
-import 'package:teknoycart/core/supabase_client.dart';
-import 'package:http/http.dart' as http;
+import '../../../core/theme.dart';
+import '../providers/auth_provider.dart';
 
-
-/// Authentication gate view upgraded to a premium, world-class mobile visual standard.
 class AuthGateView extends ConsumerStatefulWidget {
   const AuthGateView({super.key});
 
@@ -18,411 +13,453 @@ class AuthGateView extends ConsumerStatefulWidget {
   ConsumerState<AuthGateView> createState() => _AuthGateViewState();
 }
 
-class _AuthGateViewState extends ConsumerState<AuthGateView>
-    with SingleTickerProviderStateMixin {
+class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
+
+  bool _isLoginTab = true;
+  int _registerStep = 0;
+
   final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
-  final _passwordController = TextEditingController();
   final _studentIdController = TextEditingController();
-  final _departmentController = TextEditingController(text: 'CCS');
+  final _departmentController = TextEditingController();
   final _storeNameController = TextEditingController();
+  final _orgContactController = TextEditingController();
 
   String _selectedRole = 'BUYER';
-  bool _isLoginTab = true;
+  String _selectedSellerType = 'STUDENT';
   bool _obscurePassword = true;
-  int _registerStep = 0; // 0: Identity & Role, 1: Academic Verification, 2: Account Credentials
 
-  late final AnimationController _fadeCtrl;
-  late final Animation<double> _fadeAnim;
-  StreamSubscription<AuthState>? _recoverySub;
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnim;
 
   @override
   void initState() {
     super.initState();
-    _fadeCtrl = AnimationController(
+    _fadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
-    )..forward();
-    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOutCubic);
-
-    _recoverySub = SupabaseConfig.client.auth.onAuthStateChange.listen((data) {
-      if (data.event == AuthChangeEvent.passwordRecovery) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            showSetNewPasswordSheet(context);
-          }
-        });
-      }
-    });
+      duration: const Duration(milliseconds: 300),
+    );
+    _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
+    _fadeController.forward();
   }
 
   @override
   void dispose() {
-    _recoverySub?.cancel();
+    _fadeController.dispose();
     _emailController.dispose();
+    _passwordController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
-    _passwordController.dispose();
     _studentIdController.dispose();
     _departmentController.dispose();
     _storeNameController.dispose();
-    _fadeCtrl.dispose();
+    _orgContactController.dispose();
     super.dispose();
+  }
+
+  void _switchTab(bool isLogin) {
+    if (_isLoginTab == isLogin) return;
+    _fadeController.reverse().then((_) {
+      setState(() {
+        _isLoginTab = isLogin;
+        _registerStep = 0;
+        _formKey.currentState?.reset();
+      });
+      _fadeController.forward();
+    });
   }
 
   bool _validateStep(int step) {
     if (step == 0) {
-      if (_firstNameController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter your first name'),
-            backgroundColor: TeknoyTheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return false;
-      }
-      if (_lastNameController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter your last name'),
-            backgroundColor: TeknoyTheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return false;
+      final isOrg = _selectedRole == 'SELLER' && _selectedSellerType == 'ORG';
+      if (!isOrg) {
+        if (_firstNameController.text.trim().isEmpty) {
+          _showErrorSnackBar('Please enter your first name');
+          return false;
+        }
+        if (_lastNameController.text.trim().isEmpty) {
+          _showErrorSnackBar('Please enter your last name');
+          return false;
+        }
       }
       if (_selectedRole == 'SELLER' && _storeNameController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter your store name'),
-            backgroundColor: TeknoyTheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return false;
-      }
-      return true;
-    } else if (step == 1) {
-      final studentId = _studentIdController.text.trim();
-      final studentIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
-      if (!studentIdRegex.hasMatch(studentId)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Student ID must be formatted as ##-####-###'),
-            backgroundColor: TeknoyTheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return false;
-      }
-      if (_departmentController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter your Department Code (e.g. CCS)'),
-            backgroundColor: TeknoyTheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        _showErrorSnackBar('Please enter a store name');
         return false;
       }
       return true;
     }
+
+    if (step == 1) {
+      if (_selectedRole == 'SELLER' && _selectedSellerType == 'ORG') {
+        if (_orgContactController.text.trim().isEmpty) {
+          _showErrorSnackBar('Please enter a contact number for your store/organization');
+          return false;
+        }
+        if (_departmentController.text.trim().isEmpty) {
+          _showErrorSnackBar('Please enter your college/department affiliation');
+          return false;
+        }
+      } else {
+        if (_studentIdController.text.trim().isEmpty) {
+          _showErrorSnackBar('Please enter your Student ID');
+          return false;
+        }
+        if (_departmentController.text.trim().isEmpty) {
+          _showErrorSnackBar('Please enter your department code');
+          return false;
+        }
+      }
+      return true;
+    }
+
     return true;
   }
 
-  /// Opens a bottom sheet where the user enters their @cit.edu email.
-  /// Calls Supabase Auth resetPasswordForEmail() to send the reset link.
-  void _showForgotPasswordSheet() {
-    final resetEmailCtrl = TextEditingController();
-    final sheetFormKey = GlobalKey<FormState>();
-    bool isSending = false;
-    String? sheetError;
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontFamily: 'Inter', fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: TeknoyTheme.citMaroon,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
 
+  Future<void> _submitForm() async {
+    FocusScope.of(context).unfocus();
+
+    if (_isLoginTab) {
+      if (!_formKey.currentState!.validate()) return;
+      try {
+        await ref.read(authNotifierProvider.notifier).login(
+              email: _emailController.text.trim(),
+              password: _passwordController.text,
+            );
+      } catch (e) {
+        if (mounted) _showErrorSnackBar(e.toString());
+      }
+    } else {
+      if (!_validateStep(0) || !_validateStep(1)) return;
+      if (!_formKey.currentState!.validate()) return;
+
+      try {
+        final isOrg = _selectedRole == 'SELLER' && _selectedSellerType == 'ORG';
+        final fullName = isOrg
+            ? _storeNameController.text.trim()
+            : '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}'.trim();
+        await ref.read(authNotifierProvider.notifier).register(
+              email: _emailController.text.trim(),
+              username: fullName,
+              password: _passwordController.text,
+              role: _selectedRole,
+              sellerType: _selectedRole == 'SELLER' ? _selectedSellerType : null,
+              studentId: (_selectedRole == 'SELLER' && _selectedSellerType == 'ORG')
+                  ? ''
+                  : _studentIdController.text.trim(),
+              department: _departmentController.text.trim(),
+              storeName: _selectedRole == 'SELLER' ? _storeNameController.text.trim() : null,
+              orgContact: (_selectedRole == 'SELLER' && _selectedSellerType == 'ORG')
+                  ? _orgContactController.text.trim()
+                  : null,
+            );
+
+        if (mounted) {
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => _EmailVerificationDialog(
+              email: _emailController.text.trim(),
+            ),
+          );
+          _switchTab(true); // go to login after dialog is dismissed
+        }
+      } catch (e) {
+        if (mounted) _showErrorSnackBar(e.toString());
+      }
+    }
+  }
+
+  void _showForgotPasswordSheet() {
+    final forgotEmailCtrl = TextEditingController(text: _emailController.text);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom,
-              ),
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? const Color(0xFF1A1A1F)
-                      : Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white.withOpacity(0.08)
-                        : const Color(0xFFECECEF),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-                  child: Form(
-                    key: sheetFormKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Handle bar
-                        Center(
-                          child: Container(
-                            width: 40,
-                            height: 4,
-                            margin: const EdgeInsets.only(bottom: 20),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade300,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                        const Icon(
-                          Icons.lock_reset_rounded,
-                          size: 40,
-                          color: TeknoyTheme.citMaroon,
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Reset Your Password',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Enter your CIT-U email and we will send a secure password reset link to your inbox.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 13,
-                            color: Colors.grey,
-                            height: 1.4,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        _buildInputField(
-                          controller: resetEmailCtrl,
-                          label: 'Account Email Address',
-                          icon: Icons.email_outlined,
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (val) {
-                            if (val == null || val.trim().isEmpty) {
-                              return 'Please enter your email address';
-                            }
-                            final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                            if (!emailRegex.hasMatch(val.trim())) {
-                              return 'Please enter a valid email address';
-                            }
-                            return null;
-                          },
-                        ),
-                        if (sheetError != null) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            sheetError!,
-                            style: const TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 12,
-                              color: TeknoyTheme.error,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          height: 52,
-                          child: ElevatedButton(
-                            onPressed: isSending
-                                ? null
-                                : () async {
-                                    if (!sheetFormKey.currentState!.validate()) return;
-                                    setSheetState(() {
-                                      isSending = true;
-                                      sheetError = null;
-                                    });
-                                    try {
-                                      await SupabaseConfig.client.auth.resetPasswordForEmail(
-                                        resetEmailCtrl.text.trim().toLowerCase(),
-                                        redirectTo: 'io.teknoycart://reset-callback',
-                                      );
-                                      if (mounted) {
-                                        Navigator.of(sheetCtx).pop();
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Row(
-                                              children: [
-                                                const Icon(Icons.check_circle_outline_rounded,
-                                                    color: Colors.white, size: 20),
-                                                const SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Text(
-                                                    'Reset link sent to ${resetEmailCtrl.text.trim()}. Check your CIT-U inbox!',
-                                                    style: const TextStyle(
-                                                        fontFamily: 'Inter', fontSize: 13),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            backgroundColor: const Color(0xFF2D7D32),
-                                            behavior: SnackBarBehavior.floating,
-                                            margin: const EdgeInsets.all(16),
-                                            shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(16)),
-                                            duration: const Duration(seconds: 5),
-                                          ),
-                                        );
-                                      }
-                                    } catch (e) {
-                                      setSheetState(() {
-                                        isSending = false;
-                                        sheetError = 'Failed to send reset link. Check your email and try again.';
-                                      });
-                                    }
-                                  },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: TeknoyTheme.citMaroon,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16)),
-                            ),
-                            child: isSending
-                                ? const SizedBox(
-                                    height: 22,
-                                    width: 22,
-                                    child: CircularProgressIndicator(
-                                        color: Colors.white, strokeWidth: 2.5),
-                                  )
-                                : const Text(
-                                    'Send Reset Link',
-                                    style: TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextButton(
-                          onPressed: () => Navigator.of(sheetCtx).pop(),
-                          child: const Text(
-                            'Cancel',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                      ],
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+                const SizedBox(height: 20),
+                const Text(
+                  'Reset Password',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Enter your email address and we will send you instructions to reset your password.',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 13,
+                    color: isDark ? Colors.white60 : Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: forgotEmailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Email Address',
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () async {
+                    final email = forgotEmailCtrl.text.trim();
+                    if (email.isEmpty) return;
+                    Navigator.pop(ctx);
+                    try {
+                      await Supabase.instance.client.auth.resetPasswordForEmail(email);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Password reset instructions sent to your email.')),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) _showErrorSnackBar(e.toString());
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: TeknoyTheme.citMaroon,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text(
+                    'Send Reset Link',
+                    style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
-  void _submitForm() async {
-    if (!_isLoginTab) {
-      if (!_validateStep(0) || !_validateStep(1)) return;
-    }
-    if (!_formKey.currentState!.validate()) return;
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-    final firstName = _firstNameController.text.trim();
-    final lastName = _lastNameController.text.trim();
-    final fullName = '$firstName $lastName';
-    final studentId = _studentIdController.text.trim();
-    final authNotifier = ref.read(authNotifierProvider.notifier);
-    if (_isLoginTab) {
-      authNotifier.login(email: email, password: password);
-    } else {
-      try {
-        await authNotifier.register(
-          email: email,
-          username: fullName,
-          password: password,
-          role: _selectedRole,
-          studentId: studentId,
-          department: _departmentController.text.trim().toUpperCase(),
-          storeName: _selectedRole == 'SELLER' ? _storeNameController.text.trim() : null,
-        );
-        if (mounted) {
-          // Clear inputs on successful signup
-          _emailController.clear();
-          _passwordController.clear();
-          _firstNameController.clear();
-          _lastNameController.clear();
-          _studentIdController.clear();
+  Widget _buildRoleCard({
+    required String role,
+    required String title,
+    required String desc,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedRole == role;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-          _switchTab(true);
-
-          // Use addPostFrameCallback to ensure the dialog appears AFTER
-          // the widget tree settles from the _switchTab setState rebuild.
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _showRegistrationSuccessDialog(email, fullName);
-          });
-        }
-      } catch (_) {
-        // Handled by ref.listen
-      }
-    }
-  }
-
-  /// Premium dialog shown after successful registration, prompting the user
-  /// to check their Outlook inbox for the verification link.
-  /// Features a live countdown timer showing remaining time before link expiry.
-  void _showRegistrationSuccessDialog(String email, String fullName) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => _VerificationCountdownDialog(
-        email: email,
-        fullName: fullName,
-        parentContext: context,
-        parentMounted: () => mounted,
+    return GestureDetector(
+      onTap: () => setState(() => _selectedRole = role),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.25 : 0.08)
+              : (isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF6F6F8)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? TeknoyTheme.citMaroon
+                : (isDark ? Colors.white.withOpacity(0.1) : const Color(0xFFE5E5EA)),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 26,
+              color: isSelected ? TeknoyTheme.citMaroon : (isDark ? Colors.white60 : Colors.black54),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: isSelected
+                    ? TeknoyTheme.citMaroon
+                    : (isDark ? Colors.white : Colors.black87),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              desc,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 11,
+                color: isDark ? Colors.white38 : Colors.black45,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _showUnverifiedEmailDialog(String email, String fullName) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => _VerificationCountdownDialog(
-        email: email,
-        fullName: fullName,
-        parentContext: context,
-        parentMounted: () => mounted,
-        isUnverifiedLogin: true,
+  Widget _buildSellerTypeCard({
+    required String type,
+    required String title,
+    required String desc,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedSellerType == type;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = type == 'ORG' ? const Color(0xFF1976D2) : TeknoyTheme.citGold;
+
+    return GestureDetector(
+      onTap: () => setState(() => _selectedSellerType = type),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? activeColor.withOpacity(isDark ? 0.25 : 0.08)
+              : (isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF6F6F8)),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? activeColor
+                : (isDark ? Colors.white.withOpacity(0.1) : const Color(0xFFE5E5EA)),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: isSelected ? activeColor : (isDark ? Colors.white60 : Colors.black54),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              title,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? activeColor : (isDark ? Colors.white : Colors.black87),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              desc,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 10,
+                color: isDark ? Colors.white38 : Colors.black45,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _switchTab(bool toLogin) {
-    if (_isLoginTab == toLogin) return;
-    _fadeCtrl.reset();
-    setState(() {
-      _isLoginTab = toLogin;
-      _registerStep = 0;
-    });
-    _fadeCtrl.forward();
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool obscureText = false,
+    Widget? suffixIcon,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      validator: validator,
+      style: TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 14,
+        color: isDark ? Colors.white : Colors.black87,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 13,
+          color: isDark ? Colors.white60 : Colors.black54,
+        ),
+        prefixIcon: Icon(icon, size: 20, color: isDark ? Colors.white60 : Colors.black54),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF8F9FA),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: isDark ? Colors.white12 : const Color(0xFFE9ECEF)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: isDark ? Colors.white12 : const Color(0xFFE9ECEF)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.redAccent),
+        ),
+      ),
+    );
   }
 
   @override
@@ -430,178 +467,79 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
     final authState = ref.watch(authNotifierProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Define adaptive colors
-    final scaffoldBg = isDark ? const Color(0xFF0F0A0A) : const Color(0xFFF6F6F9);
-    final cardBg = isDark ? Colors.white.withOpacity(0.06) : Colors.white.withOpacity(0.9);
-    final cardBorder = isDark ? Colors.white.withOpacity(0.12) : const Color(0xFFECECEF);
-    final titleColor = isDark ? Colors.white : Colors.black87;
-    final subtitleColor = isDark ? Colors.white.withOpacity(0.5) : Colors.black54;
-
-    ref.listen<AsyncValue>(authNotifierProvider, (_, state) {
-      state.whenOrNull(
-        error: (err, _) {
-          final errorStr = err.toString();
-          if (errorStr.contains('EMAIL_UNVERIFIED_PENDING:')) {
-            final dataStr = errorStr.replaceFirst('EMAIL_UNVERIFIED_PENDING:', '').trim();
-            final parts = dataStr.split('|');
-            final email = parts[0];
-            final fullName = parts.length > 1 ? parts[1] : 'Student';
-
-            // Show the popup dialog with the Resend option
-            _showUnverifiedEmailDialog(email, fullName);
-            return;
-          }
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      errorStr.replaceAll('Exception: ', '').replaceAll('EMAIL_UNVERIFIED_PENDING:', ''),
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w500,
-                        fontSize: 13,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: TeknoyTheme.error,
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              elevation: 4,
-            ),
-          );
-        },
-      );
-    });
+    final titleColor = isDark ? Colors.white : const Color(0xFF1D1D1F);
+    final subtitleColor = isDark ? Colors.white.withOpacity(0.6) : const Color(0xFF8E8E93);
+    final cardBg = isDark ? const Color(0xFF1C1C1E).withOpacity(0.8) : Colors.white.withOpacity(0.85);
+    final cardBorder = isDark ? Colors.white.withOpacity(0.12) : const Color(0xFFE5E5EA);
 
     return Scaffold(
       body: Stack(
         children: [
-          // ── Premium Ambient Background Gradient ────────────────────────
-          Container(
-            decoration: BoxDecoration(
-              color: scaffoldBg,
+          // Background Gradient & Glow Spheres
+          Positioned.fill(
+            child: Container(
+              color: isDark ? const Color(0xFF0D0D0F) : const Color(0xFFF2F2F7),
             ),
           ),
-          // Blur circle 1 (Maroon)
           Positioned(
             top: -100,
-            left: -50,
-            child: Container(
-              width: 320,
-              height: 320,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.35 : 0.08),
-              ),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 90, sigmaY: 90),
-                child: Container(color: Colors.transparent),
-              ),
-            ),
-          ),
-          // Blur circle 2 (Gold Accent)
-          Positioned(
-            bottom: 50,
             right: -80,
             child: Container(
               width: 300,
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: TeknoyTheme.citGold.withOpacity(isDark ? 0.20 : 0.06),
+                color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.3 : 0.15),
               ),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
-                child: Container(color: Colors.transparent),
+            ),
+          ),
+          Positioned(
+            bottom: -80,
+            left: -60,
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: TeknoyTheme.citGold.withOpacity(isDark ? 0.2 : 0.12),
               ),
             ),
           ),
 
-          // ── Main Content Scrollable View ────────────────────────────────
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 10),
-                    // Elegant Premium Logo Badge
+                    // Header Logo & Branding
                     Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: TeknoyTheme.citGold.withOpacity(0.4),
-                          width: 1.5,
-                        ),
+                        color: TeknoyTheme.citMaroon.withOpacity(0.1),
                       ),
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [
-                              TeknoyTheme.citMaroon,
-                              TeknoyTheme.citMaroonDark,
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: TeknoyTheme.citMaroon.withOpacity(0.5),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.shopping_basket_rounded,
-                          size: 38,
-                          color: Colors.white,
-                        ),
+                      child: Icon(
+                        Icons.shopping_cart_outlined,
+                        size: 40,
+                        color: TeknoyTheme.citMaroon,
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Teknoy',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            color: titleColor,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const Text(
-                          'Cart',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            color: TeknoyTheme.citGold,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 12),
                     Text(
-                      'CIT-U STUDENT MARKETPLACE',
+                      'TEKNOYCART',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: TeknoyTheme.citMaroon,
+                        letterSpacing: 2.0,
+                      ),
+                    ),
+                    Text(
+                      'CIT-U EXCLUSIVE CAMPUS MARKETPLACE',
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontSize: 10,
@@ -612,7 +550,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                     ),
                     const SizedBox(height: 24),
 
-                    // ── Glassmorphic Form Card ─────────────────────────────────
+                    // Glassmorphic Form Card
                     ClipRRect(
                       borderRadius: BorderRadius.circular(24),
                       child: Container(
@@ -662,7 +600,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                     ),
                                     const SizedBox(height: 20),
 
-                                    // ── Step Progress Indicator ──
+                                    // Step Progress Indicator
                                     if (!_isLoginTab) ...[
                                       Row(
                                         children: List.generate(3, (index) {
@@ -684,7 +622,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                       const SizedBox(height: 24),
                                     ],
 
-                                    // ── LOGIN FORM ──
+                                    // LOGIN FORM
                                     if (_isLoginTab) ...[
                                       _buildInputField(
                                         controller: _emailController,
@@ -803,22 +741,24 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                       ),
                                     ],
 
-                                    // ── REGISTER FLOW ──
+                                    // REGISTER FLOW
                                     if (!_isLoginTab) ...[
                                       // Step 0: Identity & Role
                                       if (_registerStep == 0) ...[
-                                        _buildInputField(
-                                          controller: _firstNameController,
-                                          label: 'First Name',
-                                          icon: Icons.person_outline_rounded,
-                                        ),
-                                        const SizedBox(height: 16),
-                                        _buildInputField(
-                                          controller: _lastNameController,
-                                          label: 'Last Name',
-                                          icon: Icons.person_outline_rounded,
-                                        ),
-                                        const SizedBox(height: 20),
+                                        if (!(_selectedRole == 'SELLER' && _selectedSellerType == 'ORG')) ...[
+                                          _buildInputField(
+                                            controller: _firstNameController,
+                                            label: 'First Name',
+                                            icon: Icons.person_outline_rounded,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          _buildInputField(
+                                            controller: _lastNameController,
+                                            label: 'Last Name',
+                                            icon: Icons.person_outline_rounded,
+                                          ),
+                                          const SizedBox(height: 20),
+                                        ],
                                         Text(
                                           'Select Your Campus Role',
                                           style: TextStyle(
@@ -851,6 +791,78 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                           ],
                                         ),
                                         if (_selectedRole == 'SELLER') ...[
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'Seller Type',
+                                            style: TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: isDark ? Colors.white70 : Colors.black87,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: _buildSellerTypeCard(
+                                                  type: 'STUDENT',
+                                                  title: 'Student / Personal',
+                                                  desc: 'Individual student seller',
+                                                  icon: Icons.school_outlined,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: _buildSellerTypeCard(
+                                                  type: 'ORG',
+                                                  title: 'Org / Shop',
+                                                  desc: 'Organization or big store',
+                                                  icon: Icons.storefront_rounded,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          AnimatedContainer(
+                                            duration: const Duration(milliseconds: 250),
+                                            curve: Curves.easeInOut,
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: (_selectedSellerType == 'ORG'
+                                                  ? const Color(0xFF1565C0)
+                                                  : TeknoyTheme.citGold).withOpacity(0.08),
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  _selectedSellerType == 'ORG'
+                                                      ? Icons.info_outline_rounded
+                                                      : Icons.badge_outlined,
+                                                  size: 14,
+                                                  color: _selectedSellerType == 'ORG'
+                                                      ? const Color(0xFF1976D2)
+                                                      : TeknoyTheme.citGold,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    _selectedSellerType == 'ORG'
+                                                        ? 'Next step: Contact number & college affiliation'
+                                                        : 'Next step: Student ID & department code',
+                                                    style: TextStyle(
+                                                      fontFamily: 'Inter',
+                                                      fontSize: 11,
+                                                      color: _selectedSellerType == 'ORG'
+                                                          ? const Color(0xFF1976D2)
+                                                          : TeknoyTheme.citGold,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                           const SizedBox(height: 20),
                                           _buildInputField(
                                             controller: _storeNameController,
@@ -886,20 +898,63 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                         ),
                                       ],
 
-                                      // Step 1: Academic Verification
+                                      // Step 1: Academic / Org Verification
                                       if (_registerStep == 1) ...[
-                                        _buildInputField(
-                                          controller: _studentIdController,
-                                          label: 'Student ID (##-####-###)',
-                                          icon: Icons.badge_outlined,
-                                          keyboardType: TextInputType.phone,
-                                        ),
-                                        const SizedBox(height: 16),
-                                        _buildInputField(
-                                          controller: _departmentController,
-                                          label: 'Department Code (e.g. CCS)',
-                                          icon: Icons.school_outlined,
-                                        ),
+                                        if (_selectedRole == 'SELLER' && _selectedSellerType == 'ORG') ...[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF1565C0).withOpacity(0.08),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: const Color(0xFF1976D2).withOpacity(0.3),
+                                              ),
+                                            ),
+                                            child: const Row(
+                                              children: [
+                                                Icon(Icons.storefront_rounded, size: 18, color: Color(0xFF1976D2)),
+                                                SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Organization / Shop verification',
+                                                    style: TextStyle(
+                                                      fontFamily: 'Outfit',
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Color(0xFF1976D2),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+                                          _buildInputField(
+                                            controller: _orgContactController,
+                                            label: 'Contact Number (09XX-XXX-XXXX)',
+                                            icon: Icons.phone_outlined,
+                                            keyboardType: TextInputType.phone,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          _buildInputField(
+                                            controller: _departmentController,
+                                            label: 'College / Dept. Affiliation (e.g. CCS)',
+                                            icon: Icons.account_balance_outlined,
+                                          ),
+                                        ] else ...[
+                                          _buildInputField(
+                                            controller: _studentIdController,
+                                            label: 'Student ID (##-####-###)',
+                                            icon: Icons.badge_outlined,
+                                            keyboardType: TextInputType.phone,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          _buildInputField(
+                                            controller: _departmentController,
+                                            label: 'Department Code (e.g. CCS)',
+                                            icon: Icons.school_outlined,
+                                          ),
+                                        ],
                                         const SizedBox(height: 24),
                                         Row(
                                           children: [
@@ -1054,22 +1109,22 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                                                           fontWeight: FontWeight.bold,
                                                         ),
                                                       ),
-                                                ),
                                               ),
-                                            ],
-                                          ),
-                                        ],
+                                            ),
+                                          ],
+                                        ),
                                       ],
                                     ],
-                                  ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
                         ),
                       ),
+                    ),
 
-                    // ── Sign up / Sign in link below card ─────────────────────
+                    // Sign up / Sign in link below card
                     const SizedBox(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1093,18 +1148,15 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
                               _isLoginTab ? 'Sign up' : 'Sign in',
                               style: TextStyle(
                                 fontFamily: 'Outfit',
-                                fontSize: 15,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: TeknoyTheme.citGold,
-                                decoration: TextDecoration.underline,
-                                decorationColor: TeknoyTheme.citGold,
+                                color: TeknoyTheme.citMaroon,
                               ),
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 32),
                   ],
                 ),
               ),
@@ -1114,264 +1166,71 @@ class _AuthGateViewState extends ConsumerState<AuthGateView>
       ),
     );
   }
-
-  Widget _buildRoleCard({
-    required String role,
-    required String title,
-    required String desc,
-    required IconData icon,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isSelected = _selectedRole == role;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedRole = role),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? TeknoyTheme.citMaroon.withOpacity(0.12)
-              : (isDark ? Colors.white.withOpacity(0.03) : const Color(0xFFF4F4F6)),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected
-                ? TeknoyTheme.citGold
-                : (isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E5E9)),
-            width: isSelected ? 1.5 : 1.0,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 28,
-              color: isSelected ? TeknoyTheme.citGold : (isDark ? Colors.white60 : Colors.black45),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: isSelected ? (isDark ? Colors.white : Colors.black87) : (isDark ? Colors.white70 : Colors.black54),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              desc,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 10,
-                color: isDark ? Colors.white38 : Colors.black38,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    bool obscureText = false,
-    Widget? suffixIcon,
-    String? Function(String?)? validator,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      obscureText: obscureText,
-      style: TextStyle(
-        fontFamily: 'Inter',
-        fontSize: 14,
-        color: isDark ? Colors.white : Colors.black87,
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 13,
-          fontWeight: FontWeight.w400,
-          color: isDark ? Colors.white.withOpacity(0.5) : Colors.black45,
-        ),
-        prefixIcon: Icon(icon, color: isDark ? Colors.white60 : Colors.black45, size: 20),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: isDark ? Colors.white.withOpacity(0.03) : const Color(0xFFF4F4F6),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE5E5E9)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: TeknoyTheme.citGold, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: TeknoyTheme.error, width: 1),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: TeknoyTheme.error, width: 1.5),
-        ),
-        errorStyle: const TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 11,
-          color: TeknoyTheme.error,
-        ),
-      ),
-      validator: validator,
-    );
-  }
 }
 
-/// Self-contained StatefulWidget dialog with a live countdown timer.
-/// Used for both post-registration and unverified-login email verification prompts.
-class _VerificationCountdownDialog extends StatefulWidget {
+// ---------------------------------------------------------------------------
+// Email Verification Dialog with countdown timer
+// ---------------------------------------------------------------------------
+class _EmailVerificationDialog extends StatefulWidget {
   final String email;
-  final String fullName;
-  final BuildContext parentContext;
-  final bool Function() parentMounted;
-  final bool isUnverifiedLogin;
-
-  const _VerificationCountdownDialog({
-    required this.email,
-    required this.fullName,
-    required this.parentContext,
-    required this.parentMounted,
-    this.isUnverifiedLogin = false,
-  });
+  const _EmailVerificationDialog({required this.email});
 
   @override
-  State<_VerificationCountdownDialog> createState() => _VerificationCountdownDialogState();
+  State<_EmailVerificationDialog> createState() => _EmailVerificationDialogState();
 }
 
-class _VerificationCountdownDialogState extends State<_VerificationCountdownDialog> {
-  late int _secondsRemaining;
+class _EmailVerificationDialogState extends State<_EmailVerificationDialog> {
+  static const int _totalSeconds = 300; // 5 minutes
+  int _secondsLeft = _totalSeconds;
+  bool _expired = false;
+  bool _resending = false;
+  bool _resent = false;
   Timer? _timer;
-  Timer? _pollTimer;
-  bool _isResending = false;
-  bool _isVerified = false;
 
   @override
   void initState() {
     super.initState();
-    _secondsRemaining = 5 * 60; // 5 minutes
     _startTimer();
-    _startPolling();
   }
 
   void _startTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_secondsRemaining <= 0 || _isVerified) {
-        timer.cancel();
-        return;
-      }
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) { t.cancel(); return; }
       setState(() {
-        _secondsRemaining--;
+        if (_secondsLeft > 0) {
+          _secondsLeft--;
+        } else {
+          _expired = true;
+          t.cancel();
+        }
       });
     });
   }
 
-  void _startPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      debugPrint('Polling verification status for ${widget.email}...');
-      if (_secondsRemaining <= 0 || _isVerified || !mounted) {
-        timer.cancel();
-        return;
-      }
-      try {
-        final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/check-verification')
-            .replace(queryParameters: {'email': widget.email});
-        final response = await http.get(url);
-        debugPrint('Poll response status: ${response.statusCode}, body: ${response.body}');
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data['verified'] == true) {
-            debugPrint('Email verified! Transitioning to success layout.');
-            timer.cancel();
-            _timer?.cancel();
-            setState(() {
-              _isVerified = true;
-            });
-          }
-        }
-      } catch (e) {
-        debugPrint('Poll background error: $e');
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _pollTimer?.cancel();
-    super.dispose();
-  }
-
-  String get _formattedTime {
-    final min = (_secondsRemaining ~/ 60).toString().padLeft(2, '0');
-    final sec = (_secondsRemaining % 60).toString().padLeft(2, '0');
-    return '$min:$sec';
-  }
-
-  Color get _timerColor {
-    if (_secondsRemaining <= 0) return TeknoyTheme.error;
-    if (_secondsRemaining <= 60) return const Color(0xFFE65100); // Orange-red warning
-    return TeknoyTheme.citGold;
-  }
-
-  String get _timerLabel {
-    if (_secondsRemaining <= 0) return 'Verification link has expired!';
-    return 'Link expires in';
-  }
-
   Future<void> _resendEmail() async {
-    setState(() => _isResending = true);
+    setState(() { _resending = true; _resent = false; });
     try {
-      final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/send-verification')
-          .replace(queryParameters: {
-            'email': widget.email,
-            'fullName': widget.fullName,
-          });
-      final response = await http.post(url);
-      if (response.statusCode == 200) {
-        // Reset countdown to 5 minutes on successful resend
+      await Supabase.instance.client.auth.resend(
+        type: OtpType.signup,
+        email: widget.email,
+      );
+      if (mounted) {
         setState(() {
-          _secondsRemaining = 5 * 60;
-          _isResending = false;
+          _resending = false;
+          _resent = true;
+          _expired = false;
+          _secondsLeft = _totalSeconds;
         });
         _startTimer();
-        if (widget.parentMounted()) {
-          ScaffoldMessenger.of(widget.parentContext).showSnackBar(
-            const SnackBar(
-              content: Text('New verification email sent! Check your inbox.'),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      } else {
-        throw Exception('Server returned status ${response.statusCode}');
       }
     } catch (e) {
-      setState(() => _isResending = false);
-      if (widget.parentMounted()) {
-        ScaffoldMessenger.of(widget.parentContext).showSnackBar(
+      if (mounted) {
+        setState(() { _resending = false; });
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to resend: $e'),
-            backgroundColor: TeknoyTheme.error,
-            behavior: SnackBarBehavior.floating,
+            content: Text('Failed to resend: ${e.toString()}',
+                style: const TextStyle(fontFamily: 'Inter')),
+            backgroundColor: Colors.red.shade700,
           ),
         );
       }
@@ -1379,473 +1238,238 @@ class _VerificationCountdownDialogState extends State<_VerificationCountdownDial
   }
 
   @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String get _formattedTime {
+    final m = (_secondsLeft ~/ 60).toString().padLeft(2, '0');
+    final s = (_secondsLeft % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  // Progress 1.0 → 0.0 as time runs out
+  double get _progress => _secondsLeft / _totalSeconds;
+
+  Color get _timerColor {
+    if (_secondsLeft > 120) return const Color(0xFF2E7D32);
+    if (_secondsLeft > 60) return const Color(0xFFF57F17);
+    return const Color(0xFFC62828);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (_isVerified) {
-      return AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        title: Row(
-          children: [
-            const Icon(
-              Icons.check_circle_rounded,
-              color: Colors.green,
-              size: 28,
-            ),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text(
-                'Verification Successful!',
-                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            RichText(
-              text: TextSpan(
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 14,
-                  height: 1.5,
-                  color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black87,
-                ),
-                children: [
-                  const TextSpan(text: 'Excellent, '),
-                  TextSpan(
-                    text: widget.fullName,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const TextSpan(text: '! Your account ('),
-                  TextSpan(
-                    text: widget.email,
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
-                  ),
-                  const TextSpan(text: ') has been fully verified. You are now ready to log in and start shopping!'),
-                ],
+            // Icon
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: (_expired
+                    ? const Color(0xFFC62828)
+                    : const Color(0xFF2E7D32)).withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _expired
+                    ? Icons.timer_off_rounded
+                    : Icons.mark_email_unread_rounded,
+                size: 42,
+                color: _expired ? const Color(0xFFC62828) : const Color(0xFF2E7D32),
               ),
             ),
             const SizedBox(height: 20),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+
+            // Title
+            Text(
+              _expired ? 'Link Expired' : 'Verify Your Email',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: _expired
+                    ? const Color(0xFFC62828)
+                    : (isDark ? Colors.white : Colors.black87),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+
+            // Subtitle
+            Text(
+              _expired
+                  ? 'The verification link has expired. Tap below to resend a new one.'
+                  : 'A verification link has been sent to:',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 13,
+                height: 1.5,
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+
+            // Email pill
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: TeknoyTheme.citMaroon.withOpacity(0.25)),
+              ),
+              child: Text(
+                widget.email,
+                style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: TeknoyTheme.citMaroon,
                 ),
-                child: const Icon(
-                  Icons.stars_rounded,
-                  color: TeknoyTheme.citGold,
-                  size: 64,
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Countdown or expired indicator
+            if (!_expired) ...[
+              // Circular progress + time
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 72,
+                    height: 72,
+                    child: CircularProgressIndicator(
+                      value: _progress,
+                      strokeWidth: 5,
+                      backgroundColor: (isDark ? Colors.white : Colors.black).withOpacity(0.08),
+                      valueColor: AlwaysStoppedAnimation<Color>(_timerColor),
+                    ),
+                  ),
+                  Text(
+                    _formattedTime,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: _timerColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Link expires in',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 11,
+                  color: isDark ? Colors.white38 : Colors.black38,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Please check your inbox and spam folder.',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 12,
+                  color: isDark ? Colors.white54 : Colors.black45,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+
+            // Resent success message
+            if (_resent)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF2E7D32)),
+                    const SizedBox(width: 6),
+                    Text(
+                      'New verification email sent!',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        color: isDark ? Colors.white60 : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            const SizedBox(height: 24),
+
+            // Resend button (shown when expired)
+            if (_expired)
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: _resending ? null : _resendEmail,
+                  icon: _resending
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.send_rounded, size: 18),
+                  label: Text(
+                    _resending ? 'Sending...' : 'Resend Verification Email',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: TeknoyTheme.citMaroon,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+
+            // Close button
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: isDark ? Colors.white24 : Colors.black26,
+                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: Text(
+                  _expired ? 'Close' : 'Got it, I\'ll check my email',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
                 ),
               ),
             ),
           ],
         ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: TeknoyTheme.citMaroon,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                'Go to Login',
-                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    final isExpired = _secondsRemaining <= 0;
-
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      title: Row(
-        children: [
-          Icon(
-            widget.isUnverifiedLogin
-                ? Icons.warning_amber_rounded
-                : Icons.mark_email_unread_rounded,
-            color: TeknoyTheme.citGold,
-            size: 28,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              widget.isUnverifiedLogin ? 'Verify Email First' : 'Verify Your Email',
-              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-          ),
-        ],
       ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          RichText(
-            text: TextSpan(
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 14,
-                height: 1.5,
-                color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black87,
-              ),
-              children: widget.isUnverifiedLogin
-                  ? [
-                      TextSpan(text: 'Hello ${widget.fullName}, your account email ('),
-                      TextSpan(
-                        text: widget.email,
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
-                      ),
-                      const TextSpan(text: ') is not verified yet. Check your email inbox for the activation link.'),
-                    ]
-                  : [
-                      const TextSpan(text: 'Account created! A verification link was sent to '),
-                      TextSpan(
-                        text: widget.email,
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
-                      ),
-                      const TextSpan(text: '. Check your '),
-                      const TextSpan(
-                        text: 'email inbox',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const TextSpan(text: ' and click the verification button to activate your account.'),
-                    ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          // ── Live Countdown Timer Banner ──
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: _timerColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _timerColor.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  isExpired ? Icons.timer_off_outlined : Icons.timer_outlined,
-                  color: _timerColor,
-                  size: 22,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _timerLabel,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: _timerColor,
-                    ),
-                  ),
-                ),
-                // Countdown digits badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _timerColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _formattedTime,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: _timerColor,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // ── Spam / Junk Reminder ──
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: TeknoyTheme.citMaroon.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: TeknoyTheme.citMaroon.withValues(alpha: 0.15)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.info_outline_rounded, color: TeknoyTheme.citMaroon, size: 20),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Check junk/spam folder if you don\'t see the email.',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: TeknoyTheme.citMaroon,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      actionsAlignment: MainAxisAlignment.spaceBetween,
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(
-            widget.isUnverifiedLogin ? 'Cancel' : 'Got it',
-            style: const TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
-            ),
-          ),
-        ),
-        ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: TeknoyTheme.citMaroon,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          ),
-          icon: _isResending
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Icon(Icons.send_rounded, size: 18),
-          label: Text(
-            _isResending ? 'Sending...' : 'Resend Email',
-            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
-          ),
-          onPressed: _isResending ? null : _resendEmail,
-        ),
-      ],
     );
   }
-}
-
-/// Opens a modal sheet allowing the user to enter and confirm their new password
-/// after following a Supabase password reset link.
-void showSetNewPasswordSheet(BuildContext context) {
-  final newPassCtrl = TextEditingController();
-  final confirmPassCtrl = TextEditingController();
-  final formKey = GlobalKey<FormState>();
-  bool obscureNew = true;
-  bool obscureConfirm = true;
-  bool isUpdating = false;
-  String? errorMessage;
-
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    isDismissible: false,
-    backgroundColor: Colors.transparent,
-    builder: (sheetCtx) {
-      return StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            ),
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1A1A1F) : Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFECECEF),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 40,
-                          height: 4,
-                          margin: const EdgeInsets.only(bottom: 20),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ),
-                      const Icon(
-                        Icons.key_rounded,
-                        size: 44,
-                        color: TeknoyTheme.citMaroon,
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Set New Password',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Enter a new password for your TeknoyCart account.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 13,
-                          color: Colors.grey,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      TextFormField(
-                        controller: newPassCtrl,
-                        obscureText: obscureNew,
-                        decoration: InputDecoration(
-                          labelText: 'New Password',
-                          prefixIcon: const Icon(Icons.lock_outline_rounded),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              obscureNew ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                            ),
-                            onPressed: () => setSheetState(() => obscureNew = !obscureNew),
-                          ),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                        ),
-                        validator: (val) {
-                          if (val == null || val.isEmpty) return 'Please enter a new password';
-                          if (val.length < 6) return 'Password must be at least 6 characters';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: confirmPassCtrl,
-                        obscureText: obscureConfirm,
-                        decoration: InputDecoration(
-                          labelText: 'Confirm New Password',
-                          prefixIcon: const Icon(Icons.lock_outline_rounded),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                            ),
-                            onPressed: () => setSheetState(() => obscureConfirm = !obscureConfirm),
-                          ),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                        ),
-                        validator: (val) {
-                          if (val != newPassCtrl.text) return 'Passwords do not match';
-                          return null;
-                        },
-                      ),
-                      if (errorMessage != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          errorMessage!,
-                          style: const TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 13,
-                            color: TeknoyTheme.error,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: isUpdating
-                              ? null
-                              : () async {
-                                  if (!formKey.currentState!.validate()) return;
-                                  setSheetState(() {
-                                    isUpdating = true;
-                                    errorMessage = null;
-                                  });
-                                  try {
-                                    await SupabaseConfig.client.auth.updateUser(
-                                      UserAttributes(password: newPassCtrl.text.trim()),
-                                    );
-                                    if (context.mounted) {
-                                      Navigator.of(sheetCtx).pop();
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: const Row(
-                                            children: [
-                                              Icon(Icons.check_circle_outline_rounded, color: Colors.white),
-                                              SizedBox(width: 10),
-                                              Expanded(
-                                                child: Text(
-                                                  'Password updated successfully! Your account is now secured.',
-                                                  style: TextStyle(fontFamily: 'Inter', fontSize: 13),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          backgroundColor: const Color(0xFF2D7D32),
-                                          behavior: SnackBarBehavior.floating,
-                                          margin: const EdgeInsets.all(16),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                        ),
-                                      );
-                                    }
-                                  } catch (e) {
-                                    setSheetState(() {
-                                      isUpdating = false;
-                                      errorMessage = 'Failed to update password: $e';
-                                    });
-                                  }
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: TeknoyTheme.citMaroon,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          ),
-                          child: isUpdating
-                              ? const SizedBox(
-                                  height: 22,
-                                  width: 22,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                                )
-                              : const Text(
-                                  'Save New Password',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      );
-    },
-  );
 }
