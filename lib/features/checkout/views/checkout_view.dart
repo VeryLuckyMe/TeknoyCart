@@ -901,7 +901,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                   const Icon(Icons.location_on_rounded, color: TeknoyTheme.citGold, size: 22),
                   const SizedBox(width: 8),
                   Text(
-                    'Meetup Landmark',
+                    'Pickup Landmark',
                     style: TextStyle(
                       fontFamily: 'Outfit',
                       fontSize: 18,
