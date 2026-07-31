@@ -60,6 +60,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
     required String studentId,
     String? department,
     String? storeName,
+    String? sellerType,   // 'STUDENT' or 'ORG'
+    String? orgContact,   // contact number for ORG sellers
   }) async {
     state = const AsyncValue.loading();
     try {
@@ -71,6 +73,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
         studentId: studentId,
         department: department,
         storeName: storeName,
+        sellerType: sellerType,
+        orgContact: orgContact,
       );
       state = const AsyncValue.data(null);
     } catch (e, stackTrace) {

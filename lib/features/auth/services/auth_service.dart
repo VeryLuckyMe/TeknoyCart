@@ -162,6 +162,8 @@ class AuthService {
     required String studentId,
     String? department,
     String? storeName,
+    String? sellerType,  // 'STUDENT' or 'ORG' (only for SELLER role)
+    String? orgContact,  // contact number for ORG sellers
   }) async {
     if (role == 'BUYER') {
       if (!isValidCituEmail(email)) {
@@ -184,21 +186,26 @@ class AuthService {
       throw const FormatException('Password must be at least 6 characters.');
     }
 
-    final studentIdTrimmed = studentId.trim();
-    final studentIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
-    if (!studentIdRegex.hasMatch(studentIdTrimmed)) {
-      throw const FormatException('Student ID must follow the format ##-####-###.');
-    }
+    final isOrgSeller = role == 'SELLER' && sellerType == 'ORG';
 
-    // Check if the Student ID is already registered in the DB
-    final existingUser = await _client
-        .from('users')
-        .select('user_id')
-        .eq('student_id', studentIdTrimmed)
-        .maybeSingle();
+    // Only validate Student ID for BUYER and STUDENT sellers
+    if (!isOrgSeller) {
+      final studentIdTrimmed = studentId.trim();
+      final studentIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
+      if (!studentIdRegex.hasMatch(studentIdTrimmed)) {
+        throw const FormatException('Student ID must follow the format ##-####-###.');
+      }
 
-    if (existingUser != null) {
-      throw const FormatException('This Student ID is already registered.');
+      // Check if the Student ID is already registered in the DB
+      final existingUser = await _client
+          .from('users')
+          .select('user_id')
+          .eq('student_id', studentIdTrimmed)
+          .maybeSingle();
+
+      if (existingUser != null) {
+        throw const FormatException('This Student ID is already registered.');
+      }
     }
 
     // Set registration mode to true to suppress auth streams
@@ -210,7 +217,7 @@ class AuthService {
         data: {
           'username': username.trim(),
           'role': role,
-          'student_id': studentIdTrimmed,
+          'student_id': isOrgSeller ? null : studentId.trim(),
           'department': department,
         },
       );
@@ -228,13 +235,16 @@ class AuthService {
         'password_hash': 'SUPABASE_AUTH_MANAGED',
         'role': role,
         'is_verified': false, // Force Outlook email verification for all roles (FR-01)
-        'student_id': studentIdTrimmed,
+        'student_id': isOrgSeller ? null : studentId.trim(),
+        if (sellerType != null) 'seller_type': sellerType,
       });
 
       if (role == 'SELLER' && storeName != null && storeName.trim().isNotEmpty) {
         await _client.from('store_profiles').upsert({
           'seller_id': user.id,
           'store_name': storeName.trim(),
+          if (isOrgSeller && orgContact != null && orgContact.trim().isNotEmpty)
+            'contact_number': orgContact.trim(),
         });
       }
 
