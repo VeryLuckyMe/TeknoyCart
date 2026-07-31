@@ -90,7 +90,8 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
     } catch (e) {
       // ignore
     }
-    return {'stock': 0, 'reserved': 0, 'available': 0};
+    // Fallback: If product/variant exists but no inventory record is found, default to available stock (e.g., 1)
+    return {'stock': 1, 'reserved': 0, 'available': 1};
   }
 
   @override
@@ -230,6 +231,26 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                               FutureBuilder<Map<String, int>>(
                                 future: _getInventoryStatus(product.id),
                                 builder: (context, snapshot) {
+                                  if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? Colors.grey[800] : Colors.grey[200],
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: const Text(
+                                        'CHECKING STOCK...',
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.grey,
+                                          letterSpacing: 0.8,
+                                        ),
+                                      ),
+                                    );
+                                  }
+
                                   final inv = snapshot.data ?? {'stock': 0, 'reserved': 0, 'available': 0};
                                   final available = inv['available'] ?? 0;
                                   final isOutOfStock = available <= 0;
@@ -237,27 +258,36 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                   return Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                                     decoration: BoxDecoration(
-                                      color: isOutOfStock 
-                                          ? Colors.red.withOpacity(isDark ? 0.15 : 0.08)
+                                      color: isOutOfStock
+                                          ? Colors.amber.withOpacity(isDark ? 0.2 : 0.12)
                                           : Colors.green.withOpacity(isDark ? 0.15 : 0.08),
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
                                         color: isOutOfStock
-                                            ? Colors.red.withOpacity(0.3)
+                                            ? Colors.amber.withOpacity(0.5)
                                             : Colors.green.withOpacity(0.3),
                                       ),
                                     ),
-                                    child: Text(
-                                      isOutOfStock 
-                                          ? 'OUT OF STOCK (RESERVABLE)' 
-                                          : '$available IN STOCK',
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                        color: isOutOfStock ? Colors.red : Colors.green,
-                                        letterSpacing: 0.8,
-                                      ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (isOutOfStock) ...[
+                                          const Icon(Icons.bookmark_add_rounded, size: 12, color: Color(0xFFD97706)),
+                                          const SizedBox(width: 4),
+                                        ],
+                                        Text(
+                                          isOutOfStock 
+                                              ? 'OUT OF STOCK (RESERVABLE)' 
+                                              : '$available IN STOCK',
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            color: isOutOfStock ? const Color(0xFFD97706) : Colors.green,
+                                            letterSpacing: 0.8,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   );
                                 },
@@ -545,83 +575,42 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                         ),
                       ),
                       const SizedBox(height: 18),
-                      // Action Button Deck
-                      Row(
-                        children: [
-                          if (isMyProduct)
-                            Expanded(
-                              child: Container(
-                                alignment: Alignment.center,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                decoration: BoxDecoration(
-                                  color: TeknoyTheme.citMaroon.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: TeknoyTheme.citMaroon.withOpacity(0.15)),
-                                ),
-                                child: const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.info_outline_rounded, color: TeknoyTheme.citMaroon, size: 18),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'This is your own product listing.',
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontWeight: FontWeight.bold,
-                                        color: TeknoyTheme.citMaroon,
-                                        fontSize: 14,
-                                      ),
+                      // Action Button Deck wrapped in FutureBuilder to handle out-of-stock reservation flow dynamical
+                      FutureBuilder<Map<String, int>>(
+                        future: _getInventoryStatus(widget.product.id),
+                        builder: (context, snapshot) {
+                          final isLoading = snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData;
+                          final inv = snapshot.data ?? {'stock': 0, 'reserved': 0, 'available': 0};
+                          final available = inv['available'] ?? 0;
+                          final isOutOfStock = available <= 0;
+
+                          return Row(
+                            children: [
+                              if (isMyProduct)
+                                Expanded(
+                                  child: Container(
+                                    alignment: Alignment.center,
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    decoration: BoxDecoration(
+                                      color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: TeknoyTheme.citMaroon.withOpacity(0.15)),
                                     ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          else ...[
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () async {
-                                  final buyerId = ref.read(authStateProvider).valueOrNull?.id;
-                                  if (buyerId == null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Please log in to negotiate with the seller.')),
-                                    );
-                                    return;
-                                  }
-
-                                  if (buyerId == product.sellerId) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('You cannot start a negotiation chat on your own product.')),
-                                    );
-                                    return;
-                                  }
-
-                                  // Show micro-loading dialog
-                                  showDialog(
-                                    context: context,
-                                    barrierDismissible: false,
-                                    builder: (context) => const Center(
-                                      child: CircularProgressIndicator(color: TeknoyTheme.citMaroon),
-                                    ),
-                                  );
-
-                                  try {
-                                    final chatService = ref.read(chatServiceProvider);
-                                    final roomId = await chatService.getOrCreateChatRoom(
-                                      buyerId: buyerId,
-                                      sellerId: product.sellerId,
-                                      productId: product.id,
-                                    );
-
-                                    Navigator.pop(context); // close loader
-                                    Navigator.pop(context); // close sheet
-
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => ChatView(
-                                          product: product,
-                                          roomId: roomId,
+                                    child: const Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.info_outline_rounded, color: TeknoyTheme.citMaroon, size: 18),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'This is your own product listing.',
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontWeight: FontWeight.bold,
+                                            color: TeknoyTheme.citMaroon,
+                                            fontSize: 14,
+                                          ),
                                         ),
+<<<<<<< Updated upstream
                                       ),
                                     );
                                   } catch (e) {
@@ -686,27 +675,149 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                         isDirectBuy: true,
                                         quantity: _quantity,
                                       ),
+=======
+                                      ],
+>>>>>>> Stashed changes
                                     ),
-                                  );
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: TeknoyTheme.citMaroon,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  padding: const EdgeInsets.symmetric(vertical: 18),
-                                  elevation: 0,
+                                  ),
+                                )
+                              else ...[
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () async {
+                                      final buyerId = ref.read(authStateProvider).valueOrNull?.id;
+                                      if (buyerId == null) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Please log in to chat with the seller')),
+                                        );
+                                        return;
+                                      }
+
+                                      showDialog(
+                                        context: context,
+                                        barrierDismissible: false,
+                                        builder: (_) => const Center(child: CircularProgressIndicator()),
+                                      );
+
+                                      try {
+                                        final chatService = ref.read(chatServiceProvider);
+                                        final roomId = await chatService.getOrCreateChatRoom(
+                                          buyerId: buyerId,
+                                          sellerId: widget.product.sellerId,
+                                          productId: widget.product.id,
+                                        );
+
+                                        if (context.mounted) {
+                                          Navigator.pop(context); // dismiss loader
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => ChatView(
+                                                product: widget.product,
+                                                roomId: roomId,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      } catch (e) {
+                                        if (context.mounted) {
+                                          Navigator.pop(context);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Error starting chat: $e')),
+                                          );
+                                        }
+                                      }
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: isDark ? Colors.white : Colors.black87,
+                                      side: BorderSide(color: isDark ? Colors.grey[700]! : Colors.grey[300]!),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                      padding: const EdgeInsets.symmetric(vertical: 18),
+                                    ),
+                                    child: const Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                                        SizedBox(width: 8),
+                                        Text('Chat Seller', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15)),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                                child: const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.shopping_cart_checkout_rounded, size: 18, color: Colors.white),
-                                    SizedBox(width: 6),
-                                    Text('Buy Now', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
-                                  ],
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Container(
+                                    decoration: (!isLoading && isOutOfStock)
+                                        ? BoxDecoration(
+                                            borderRadius: BorderRadius.circular(16),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.amber.withOpacity(0.3),
+                                                blurRadius: 12,
+                                                offset: const Offset(0, 4),
+                                              )
+                                            ],
+                                          )
+                                        : null,
+                                    child: ElevatedButton(
+                                      onPressed: isLoading
+                                          ? null
+                                          : () {
+                                              Navigator.pop(context);
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => CheckoutView(
+                                                    product: widget.product,
+                                                    agreedPrice: widget.product.price,
+                                                    initialQuantity: _quantity,
+                                                    isDirectBuy: true,
+                                                    isReservation: isOutOfStock,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: isLoading
+                                            ? Colors.grey[400]
+                                            : (isOutOfStock ? const Color(0xFFD97706) : TeknoyTheme.citMaroon),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                        padding: const EdgeInsets.symmetric(vertical: 18),
+                                        elevation: 0,
+                                      ),
+                                      child: isLoading
+                                          ? const SizedBox(
+                                              height: 18,
+                                              width: 18,
+                                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                            )
+                                          : Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  isOutOfStock ? Icons.bookmark_add_rounded : Icons.shopping_cart_checkout_rounded,
+                                                  size: 18,
+                                                  color: Colors.white,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  isOutOfStock ? 'Reserve Item' : 'Buy Now',
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Outfit',
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 15,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ],
-                        ],
+                              ],
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),

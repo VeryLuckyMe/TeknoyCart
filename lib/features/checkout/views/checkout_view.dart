@@ -44,6 +44,7 @@ class CheckoutView extends ConsumerStatefulWidget {
   final String? roomId;
   final int quantity;
   final List<CheckoutItem>? items;
+  final bool isReservation;
 
   const CheckoutView({
     super.key,
@@ -53,6 +54,7 @@ class CheckoutView extends ConsumerStatefulWidget {
     this.roomId,
     this.quantity = 1,
     this.items,
+    this.isReservation = false,
   });
 
   @override
@@ -124,6 +126,11 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   @override
   void initState() {
     super.initState();
+<<<<<<< Updated upstream
+=======
+    _selectedQuantity = widget.initialQuantity;
+    _isReservation = widget.isReservation;
+>>>>>>> Stashed changes
     _fetchSellerGcash();
     _fetchInventoryStatus();
   }
