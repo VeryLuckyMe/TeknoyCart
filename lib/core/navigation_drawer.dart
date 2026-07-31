@@ -236,7 +236,18 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                           );
                         },
                       ),
-
+                      _buildNavTile(
+                        context,
+                        icon: Icons.receipt_long_rounded,
+                        title: 'Orders Hub',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const OrderHistoryView()),
+                          );
+                        },
+                      ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         child: Divider(color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06)),

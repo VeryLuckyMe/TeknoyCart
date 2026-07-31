@@ -18,13 +18,8 @@ import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/feed/views/search_results_view.dart';
 import 'package:teknoycart/features/chat/views/inbox_view.dart';
 import 'package:teknoycart/features/auth/views/auth_gate_view.dart';
-<<<<<<< Updated upstream
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/views/cart_view.dart';
-=======
-import 'package:teknoycart/features/checkout/views/order_history_view.dart';
-
->>>>>>> Stashed changes
 /// Product Discovery Feed representing Figma Node 1:39.
 /// Main marketplace landing hub for listing, browsing, and searching products.
 class ProductDiscoveryFeedView extends ConsumerStatefulWidget {
@@ -582,7 +577,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   : _activeTab == 2
                       ? 'Sell Items'
                       : _activeTab == 3
-                          ? 'My Orders'
+                          ? 'Orders & Pickups'
                           : 'Wildcat Profile',
           style: const TextStyle(
             fontFamily: 'Outfit',
@@ -763,7 +758,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       case 2:
         return _buildSellTabBody(context);
       case 3:
-        return const OrderHistoryView();
+        return _buildOrdersTabBody(context);
       case 4:
         return _buildProfileTabBody(context);
       default:
