@@ -2309,20 +2309,19 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 ElevatedButton(
                   onPressed: isValid
                       ? () async {
+                          final messenger = ScaffoldMessenger.of(context);
                           Navigator.pop(context);
                           try {
                             await SupabaseConfig.client.rpc('delete_user_account');
                             await ref.read(authNotifierProvider.notifier).logout();
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               const SnackBar(
                                 content: Text('✅ Account successfully deleted.'),
                                 backgroundColor: Colors.green,
                               ),
                             );
                           } catch (e) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(
                                 content: Text('Failed to delete account: $e'),
                                 backgroundColor: TeknoyTheme.error,
