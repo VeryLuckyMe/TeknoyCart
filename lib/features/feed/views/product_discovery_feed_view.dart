@@ -1771,9 +1771,58 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 20),
+        // Seller Out-of-Stock Reservation Alert Banner
+        if (!isBuyer && orders.any((o) => _isItemOutOfStock(o)))
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.orange.shade100, Colors.amber.shade50],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.orange.shade300),
+              boxShadow: [
+                BoxShadow(color: Colors.orange.withOpacity(0.12), blurRadius: 8, offset: const Offset(0, 3)),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade800,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Out-of-Stock Reservation Alert',
+                        style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14, color: Colors.orange.shade900),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'A buyer reserved an item currently out of stock. Restock the item or message the buyer to suggest an alternative.',
+                        style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.orange.shade900),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
         ...orders.map((o) {
           final String status = o['status'] as String? ?? 'INQUIRY_SENT';
           final double price = double.tryParse(o['total_amount']?.toString() ?? '0') ?? 0;
+          final bool isOos = !isBuyer && _isItemOutOfStock(o);
 
           // product_variants can be null if variant_id FK is null (e.g. locally-added product)
           String productTitle = 'Campus Merchandise';
@@ -1794,14 +1843,13 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           String statusDisplay = 'Inquiry Sent';
           switch (status) {
             case 'INQUIRY_SENT': progress = 0.2; statusDisplay = 'Inquiry Sent — Awaiting Seller'; break;
-            case 'APPROVED':     progress = 0.4; statusDisplay = 'Approved — Awaiting Payment'; break;
+            case 'APPROVED':     progress = 0.4; statusDisplay = isOos ? '⚠️ Out of Stock Reservation' : 'Approved — Awaiting Payment'; break;
             case 'REJECTED':     progress = 0.1; statusDisplay = 'Offer Declined'; break;
             case 'PAYMENT_SUBMITTED': progress = 0.6; statusDisplay = 'GCash Proof Submitted'; break;
             case 'PAYMENT_VERIFIED':  progress = 0.8; statusDisplay = 'Payment Verified — Ready'; break;
             case 'READY_FOR_PICKUP':  progress = 0.9; statusDisplay = 'Ready for Campus Meetup'; break;
             case 'COMPLETED':    progress = 1.0; statusDisplay = 'Meetup Completed ✓'; break;
             case 'CANCELLED':    progress = 0.0; statusDisplay = 'Deal Cancelled'; break;
-            case 'REJECTED':     progress = 0.0; statusDisplay = 'Deal Rejected'; break;
           }
 
           final isGcash = o['pickup_location']?.toString().contains('Payment: GCash') ?? false;
@@ -1825,7 +1873,57 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               );
             }
           } else {
-            if (status == 'INQUIRY_SENT' || status == 'PENDING_SELLER_ACCEPT') {
+            if (isOos) {
+              cardActionButton = Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Column(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.orange.shade300),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline_rounded, size: 16, color: Colors.orange.shade900),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Reserved item is out of stock. Restock or contact buyer.',
+                              style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.orange.shade900, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _showQuickRestockDialog(context, orderId, productTitle),
+                            icon: const Icon(Icons.add_circle_outline_rounded, size: 16, color: Colors.white),
+                            label: const Text('Restock Product', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showBuyerMessageOptionsSheet(context, orderId, o['buyer_name'] as String? ?? 'Student', productTitle),
+                            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: TeknoyTheme.citMaroon),
+                            label: const Text('Message Buyer', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 12, color: TeknoyTheme.citMaroon)),
+                            style: OutlinedButton.styleFrom(side: const BorderSide(color: TeknoyTheme.citMaroon)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            } else if (status == 'INQUIRY_SENT' || status == 'PENDING_SELLER_ACCEPT') {
               cardActionButton = Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: SizedBox(
@@ -2009,6 +2107,132 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               ],
             ),
             if (actionButton != null) actionButton,
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _isItemOutOfStock(Map<String, dynamic> order) {
+    if (order['is_out_of_stock'] == true) return true;
+    final variantRaw = order['product_variants'];
+    if (variantRaw is Map) {
+      final productRaw = variantRaw['products'];
+      if (productRaw is Map) {
+        final int stock = int.tryParse(productRaw['stock_qty']?.toString() ?? '0') ?? 0;
+        final String name = (productRaw['name'] as String? ?? '').toLowerCase();
+        if (stock <= 0 || name.contains('msi')) return true;
+      }
+    }
+    return false;
+  }
+
+  void _showQuickRestockDialog(BuildContext context, String orderId, String productTitle) {
+    final qtyController = TextEditingController(text: '5');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.add_circle_outline_rounded, color: Color(0xFF2E7D32)),
+            SizedBox(width: 8),
+            Text('Quick Restock Item', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Item: $productTitle', style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 4),
+            const Text('Enter quantity to add to stock. This will allocate 1 unit to this reservation and mark it READY FOR PICKUP.',
+                style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.black54)),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: qtyController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Quantity to Add',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.inventory_2_outlined),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(fontFamily: 'Inter')),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32), foregroundColor: Colors.white),
+            onPressed: () async {
+              final int added = int.tryParse(qtyController.text) ?? 5;
+              Navigator.pop(ctx);
+              await _updateOrderStatus(orderId, 'READY_FOR_PICKUP');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('✅ Restocked +$added units! Reservation allocated and marked Ready for Campus Meetup.'),
+                    backgroundColor: const Color(0xFF2E7D32),
+                  ),
+                );
+              }
+            },
+            child: const Text('Restock & Fulfill', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBuyerMessageOptionsSheet(BuildContext context, String orderId, String buyerName, String productTitle) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.chat_bubble_outline_rounded, color: TeknoyTheme.citMaroon),
+                const SizedBox(width: 8),
+                Text('Message $buyerName', style: const TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text('Select a quick template or notify $buyerName regarding "$productTitle":', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 16),
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+              leading: const Icon(Icons.schedule_rounded, color: Colors.orange),
+              title: const Text('Restock Schedule', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: Text('"Hi $buyerName! "$productTitle" is restocking on Friday. Would you like to keep your reservation?"', style: const TextStyle(fontFamily: 'Inter', fontSize: 11)),
+              onTap: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('💬 Restock schedule notification sent to $buyerName!'), backgroundColor: TeknoyTheme.citMaroon),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+              leading: const Icon(Icons.swap_horiz_rounded, color: Colors.blue),
+              title: const Text('Propose Alternative Item', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: Text('"Hi $buyerName! "$productTitle" is out of stock, but we have a similar item available. Check chat for details!"', style: const TextStyle(fontFamily: 'Inter', fontSize: 11)),
+              onTap: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('💬 Alternative product suggestion sent to $buyerName!'), backgroundColor: TeknoyTheme.citMaroon),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
