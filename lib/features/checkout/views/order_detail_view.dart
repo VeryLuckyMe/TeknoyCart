@@ -133,6 +133,54 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     return false;
   }
 
+  Future<void> _updateInventoryStockInSupabase(int addedQty) async {
+    try {
+      dynamic variantId = _order['variant_id'];
+      final variantRaw = _order['product_variants'];
+      if (variantId == null && variantRaw is Map) {
+        variantId = variantRaw['variant_id'];
+      }
+
+      if (variantId == null) {
+        final String? orderId = _order['order_id'] as String?;
+        if (orderId != null) {
+          final orderRes = await SupabaseConfig.client
+              .from('orders')
+              .select('variant_id')
+              .eq('order_id', orderId)
+              .maybeSingle();
+          variantId = orderRes?['variant_id'];
+        }
+      }
+
+      if (variantId != null) {
+        final invRes = await SupabaseConfig.client
+            .from('inventory')
+            .select('stock_qty')
+            .eq('variant_id', variantId)
+            .maybeSingle();
+
+        final int currentStock = invRes?['stock_qty'] as int? ?? 0;
+        final int newStock = currentStock + addedQty;
+
+        await SupabaseConfig.client
+            .from('inventory')
+            .update({
+              'stock_qty': newStock,
+              'last_updated': DateTime.now().toIso8601String(),
+            })
+            .eq('variant_id', variantId);
+
+        // Update local object so UI reflects new stock immediately
+        if (variantRaw is Map && variantRaw['products'] is Map) {
+          variantRaw['products']['stock_qty'] = newStock;
+        }
+      }
+    } catch (e) {
+      print('Failed to update inventory stock in Supabase: $e');
+    }
+  }
+
   Future<void> _sendAutomatedRestockMessage(String productName, int addedQty) async {
     try {
       final buyerId = _order['buyer_id'];
@@ -214,6 +262,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               setState(() {
                 _order['is_out_of_stock'] = false;
               });
+              await _updateInventoryStockInSupabase(added);
               await _updateStatus('READY_FOR_PICKUP');
               await _sendAutomatedRestockMessage(productName, added);
               if (mounted) {

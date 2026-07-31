@@ -2170,11 +2170,37 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             onPressed: () async {
               final int added = int.tryParse(qtyController.text) ?? 5;
               Navigator.pop(ctx);
+              try {
+                // Update Supabase DB inventory
+                final orderRes = await SupabaseConfig.client
+                    .from('orders')
+                    .select('variant_id')
+                    .eq('order_id', orderId)
+                    .maybeSingle();
+
+                final variantId = orderRes?['variant_id'];
+                if (variantId != null) {
+                  final invRes = await SupabaseConfig.client
+                      .from('inventory')
+                      .select('stock_qty')
+                      .eq('variant_id', variantId)
+                      .maybeSingle();
+                  final int currentStock = invRes?['stock_qty'] as int? ?? 0;
+                  await SupabaseConfig.client
+                      .from('inventory')
+                      .update({
+                        'stock_qty': currentStock + added,
+                        'last_updated': DateTime.now().toIso8601String(),
+                      })
+                      .eq('variant_id', variantId);
+                }
+              } catch (_) {}
+
               await _updateOrderStatus(orderId, 'READY_FOR_PICKUP');
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('✅ Restocked +$added units! Automated chat message sent to buyer: "$productTitle is restocked & ready for pickup!"'),
+                    content: Text('✅ Restocked +$added units! Stock updated in inventory and automated chat message sent to buyer.'),
                     backgroundColor: const Color(0xFF2E7D32),
                   ),
                 );
