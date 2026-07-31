@@ -5,7 +5,23 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
-import 'package:teknoycart/features/checkout/views/order_history_view.dart';
+import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
+
+class CheckoutItem {
+  final Product product;
+  final double price;
+  final int quantity;
+  final String? variantId;
+  final String? variantName;
+
+  const CheckoutItem({
+    required this.product,
+    required this.price,
+    required this.quantity,
+    this.variantId,
+    this.variantName,
+  });
+}
 
 class CampusLandmark {
   final String name;
@@ -22,19 +38,21 @@ class CampusLandmark {
 /// Transactional Checkout and Verification page representing Phase 4.
 /// Confirms the agreed price and coordinates campus pickup locations.
 class CheckoutView extends ConsumerStatefulWidget {
-  final Product product;
+  final Product? product;
   final bool isDirectBuy;
-  final double agreedPrice;
-  final int initialQuantity;
+  final double? agreedPrice;
   final String? roomId;
+  final int quantity;
+  final List<CheckoutItem>? items;
 
   const CheckoutView({
     super.key,
-    required this.product,
+    this.product,
     this.isDirectBuy = false,
-    required this.agreedPrice,
-    this.initialQuantity = 1,
+    this.agreedPrice,
     this.roomId,
+    this.quantity = 1,
+    this.items,
   });
 
   @override
@@ -44,7 +62,6 @@ class CheckoutView extends ConsumerStatefulWidget {
 class _CheckoutViewState extends ConsumerState<CheckoutView> {
   final _formKey = GlobalKey<FormState>();
 
-  late int _selectedQuantity;
   String _selectedLocation = 'Library Lobby';
   String _selectedDay = 'Today';
   String _selectedTimeSlot = '12:00 PM - 01:30 PM';
@@ -55,6 +72,24 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   String? _variantId;
   int _availableQty = 0;
   bool _isLoadingInventory = true;
+
+  List<CheckoutItem> get _checkoutItems {
+    if (widget.isDirectBuy) {
+      return [
+        CheckoutItem(
+          product: widget.product!,
+          price: widget.agreedPrice!,
+          quantity: widget.quantity,
+          variantId: _variantId,
+        )
+      ];
+    }
+    return widget.items ?? [];
+  }
+
+  double get _totalPrice {
+    return _checkoutItems.fold<double>(0.0, (sum, item) => sum + (item.price * item.quantity));
+  }
 
   final List<CampusLandmark> _landmarks = const [
     CampusLandmark(
@@ -89,18 +124,18 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   @override
   void initState() {
     super.initState();
-    _selectedQuantity = widget.initialQuantity;
     _fetchSellerGcash();
     _fetchInventoryStatus();
   }
 
   Future<void> _fetchSellerGcash() async {
+    if (_checkoutItems.isEmpty) return;
     setState(() => _isLoadingSellerGcash = true);
     try {
       final res = await SupabaseConfig.client
           .from('users')
           .select('gcash_number')
-          .eq('user_id', widget.product.sellerId)
+          .eq('user_id', _checkoutItems.first.product.sellerId)
           .maybeSingle();
       if (res != null && mounted) {
         setState(() {
@@ -115,12 +150,13 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   }
 
   Future<void> _fetchInventoryStatus() async {
+    if (_checkoutItems.isEmpty) return;
     try {
       final client = SupabaseConfig.client;
       final variants = await client
           .from('product_variants')
           .select('variant_id')
-          .eq('product_id', widget.product.id)
+          .eq('product_id', _checkoutItems.first.product.id)
           .limit(1);
 
       _variantId = (variants as List).isNotEmpty
@@ -163,71 +199,89 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
     final authState = ref.read(authStateProvider).valueOrNull;
     final buyerId = authState?.id;
-    final combinedLocation = '$_selectedLocation ($_selectedDay, $_selectedTimeSlot) | Payment: $_selectedPaymentMethod';
 
     if (buyerId != null) {
       try {
         final client = SupabaseConfig.client;
 
-        final String variantId = _variantId ?? '00000000-0000-0000-0000-000000000000';
+        for (final item in _checkoutItems) {
+          // 1. Get variant ID for this product if not already populated
+          String itemVariantId = item.variantId ?? '00000000-0000-0000-0000-000000000000';
+          if (item.variantId == null) {
+            try {
+              final variants = await client
+                  .from('product_variants')
+                  .select('variant_id')
+                  .eq('product_id', item.product.id)
+                  .limit(1);
+              if ((variants as List).isNotEmpty) {
+                itemVariantId = variants[0]['variant_id'] as String;
+              }
+            } catch (_) {}
+          }
 
-        // 3. Find or create matching inquiry row
-        final existingInquiries = await client
-            .from('inquiries')
-            .select('inquiry_id')
-            .eq('buyer_id', buyerId)
-            .eq('product_id', widget.product.id)
-            .limit(1);
+          // 2. Find or create matching inquiry row
+          final existingInquiries = await client
+              .from('inquiries')
+              .select('inquiry_id')
+              .eq('buyer_id', buyerId)
+              .eq('product_id', item.product.id)
+              .limit(1);
 
-        String inquiryId;
-        if ((existingInquiries as List).isNotEmpty) {
-          inquiryId = existingInquiries[0]['inquiry_id'] as String;
-        } else {
-          final insertedInquiry = await client.from('inquiries').insert({
+          String inquiryId;
+          if ((existingInquiries as List).isNotEmpty) {
+            inquiryId = existingInquiries[0]['inquiry_id'] as String;
+          } else {
+            final insertedInquiry = await client.from('inquiries').insert({
+              'buyer_id': buyerId,
+              'product_id': item.product.id,
+              'variant_id': itemVariantId,
+              'quantity': item.quantity,
+              'inquiry_type': 'AVAILABILITY',
+              'message': 'Initiated checkout for ${item.product.title}',
+            }).select().single();
+            inquiryId = insertedInquiry['inquiry_id'] as String;
+          }
+
+          final String dbPaymentMethod = _selectedPaymentMethod == 'GCash' ? 'GCASH' : 'CASH_ON_PICKUP';
+
+          // 3. Perform live Supabase insert into orders
+          await client.from('orders').insert({
+            'inquiry_id': inquiryId,
             'buyer_id': buyerId,
-            'product_id': widget.product.id,
-            'variant_id': variantId,
-            'quantity': _selectedQuantity,
-            'inquiry_type': 'AVAILABILITY',
-            'message': 'Initiated checkout for ${widget.product.title}',
-          }).select().single();
-          inquiryId = insertedInquiry['inquiry_id'] as String;
-        }
+            'seller_id': item.product.sellerId,
+            'variant_id': itemVariantId,
+            'quantity': item.quantity,
+            'unit_price': item.price,
+            'total_amount': item.price * item.quantity,
+            'status': _isReservation ? 'APPROVED' : 'INQUIRY_SENT',
+            'pickup_location': _selectedLocation,
+            'pickup_day': _selectedDay,
+            'pickup_time': _selectedTimeSlot,
+            'payment_method': dbPaymentMethod,
+            'reservation_expires_at': _isReservation 
+                ? DateTime.now().add(const Duration(hours: 24)).toIso8601String() 
+                : null,
+          });
 
-        final String dbPaymentMethod = _selectedPaymentMethod == 'GCash' ? 'GCASH' : 'CASH_ON_PICKUP';
+          // 4. Send handshake message to chat room if available
+          if (widget.roomId != null) {
+            try {
+              await ref.read(chatControllerProvider.notifier).postMessage(
+                senderId: buyerId,
+                receiverId: item.product.sellerId,
+                content: 'Handshake Deal Confirmed! Meetup Scheduled.',
+                roomId: widget.roomId!,
+                product: item.product,
+              );
+            } catch (e) {
+              print("CHAT_CHECKOUT_MESSAGE_POST_ERROR: $e");
+            }
+          }
 
-        // 4. Perform live Supabase insert into orders
-        final double totalAmount = widget.agreedPrice * _selectedQuantity;
-        await client.from('orders').insert({
-          'inquiry_id': inquiryId,
-          'buyer_id': buyerId,
-          'seller_id': widget.product.sellerId,
-          'variant_id': variantId,
-          'quantity': _selectedQuantity,
-          'unit_price': widget.agreedPrice,
-          'total_amount': totalAmount,
-          'status': 'INQUIRY_SENT',
-          'pickup_location': _selectedLocation,
-          'pickup_day': _selectedDay,
-          'pickup_time': _selectedTimeSlot,
-          'payment_method': dbPaymentMethod,
-          'reservation_expires_at': _isReservation 
-              ? DateTime.now().add(const Duration(hours: 24)).toIso8601String() 
-              : null,
-        });
-
-        // 4. Send handshake message to chat room if available
-        if (widget.roomId != null) {
-          try {
-            await ref.read(chatControllerProvider.notifier).postMessage(
-              senderId: buyerId,
-              receiverId: widget.product.sellerId,
-              content: 'Handshake Deal Confirmed! Meetup Scheduled.',
-              roomId: widget.roomId!,
-              product: widget.product,
-            );
-          } catch (e) {
-            print("CHAT_CHECKOUT_MESSAGE_POST_ERROR: $e");
+          // 5. Remove from cart if not direct buy
+          if (!widget.isDirectBuy) {
+            ref.read(cartProvider.notifier).removeFromCart(item.product.id, item.variantId);
           }
         }
 
@@ -258,11 +312,14 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.check_circle_rounded, color: TeknoyTheme.success, size: 28),
-            SizedBox(width: 10),
-            Text('Order Placed!', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+            const Icon(Icons.check_circle_rounded, color: TeknoyTheme.success, size: 28),
+            const SizedBox(width: 10),
+            Text(
+              _isReservation ? 'Item Reserved!' : 'Deal Logged!',
+              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+            ),
           ],
         ),
         content: Column(
@@ -270,16 +327,16 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Your order for ₱${(widget.agreedPrice * _selectedQuantity).toStringAsFixed(2)} (${_selectedQuantity} ${_selectedQuantity == 1 ? "item" : "items"}) has been sent to the seller.',
+              'Your order for ₱${_totalPrice.toStringAsFixed(2)} has been successfully logged! Awaiting seller acceptance. You can track this in the Orders Hub.',
               style: const TextStyle(fontFamily: 'Inter', height: 1.5),
             ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.08),
+                color: Colors.orange.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.withOpacity(0.25)),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.25)),
               ),
               child: const Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -288,7 +345,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Awaiting seller acceptance. You can track this order in the Orders Hub.',
+                      'Coordinate with the seller via chat for meetup and payment verification updates.',
                       style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.orange),
                     ),
                   ),
@@ -300,20 +357,18 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         actions: [
           ElevatedButton(
             onPressed: () {
-              // Pop the dialog, then replace the entire stack up to root with Orders Hub
               Navigator.pop(context);
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const OrderHistoryView()),
-                (route) => route.isFirst,
-              );
+              Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: TeknoyTheme.citMaroon,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
-            child: const Text('Go to Orders Hub', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Back to Feed',
+              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -336,76 +391,144 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 85,
-            height: 85,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: TeknoyTheme.citGold.withOpacity(0.3),
-                width: 1.5,
-              ),
-              image: DecorationImage(
-                image: NetworkImage(widget.product.imageUrl ?? ''),
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: _checkoutItems.length == 1
+          ? Row(
               children: [
-                Text(
-                  widget.product.title,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Category: ${widget.product.category}',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12,
-                    color: isDark ? Colors.white60 : Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  width: 85,
+                  height: 85,
                   decoration: BoxDecoration(
-                    color: TeknoyTheme.citGold.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    widget.product.condition.toUpperCase(),
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 10,
-                      color: TeknoyTheme.citGold,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: TeknoyTheme.citGold.withValues(alpha: 0.3),
+                      width: 1.5,
+                    ),
+                    image: DecorationImage(
+                      image: NetworkImage(_checkoutItems.first.product.imageUrl ?? ''),
+                      fit: BoxFit.cover,
                     ),
                   ),
                 ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _checkoutItems.first.product.title,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Quantity: ${_checkoutItems.first.quantity} | Category: ${_checkoutItems.first.product.category}',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 12,
+                          color: isDark ? Colors.white60 : Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: TeknoyTheme.citGold.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _checkoutItems.first.product.condition.toUpperCase(),
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 10,
+                            color: TeknoyTheme.citGold,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Cart Items (${_checkoutItems.length})',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Divider(),
+                const SizedBox(height: 8),
+                ..._checkoutItems.map((item) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 55,
+                          height: 55,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: TeknoyTheme.citGold.withValues(alpha: 0.2),
+                              width: 1,
+                            ),
+                            image: DecorationImage(
+                              image: NetworkImage(item.product.imageUrl ?? ''),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.product.title,
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Qty: ${item.quantity} | ₱${item.price.toStringAsFixed(2)} each',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 11,
+                                  color: isDark ? Colors.white60 : Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -421,7 +544,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: isSelected
-              ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.9 : 0.85)
+              ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.9 : 0.85)
               : (isDark ? const Color(0xFF16161B) : Colors.white),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
@@ -433,14 +556,14 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: TeknoyTheme.citGold.withOpacity(0.15),
+                    color: TeknoyTheme.citGold.withValues(alpha: 0.15),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   )
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
+                    color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   )
@@ -480,7 +603,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                     fontWeight: FontWeight.bold,
                     color: isSelected
                         ? Colors.white
-                        : (isDark ? Colors.white.withOpacity(0.9) : Colors.black87),
+                        : (isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -492,7 +615,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                     fontFamily: 'Inter',
                     fontSize: 10.5,
                     color: isSelected
-                        ? Colors.white.withOpacity(0.75)
+                        ? Colors.white.withValues(alpha: 0.75)
                         : (isDark ? Colors.white54 : Colors.black54),
                   ),
                   maxLines: 2,
@@ -568,7 +691,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: isSelected
-                  ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.9 : 0.8)
+                  ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.9 : 0.8)
                   : (isDark ? const Color(0xFF16161B) : const Color(0xFFF4F4F7)),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
@@ -586,7 +709,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 color: isSelected
                     ? Colors.white
-                    : (isDark ? Colors.white.withOpacity(0.9) : Colors.black87),
+                    : (isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
               ),
             ),
           ),
@@ -619,9 +742,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: Colors.blue.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -652,11 +775,8 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   }
 
   Widget _buildPriceFinalizer(bool isDark) {
-    final double totalPrice = widget.agreedPrice * _selectedQuantity;
-    final int maxAllowed = _availableQty > 0 ? _availableQty : 99;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF141418) : const Color(0xFFF4F4F7),
         borderRadius: BorderRadius.circular(20),
@@ -665,112 +785,15 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           width: 1.2,
         ),
       ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Quantity',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _availableQty > 0 ? 'Max available: $_availableQty' : 'Reservation item',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 12,
-                      color: isDark ? Colors.white60 : Colors.black54,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1F1F26) : Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isDark ? const Color(0xFF2E2E38) : Colors.grey.shade300,
-                  ),
-                  boxShadow: TeknoyTheme.kElevationLow,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove_rounded, size: 20),
-                      color: _selectedQuantity > 1
-                          ? TeknoyTheme.citMaroon
-                          : (isDark ? Colors.white24 : Colors.black26),
-                      onPressed: _selectedQuantity > 1
-                          ? () => setState(() => _selectedQuantity--)
-                          : null,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                      padding: EdgeInsets.zero,
-                    ),
-                    Container(
-                      constraints: const BoxConstraints(minWidth: 32),
-                      alignment: Alignment.center,
-                      child: Text(
-                        '$_selectedQuantity',
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.add_rounded, size: 20),
-                      color: _selectedQuantity < maxAllowed
-                          ? TeknoyTheme.citMaroon
-                          : (isDark ? Colors.white24 : Colors.black26),
-                      onPressed: _selectedQuantity < maxAllowed
-                          ? () => setState(() => _selectedQuantity++)
-                          : null,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                      padding: EdgeInsets.zero,
-                    ),
-                  ],
-                ),
-              ),
-            ],
+      child: Center(
+        child: Text(
+          '₱${_totalPrice.toStringAsFixed(2)}',
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 14.0),
-            child: Divider(height: 1),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Total Price (${_selectedQuantity} ${_selectedQuantity == 1 ? "item" : "items"}):',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white70 : Colors.black87,
-                ),
-              ),
-              Text(
-                '₱${totalPrice.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: TeknoyTheme.citMaroon,
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -791,12 +814,12 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: _isReservation
-            ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.06)
+            ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.12 : 0.06)
             : (isDark ? const Color(0xFF141418) : const Color(0xFFF4F4F7)),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: _isReservation
-              ? TeknoyTheme.citMaroon.withOpacity(0.5)
+              ? TeknoyTheme.citMaroon.withValues(alpha: 0.5)
               : (isDark ? const Color(0xFF22222A) : const Color(0xFFE5E5E9)),
           width: 1.2,
         ),

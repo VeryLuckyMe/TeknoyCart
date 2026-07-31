@@ -6,6 +6,7 @@ import 'package:teknoycart/features/feed/models/product.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
+import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
 
 import 'package:teknoycart/core/supabase_client.dart';
@@ -634,19 +635,44 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                   side: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
                                   foregroundColor: TeknoyTheme.citMaroon,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+                                ),
+                                child: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  ref.read(cartProvider.notifier).addToCart(
+                                        widget.product,
+                                        quantity: _quantity,
+                                      );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Added ${widget.product.title} to your cart!'),
+                                      backgroundColor: TeknoyTheme.success,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: TeknoyTheme.citGold, width: 1.5),
+                                  foregroundColor: TeknoyTheme.citGold,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                   padding: const EdgeInsets.symmetric(vertical: 18),
                                 ),
                                 child: const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.chat_bubble_outline_rounded, size: 18),
-                                    SizedBox(width: 8),
-                                    Text('Chat Seller', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15)),
+                                    Icon(Icons.add_shopping_cart_rounded, size: 18),
+                                    SizedBox(width: 6),
+                                    Text('Add to Cart', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 12)),
                                   ],
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: () {
@@ -657,8 +683,8 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                       builder: (context) => CheckoutView(
                                         product: widget.product,
                                         agreedPrice: widget.product.price,
-                                        initialQuantity: _quantity,
                                         isDirectBuy: true,
+                                        quantity: _quantity,
                                       ),
                                     ),
                                   );
@@ -673,8 +699,8 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Icon(Icons.shopping_cart_checkout_rounded, size: 18, color: Colors.white),
-                                    SizedBox(width: 8),
-                                    Text('Buy Now', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15)),
+                                    SizedBox(width: 6),
+                                    Text('Buy Now', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
                                   ],
                                 ),
                               ),
