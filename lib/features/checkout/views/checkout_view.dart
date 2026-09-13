@@ -67,12 +67,17 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   String _selectedLocation = 'Library Lobby';
   String _selectedDay = 'Today';
   String _selectedTimeSlot = '12:00 PM - 01:30 PM';
-  String _selectedPaymentMethod = 'Cash on Delivery';
-  bool _isReservation = false;
+
+  // FIX #3: Renamed from 'Cash on Delivery' to 'Cash on Pickup' to match campus meetup model.
+  String _selectedPaymentMethod = 'Cash on Pickup';
+
   String? _sellerGcashNumber;
   bool _isLoadingSellerGcash = false;
-  String? _variantId;
-  int _availableQty = 0;
+
+  // FIX #1: Per-item reservation map. Key = product.id, Value = isReservation.
+  final Map<String, bool> _itemReservationMap = {};
+  // FIX #1: Track resolved variant IDs per product to avoid re-querying on submit.
+  final Map<String, String> _resolvedVariantIds = {};
   bool _isLoadingInventory = true;
 
   List<CheckoutItem> get _checkoutItems {
@@ -82,12 +87,16 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           product: widget.product!,
           price: widget.agreedPrice!,
           quantity: widget.quantity,
-          variantId: _variantId,
+          variantId: _resolvedVariantIds[widget.product!.id],
         )
       ];
     }
     return widget.items ?? [];
   }
+
+  // FIX #1: Reservation is true only if ANY item in the checkout is out of stock.
+  bool get _isAnyItemReservation =>
+      _itemReservationMap.values.any((isReserved) => isReserved);
 
   double get _totalPrice {
     return _checkoutItems.fold<double>(0.0, (sum, item) => sum + (item.price * item.quantity));
@@ -127,7 +136,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   void initState() {
     super.initState();
     _fetchSellerGcash();
-    _fetchInventoryStatus();
+    _fetchAllInventoryStatuses();
   }
 
   Future<void> _fetchSellerGcash() async {
@@ -151,51 +160,85 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     }
   }
 
-  Future<void> _fetchInventoryStatus() async {
-    if (_checkoutItems.isEmpty) return;
+  // FIX #1 & #7: Fetches inventory for ALL items concurrently using Future.wait()
+  // instead of checking only the first item sequentially.
+  Future<void> _fetchAllInventoryStatuses() async {
+    if (_checkoutItems.isEmpty) {
+      if (mounted) setState(() => _isLoadingInventory = false);
+      return;
+    }
+
     try {
       final client = SupabaseConfig.client;
-      final variants = await client
-          .from('product_variants')
-          .select('variant_id')
-          .eq('product_id', _checkoutItems.first.product.id)
-          .limit(1);
 
-      _variantId = (variants as List).isNotEmpty
-          ? (variants[0]['variant_id'] as String)
-          : '00000000-0000-0000-0000-000000000000';
+      // FIX #7: Run all inventory checks in parallel.
+      final futures = _checkoutItems.map((item) async {
+        try {
+          // Resolve variant ID if not already provided.
+          String variantId = item.variantId ?? '00000000-0000-0000-0000-000000000000';
+          if (item.variantId == null) {
+            final variants = await client
+                .from('product_variants')
+                .select('variant_id')
+                .eq('product_id', item.product.id)
+                .limit(1);
+            if ((variants as List).isNotEmpty) {
+              variantId = variants[0]['variant_id'] as String;
+            }
+          }
+          _resolvedVariantIds[item.product.id] = variantId;
 
-      final inventoryRecord = await client
-          .from('inventory')
-          .select('stock_qty, reserved_qty')
-          .eq('variant_id', _variantId!)
-          .maybeSingle();
+          final inventoryRecord = await client
+              .from('inventory')
+              .select('stock_qty, reserved_qty')
+              .eq('variant_id', variantId)
+              .maybeSingle();
 
-      if (inventoryRecord != null) {
-        final int stockQty = inventoryRecord['stock_qty'] as int? ?? 0;
-        final int reservedQty = inventoryRecord['reserved_qty'] as int? ?? 0;
-        
-        if (mounted) {
-          setState(() {
-            _availableQty = stockQty - reservedQty;
-            _isReservation = _availableQty <= 0;
-          });
+          bool isReservation = false;
+          if (inventoryRecord != null) {
+            final int stockQty = inventoryRecord['stock_qty'] as int? ?? 0;
+            final int reservedQty = inventoryRecord['reserved_qty'] as int? ?? 0;
+            isReservation = (stockQty - reservedQty) <= 0;
+          }
+          return MapEntry(item.product.id, isReservation);
+        } catch (_) {
+          return MapEntry(item.product.id, false);
         }
+      }).toList();
+
+      final results = await Future.wait(futures);
+
+      if (mounted) {
+        setState(() {
+          for (final entry in results) {
+            _itemReservationMap[entry.key] = entry.value;
+          }
+          _isLoadingInventory = false;
+        });
       }
     } catch (e) {
-      // ignore
-    } finally {
       if (mounted) setState(() => _isLoadingInventory = false);
     }
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
 
   Future<void> _submitCheckout() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // FIX #2: Block GCash checkout if seller hasn't configured their GCash number.
+    if (_selectedPaymentMethod == 'GCash' &&
+        (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'The seller has not set up GCash. Please choose "Cash on Pickup" or contact the seller via chat.',
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
@@ -207,9 +250,13 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         final client = SupabaseConfig.client;
 
         for (final item in _checkoutItems) {
-          // 1. Get variant ID for this product if not already populated
-          String itemVariantId = item.variantId ?? '00000000-0000-0000-0000-000000000000';
-          if (item.variantId == null) {
+          // FIX #7: Use pre-resolved variant IDs from the parallel fetch done in initState.
+          String itemVariantId = _resolvedVariantIds[item.product.id]
+              ?? item.variantId
+              ?? '00000000-0000-0000-0000-000000000000';
+
+          // If still unresolved (edge-case), fetch it now.
+          if (!_resolvedVariantIds.containsKey(item.product.id) && item.variantId == null) {
             try {
               final variants = await client
                   .from('product_variants')
@@ -222,7 +269,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             } catch (_) {}
           }
 
-          // 2. Find or create matching inquiry row
+          // Find or create matching inquiry row.
           final existingInquiries = await client
               .from('inquiries')
               .select('inquiry_id')
@@ -245,9 +292,15 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             inquiryId = insertedInquiry['inquiry_id'] as String;
           }
 
-          final String dbPaymentMethod = _selectedPaymentMethod == 'GCash' ? 'GCASH' : 'CASH_ON_PICKUP';
+          // FIX #3: DB enum uses 'CASH_ON_PICKUP' and 'GCASH'.
+          final String dbPaymentMethod =
+              _selectedPaymentMethod == 'GCash' ? 'GCASH' : 'CASH_ON_PICKUP';
 
-          // 3. Perform live Supabase insert into orders
+          // FIX #1: Use per-item reservation status from the map.
+          final bool thisItemIsReservation =
+              _itemReservationMap[item.product.id] ?? false;
+
+          // Insert into orders.
           await client.from('orders').insert({
             'inquiry_id': inquiryId,
             'buyer_id': buyerId,
@@ -256,17 +309,17 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             'quantity': item.quantity,
             'unit_price': item.price,
             'total_amount': item.price * item.quantity,
-            'status': _isReservation ? 'APPROVED' : 'INQUIRY_SENT',
+            'status': thisItemIsReservation ? 'APPROVED' : 'INQUIRY_SENT',
             'pickup_location': _selectedLocation,
             'pickup_day': _selectedDay,
             'pickup_time': _selectedTimeSlot,
             'payment_method': dbPaymentMethod,
-            'reservation_expires_at': _isReservation 
-                ? DateTime.now().add(const Duration(hours: 24)).toIso8601String() 
+            'reservation_expires_at': thisItemIsReservation
+                ? DateTime.now().add(const Duration(hours: 24)).toIso8601String()
                 : null,
           });
 
-          // 4. Send handshake message to chat room if available
+          // Send handshake message to chat room if available.
           if (widget.roomId != null) {
             try {
               await ref.read(chatControllerProvider.notifier).postMessage(
@@ -277,11 +330,11 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 product: item.product,
               );
             } catch (e) {
-              print("CHAT_CHECKOUT_MESSAGE_POST_ERROR: $e");
+              debugPrint("CHAT_CHECKOUT_MESSAGE_POST_ERROR: $e");
             }
           }
 
-          // 5. Remove from cart if not direct buy
+          // Remove from cart if not direct buy.
           if (!widget.isDirectBuy) {
             ref.read(cartProvider.notifier).removeFromCart(item.product.id, item.variantId);
           }
@@ -292,7 +345,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           _showSuccessDialog();
         }
       } catch (e) {
-        print("CHECKOUT_SUBMIT_ERROR: $e");
+        debugPrint("CHECKOUT_SUBMIT_ERROR: $e");
         if (mounted) {
           setState(() => _isSubmitting = false);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -319,7 +372,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             const Icon(Icons.check_circle_rounded, color: TeknoyTheme.success, size: 28),
             const SizedBox(width: 10),
             Text(
-              _isReservation ? 'Item Reserved!' : 'Deal Logged!',
+              _isAnyItemReservation ? 'Item Reserved!' : 'Deal Logged!',
               style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
             ),
           ],
@@ -723,10 +776,11 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   Widget _buildPaymentMethodSelector(bool isDark) {
     return Column(
       children: [
+        // FIX #3: Renamed label from 'Cash on Delivery' → 'Cash on Pickup'.
         RadioListTile<String>(
-          title: const Text('Cash on Delivery', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-          subtitle: const Text('Pay with cash upon meetup.', style: TextStyle(fontFamily: 'Inter', fontSize: 12)),
-          value: 'Cash on Delivery',
+          title: const Text('Cash on Pickup', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+          subtitle: const Text('Pay with cash at the campus meetup spot.', style: TextStyle(fontFamily: 'Inter', fontSize: 12)),
+          value: 'Cash on Pickup',
           groupValue: _selectedPaymentMethod,
           activeColor: TeknoyTheme.citMaroon,
           onChanged: (val) => setState(() => _selectedPaymentMethod = val!),
@@ -744,13 +798,29 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.blue.withValues(alpha: 0.1),
+              // FIX #2: Use orange/warning color if GCash is not configured, blue if it is.
+              color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
+                  ? Colors.orange.withValues(alpha: 0.1)
+                  : Colors.blue.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
+                    ? Colors.orange.withValues(alpha: 0.4)
+                    : Colors.blue.withValues(alpha: 0.3),
+              ),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.info_outline_rounded, color: Colors.blue, size: 20),
+                Icon(
+                  (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
+                      ? Icons.warning_amber_rounded
+                      : Icons.info_outline_rounded,
+                  color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
+                      ? Colors.orange
+                      : Colors.blue,
+                  size: 20,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _isLoadingSellerGcash
@@ -762,11 +832,23 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue),
                           ),
                         )
-                      : Text(
-                          _sellerGcashNumber != null && _sellerGcashNumber!.isNotEmpty
-                              ? 'Transfer GCash to Seller: $_sellerGcashNumber'
-                              : 'Seller has not configured their GCash details. Please coordinate via chat.',
-                          style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: isDark ? Colors.blue[200] : Colors.blue[800]),
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _sellerGcashNumber != null && _sellerGcashNumber!.isNotEmpty
+                                  ? 'Transfer GCash to Seller: $_sellerGcashNumber'
+                                  // FIX #2: Clearly warn that GCash is unavailable and block submission.
+                                  : 'GCash Unavailable — Seller has not configured their GCash number. You cannot proceed with GCash. Please switch to Cash on Pickup or contact the seller.',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
+                                    ? Colors.orange[800]
+                                    : (isDark ? Colors.blue[200] : Colors.blue[800]),
+                              ),
+                            ),
+                          ],
                         ),
                 ),
               ],
@@ -812,15 +894,18 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       );
     }
 
+    // FIX #1: Use the aggregate reservation status across all items.
+    final isReservation = _isAnyItemReservation;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _isReservation
+        color: isReservation
             ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.12 : 0.06)
             : (isDark ? const Color(0xFF141418) : const Color(0xFFF4F4F7)),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: _isReservation
+          color: isReservation
               ? TeknoyTheme.citMaroon.withValues(alpha: 0.5)
               : (isDark ? const Color(0xFF22222A) : const Color(0xFFE5E5E9)),
           width: 1.2,
@@ -831,14 +916,14 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: _isReservation
+              color: isReservation
                   ? TeknoyTheme.citMaroon
                   : (isDark ? const Color(0xFF22222A) : Colors.white),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.hourglass_empty_rounded,
-              color: _isReservation ? Colors.white : TeknoyTheme.citGold,
+              color: isReservation ? Colors.white : TeknoyTheme.citGold,
               size: 24,
             ),
           ),
@@ -848,7 +933,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _isReservation ? 'Automatic Reservation' : 'Instant Purchase',
+                  isReservation ? 'Automatic Reservation' : 'Instant Purchase',
                   style: const TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 15,
@@ -857,9 +942,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  _isReservation
-                      ? 'Item is out of stock. Proceeding as a reservation.'
-                      : 'Item is in stock. Proceeding as a regular purchase.',
+                  isReservation
+                      ? 'One or more items are out of stock. Proceeding as a reservation.'
+                      : 'All items are in stock. Proceeding as a regular purchase.',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 11,
@@ -877,6 +962,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // FIX #6: The submit button is disabled while inventory or GCash info is still loading.
+    final bool isPageLoading = _isLoadingInventory || _isLoadingSellerGcash;
 
     return Scaffold(
       appBar: AppBar(
@@ -995,26 +1083,27 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               _buildPriceFinalizer(isDark),
               const SizedBox(height: 36),
 
-              // Submit Button
+              // FIX #6: Disable submit button while page data is still loading.
               ElevatedButton(
-                onPressed: _isSubmitting ? null : _submitCheckout,
+                onPressed: (_isSubmitting || isPageLoading) ? null : _submitCheckout,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: TeknoyTheme.citMaroon,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor: TeknoyTheme.citMaroon.withValues(alpha: 0.4),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   elevation: 2,
                 ),
-                child: _isSubmitting
+                child: (_isSubmitting || isPageLoading)
                     ? const SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
                     : Text(
-                        _isReservation ? 'Reserve & Confirm Meetup Deal' : 'Confirm Meetup Deal',
+                        _isAnyItemReservation ? 'Reserve & Confirm Meetup Deal' : 'Confirm Meetup Deal',
                         style: const TextStyle(
                           fontFamily: 'Outfit',
                           fontSize: 16,

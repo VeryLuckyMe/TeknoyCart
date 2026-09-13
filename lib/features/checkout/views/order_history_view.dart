@@ -250,7 +250,8 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     final pickupDay = order['pickup_day'] as String? ?? '—';
     final pickupTime = order['pickup_time'] as String? ?? '—';
     final rawPayment = order['payment_method'] as String? ?? 'CASH_ON_PICKUP';
-    final paymentMethod = (rawPayment == 'GCASH' || rawPayment == 'GCash') ? 'GCash' : 'Cash on Delivery';
+    // FIX #3: Consistent terminology — campus meetup uses pickup, not delivery.
+    final paymentMethod = (rawPayment == 'GCASH' || rawPayment == 'GCash') ? 'GCash' : 'Cash on Pickup';
 
     return TweenAnimationBuilder<double>(
       duration: const Duration(milliseconds: 350),
@@ -446,50 +447,60 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // ── Buyer: My Purchases ──
-          RefreshIndicator(
-            onRefresh: _fetchBuyerOrders,
-            color: TeknoyTheme.citMaroon,
-            child: _isLoadingBuyer
-                ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
-                : _buyerOrders.isEmpty
-                    ? Center(child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.shopping_bag_outlined, size: 56, color: isDark ? Colors.white24 : Colors.black26),
-                          const SizedBox(height: 12),
-                          Text('No purchases yet', style: TextStyle(fontFamily: 'Outfit', fontSize: 16, color: isDark ? Colors.white54 : Colors.black54)),
-                        ],
-                      ))
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _buyerOrders.length,
-                        itemBuilder: (context, i) => _buildOrderCard(order: _buyerOrders[i], isDark: isDark, isSeller: false),
-                      ),
-          ),
-          // ── Seller: Incoming Orders ──
-          RefreshIndicator(
-            onRefresh: _fetchSellerOrders,
-            color: TeknoyTheme.citMaroon,
-            child: _isLoadingSeller
-                ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
-                : _sellerOrders.isEmpty
-                    ? Center(child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.inbox_outlined, size: 56, color: isDark ? Colors.white24 : Colors.black26),
-                          const SizedBox(height: 12),
-                          Text('No incoming orders', style: TextStyle(fontFamily: 'Outfit', fontSize: 16, color: isDark ? Colors.white54 : Colors.black54)),
-                        ],
-                      ))
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _sellerOrders.length,
-                        itemBuilder: (context, i) => _buildOrderCard(order: _sellerOrders[i], isDark: isDark, isSeller: true),
-                      ),
-          ),
+          _buildBuyerPurchasesList(isDark),
+          _buildSellerOrdersList(isDark),
         ],
       ),
+    );
+  }
+
+  Widget _buildBuyerPurchasesList(bool isDark) {
+    return RefreshIndicator(
+      onRefresh: _fetchBuyerOrders,
+      color: TeknoyTheme.citMaroon,
+      child: _isLoadingBuyer
+          ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
+          : _buyerOrders.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.shopping_bag_outlined, size: 56, color: isDark ? Colors.white24 : Colors.black26),
+                      const SizedBox(height: 12),
+                      Text('No purchases yet', style: TextStyle(fontFamily: 'Outfit', fontSize: 16, color: isDark ? Colors.white54 : Colors.black54)),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _buyerOrders.length,
+                  itemBuilder: (context, i) => _buildOrderCard(order: _buyerOrders[i], isDark: isDark, isSeller: false),
+                ),
+    );
+  }
+
+  Widget _buildSellerOrdersList(bool isDark) {
+    return RefreshIndicator(
+      onRefresh: _fetchSellerOrders,
+      color: TeknoyTheme.citMaroon,
+      child: _isLoadingSeller
+          ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
+          : _sellerOrders.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.inbox_outlined, size: 56, color: isDark ? Colors.white24 : Colors.black26),
+                      const SizedBox(height: 12),
+                      Text('No incoming orders', style: TextStyle(fontFamily: 'Outfit', fontSize: 16, color: isDark ? Colors.white54 : Colors.black54)),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _sellerOrders.length,
+                  itemBuilder: (context, i) => _buildOrderCard(order: _sellerOrders[i], isDark: isDark, isSeller: true),
+                ),
     );
   }
 }

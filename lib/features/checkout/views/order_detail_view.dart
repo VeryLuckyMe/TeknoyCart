@@ -4,6 +4,11 @@ import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+// Use localhost for Web/Windows, or 10.0.2.2 if you switch back to Android emulator
+const String backendUrl = 'http://localhost:8080/api/orders';
 
 /// Full-screen order detail view with status stepper, party info, cancellation & return request capabilities.
 class OrderDetailView extends ConsumerStatefulWidget {
@@ -59,9 +64,28 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     super.dispose();
   }
 
-  String get _status => _order['status'] as String? ?? '';
+  Future<void> _callSpringApi(String action, Map<String, dynamic> body) async {
+    final url = Uri.parse('$backendUrl/${_order['order_id']}/$action');
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    if (response.statusCode >= 400) {
+      throw Exception('API Error: ${response.statusCode} - ${response.body}');
+    }
+  }
+
+
+  String get _status {
+    final raw = _order['status'] as String? ?? '';
+    // Map legacy DB statuses to the new state machine to avoid breaking existing demo data
+    if (raw == 'PENDING_SELLER_ACCEPT' || raw == 'INQUIRY_SENT') return 'PLACED';
+    if (raw == 'APPROVED' || raw == 'SELLER_ACCEPTED') return 'ACCEPTED';
+    return raw;
+  }
   String get _rawPaymentMethod => _order['payment_method'] as String? ?? 'CASH_ON_PICKUP';
-  String get _paymentMethod => (_rawPaymentMethod == 'GCASH' || _rawPaymentMethod == 'GCash') ? 'GCash' : 'Cash on Delivery';
+  String get _paymentMethod => (_rawPaymentMethod == 'GCASH' || _rawPaymentMethod == 'GCash') ? 'GCash' : 'Cash on Pickup';
   bool get _isGCash => _paymentMethod == 'GCash';
 
   Future<void> _refreshOrder() async {
@@ -88,31 +112,27 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
   }
 
   Future<void> _updateStatus(String newStatus) async {
+    // Legacy fallback or UI refresh trigger
     setState(() => _isActing = true);
     try {
-      final update = <String, dynamic>{'status': newStatus};
-      await SupabaseConfig.client.from('orders').update(update).eq('order_id', _order['order_id']);
       await _refreshOrder();
-      if (mounted) {
-        String msg = '';
-        if (newStatus == 'APPROVED') msg = 'Order accepted! Buyer notified.';
-        if (newStatus == 'REJECTED') msg = 'Order declined/rejected.';
-        if (newStatus == 'CANCELLED') msg = 'Order cancelled successfully.';
-        if (newStatus == 'PAYMENT_SUBMITTED') msg = 'Payment submission recorded! Awaiting seller verification.';
-        if (newStatus == 'PAYMENT_VERIFIED') msg = 'Payment verified!';
-        if (newStatus == 'RETURN_REQUESTED') msg = 'Return & refund request submitted to seller.';
-        if (newStatus == 'RETURN_APPROVED') msg = 'Return approved! Please coordinate item return & refund.';
-        if (newStatus == 'RETURN_DECLINED') msg = 'Return request declined.';
-        if (msg.isNotEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(msg),
-              backgroundColor: newStatus.contains('DECLINED') || newStatus.contains('REJECTED') || newStatus == 'CANCELLED'
-                  ? Colors.red
-                  : Colors.green,
-            ),
-          );
-        }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Action failed: $e')));
+    } finally {
+      if (mounted) setState(() => _isActing = false);
+    }
+  }
+
+  Future<void> _handleSpringAction(String action, Map<String, dynamic> body, String successMsg) async {
+    setState(() => _isActing = true);
+    try {
+      await _callSpringApi(action, body);
+      await _refreshOrder();
+      if (mounted && successMsg.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(successMsg),
+          backgroundColor: Colors.green,
+        ));
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Action failed: $e')));
@@ -121,33 +141,98 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     }
   }
 
+
   void _showCancelConfirmationDialog() {
+    String selectedReason = 'Changed my mind';
+    const cancelReasons = [
+      'Changed my mind',
+      'Found a better price elsewhere',
+      'Ordered by mistake',
+      'Seller is unresponsive',
+      'Item no longer needed',
+      'Other reason',
+    ];
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Cancel Order?', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-        content: const Text(
-          'Are you sure you want to cancel this order? This will release the item reservation and notify the seller.',
-          style: TextStyle(fontFamily: 'Inter', fontSize: 13),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.cancel_outlined, color: Colors.red, size: 24),
+              SizedBox(width: 8),
+              Text('Cancel Order?', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Please tell us why you are cancelling:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: selectedReason,
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                items: cancelReasons
+                    .map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontFamily: 'Inter', fontSize: 13))))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) setModalState(() => selectedReason = val);
+                },
+              ),
+              const SizedBox(height: 12),
+              const Text('This will release the item reservation and notify the seller.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.black54)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('No, Keep Order', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              // Send the reason to the seller via chat (same pattern as return requests)
+              // before updating the order status.
+              onPressed: () async {
+                Navigator.pop(context);
+                final actorId = ref.read(authStateProvider).valueOrNull?.id;
+                if (actorId != null) {
+                  await _handleSpringAction('cancel', {'actorId': actorId, 'reason': selectedReason}, 'Order cancelled successfully.');
+                }
+                // Fire-and-forget: notify seller with the cancellation reason.
+                try {
+                  final buyerId = _order['buyer_id'] as String?;
+                  final sellerId = _order['seller_id'] as String?;
+                  if (buyerId != null && sellerId != null) {
+                    Map<String, dynamic>? chat = await SupabaseConfig.client
+                        .from('chats').select('chat_id')
+                        .eq('buyer_id', buyerId).eq('seller_id', sellerId)
+                        .limit(1).maybeSingle();
+                    chat ??= await SupabaseConfig.client
+                        .from('chats')
+                        .insert({'buyer_id': buyerId, 'seller_id': sellerId})
+                        .select('chat_id').single();
+                    await SupabaseConfig.client.from('messages').insert({
+                      'chat_id': chat['chat_id'],
+                      'sender_id': buyerId,
+                      'content': '📢 [Automated Message]\nI have cancelled this order.\nReason: $selectedReason',
+                      'is_read': false,
+                    });
+                  }
+                } catch (_) {}
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Yes, Cancel Order', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('No, Keep Order', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _updateStatus('CANCELLED');
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Yes, Cancel Order', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
       ),
     );
   }
+
 
   void _showReturnRequestDialog() {
     String selectedReason = 'Defective or Damaged Item';
@@ -212,31 +297,44 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               onPressed: () async {
                 final user = ref.read(authStateProvider).valueOrNull;
                 if (user != null) {
+                  await _handleSpringAction('refund', {
+                    'buyerId': user.id,
+                    'reason': selectedReason,
+                    'evidence': notesController.text.trim()
+                  }, 'Return / Refund request submitted.');
                   try {
-                    await SupabaseConfig.client.from('order_returns').insert({
-                      'order_id': _order['order_id'],
-                      'requested_by': user.id,
-                      'reason': selectedReason,
-                      'explanation': notesController.text.trim(),
-                      'status': 'PENDING',
-                    });
-                    
-                    // Automated message to seller
-                    final chat = await SupabaseConfig.client
-                        .from('chats')
-                        .select('chat_id')
-                        .eq('buyer_id', _order['buyer_id'])
-                        .eq('seller_id', _order['seller_id'])
-                        .limit(1)
-                        .maybeSingle();
-                        
-                    if (chat != null) {
+
+                    // FIX #4: Always ensure a chat room exists before posting the automated
+                    // return notification. If none exists (e.g. direct-buy with no prior chat),
+                    // create one so the seller is reliably notified in their inbox.
+                    final buyerId = _order['buyer_id'] as String?;
+                    final sellerId = _order['seller_id'] as String?;
+
+                    if (buyerId != null && sellerId != null) {
+                      // Try to find an existing chat room.
+                      Map<String, dynamic>? chat = await SupabaseConfig.client
+                          .from('chats')
+                          .select('chat_id')
+                          .eq('buyer_id', buyerId)
+                          .eq('seller_id', sellerId)
+                          .limit(1)
+                          .maybeSingle();
+
+                      // If no chat exists, create one now so the notification goes through.
+                      if (chat == null) {
+                        chat = await SupabaseConfig.client
+                            .from('chats')
+                            .insert({'buyer_id': buyerId, 'seller_id': sellerId})
+                            .select('chat_id')
+                            .single();
+                      }
+
                       String msg = '📢 [Automated Message]\nI have submitted a Return / Refund request for this order.\nReason: $selectedReason';
                       if (notesController.text.trim().isNotEmpty) {
                         msg += '\nNotes: ${notesController.text.trim()}';
                       }
                       msg += '\n\nPlease check the order details to review my request.';
-                      
+
                       await SupabaseConfig.client.from('messages').insert({
                         'chat_id': chat['chat_id'],
                         'sender_id': user.id,
@@ -245,11 +343,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                       });
                     }
                   } catch (e) {
-                    print('Error submitting return: $e');
+                    debugPrint('Error submitting return: $e');
                   }
                 }
                 if (mounted) Navigator.pop(context);
-                _updateStatus('RETURN_REQUESTED');
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
               child: const Text('Submit Request', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
@@ -339,33 +436,45 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     );
   }
 
-  Future<void> _confirmHandoff(bool isSeller) async {
-    setState(() => _isActing = true);
-    try {
-      final update = isSeller
-          ? {'seller_confirmed_at': DateTime.now().toIso8601String()}
-          : {'buyer_confirmed_at': DateTime.now().toIso8601String()};
-      await SupabaseConfig.client.from('orders').update(update).eq('order_id', _order['order_id']);
-
-      await _refreshOrder();
-      final sellerConfirmed = _order['seller_confirmed_at'] != null;
-      final buyerConfirmed = _order['buyer_confirmed_at'] != null;
-      if (sellerConfirmed && buyerConfirmed) {
-        await SupabaseConfig.client.from('orders').update({'status': 'COMPLETED'}).eq('order_id', _order['order_id']);
-        await _refreshOrder();
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🎉 Transaction completed!'), backgroundColor: Colors.green));
-      } else {
-        if (mounted) {
-          final who = isSeller ? 'Handoff marked. Waiting for buyer to confirm receipt.' : 'Receipt confirmed! Waiting for seller to confirm handoff.';
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(who)));
-        }
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Action failed: $e')));
-    } finally {
-      if (mounted) setState(() => _isActing = false);
-    }
+  void _showOTPInputDialog() {
+    final otpController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Verify Handoff', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter the 6-digit code shown on the buyer\'s screen to verify handoff.', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: otpController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: InputDecoration(
+                hintText: '123456',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final sellerId = ref.read(authStateProvider).valueOrNull?.id;
+              if (sellerId != null) {
+                await _handleSpringAction('verify-handoff', {'sellerId': sellerId, 'otp': otpController.text.trim()}, 'Handoff verified successfully!');
+              }
+            },
+            child: const Text('Verify'),
+          ),
+        ],
+      ),
+    );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -519,39 +628,19 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
   }
 
   Widget _buildStatusStepper(bool isDark) {
-    final steps = _isGCash
-        ? ['Placed', 'Accepted', 'Payment', 'Meetup', 'Done']
-        : ['Placed', 'Accepted', 'Meetup', 'Done'];
+    final steps = ['Placed', 'Accepted', 'Meetup', 'Handoff', 'Done'];
 
-    final statusToStep = _isGCash
-        ? {
-            'PENDING_SELLER_ACCEPT': 0,
-            'INQUIRY_SENT': 0,
-            'APPROVED': 1,
-            'SELLER_ACCEPTED': 1,
-            'PAYMENT_SUBMITTED': 2,
-            'PAYMENT_VERIFIED': 2,
-            'REJECTED': -1,
-            'COMPLETED': 4,
-            'DECLINED': -1,
-            'CANCELLED': -1,
-            'RETURN_REQUESTED': 4,
-            'RETURN_APPROVED': 4,
-            'RETURN_DECLINED': 4,
-          }
-        : {
-            'PENDING_SELLER_ACCEPT': 0,
-            'INQUIRY_SENT': 0,
-            'APPROVED': 1,
-            'SELLER_ACCEPTED': 1,
-            'COMPLETED': 3,
-            'DECLINED': -1,
-            'REJECTED': -1,
-            'CANCELLED': -1,
-            'RETURN_REQUESTED': 3,
-            'RETURN_APPROVED': 3,
-            'RETURN_DECLINED': 3,
-          };
+    final statusToStep = {
+      'PLACED': 0,
+      'ACCEPTED': 1,
+      'MEETUP_SCHEDULED': 2,
+      'HANDOFF_PENDING': 3,
+      'COMPLETED': 4,
+      'CANCELLED': -1,
+      'DISPUTED': -1,
+      'REFUND_REQUESTED': 4,
+    };
+
 
     final currentStep = statusToStep[_status] ?? 0;
     final isDeclined = _status == 'DECLINED' || _status == 'REJECTED';
@@ -641,87 +730,53 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
 
   Widget _buildActionButtons(bool isDark, bool sellerConfirmed, bool buyerConfirmed) {
     final buttons = <Widget>[];
+    final actorId = ref.read(authStateProvider).valueOrNull?.id;
+    if (actorId == null) return const SizedBox();
 
     if (widget.isSeller) {
-      // Seller: Accept/Decline
-      if (_status == 'PENDING_SELLER_ACCEPT' || _status == 'INQUIRY_SENT') {
-        buttons.add(_actionBtn('Decline Order', Colors.red, Icons.close_rounded, () => _updateStatus('REJECTED')));
+      if (_status == 'PLACED') {
+        buttons.add(_actionBtn('Decline Order', Colors.red, Icons.close_rounded, 
+            () => _handleSpringAction('cancel', {'actorId': actorId, 'reason': 'Seller declined'}, 'Order declined.')));
         buttons.add(const SizedBox(height: 10));
-        buttons.add(_actionBtn('Accept Order', Colors.green, Icons.check_circle_outline_rounded, () => _updateStatus('APPROVED')));
+        buttons.add(_actionBtn('Accept Order', Colors.green, Icons.check_circle_outline_rounded, 
+            () => _handleSpringAction('accept', {'sellerId': actorId}, 'Order accepted.')));
       }
-      // Seller: Verify GCash
-      if (_isGCash && _status == 'PAYMENT_SUBMITTED') {
-        buttons.add(_actionBtn('Reject Payment', Colors.red, Icons.cancel_outlined, () => _updateStatus('REJECTED')));
-        buttons.add(const SizedBox(height: 10));
-        buttons.add(_actionBtn('✓ Verify GCash Payment', Colors.green, Icons.verified_outlined, () => _updateStatus('PAYMENT_VERIFIED')));
-      }
-      // Seller: Mark handed off
-      if ((_status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') && !sellerConfirmed) {
-        buttons.add(_actionBtn('Mark as Handed Off', TeknoyTheme.citMaroon, Icons.handshake_outlined, () => _confirmHandoff(true)));
-      }
-      // Seller: Handle Return Request
-      if (_status == 'RETURN_REQUESTED') {
-        buttons.add(_actionBtn('Decline Return Request', Colors.red, Icons.close_rounded, () => _updateStatus('RETURN_DECLINED')));
-        buttons.add(const SizedBox(height: 10));
-        buttons.add(_actionBtn('Approve Return & Refund', Colors.teal, Icons.check_circle_outline_rounded, () => _updateStatus('RETURN_APPROVED')));
-      }
-    } else {
-      // Buyer: Submit GCash payment proof
-      if (_isGCash && (_status == 'APPROVED' || _status == 'SELLER_ACCEPTED')) {
-        buttons.add(_actionBtn(
-          '📤 I\'ve Sent GCash Payment',
-          Colors.indigo,
-          Icons.send_rounded,
-          () => _showGCashSubmitDialog(),
-        ));
-        buttons.add(const SizedBox(height: 10));
+      
+      if (_status == 'ACCEPTED') {
+        buttons.add(_actionBtn('Schedule Meetup', Colors.blue, Icons.calendar_month_rounded, 
+            () => _handleSpringAction('schedule', {'actorId': actorId}, 'Meetup scheduled. OTP generated.')));
       }
 
-      // Buyer: GCash payment was rejected alert + retry
-      if (_isGCash && _status == 'REJECTED') {
+      if (_status == 'MEETUP_SCHEDULED') {
+        buttons.add(_actionBtn('Verify Buyer Handoff (OTP)', TeknoyTheme.citMaroon, Icons.verified_user_rounded, _showOTPInputDialog));
+      }
+    } else {
+      if (_status == 'MEETUP_SCHEDULED') {
+        final otp = _order['handoff_otp'] as String? ?? '------';
         buttons.add(
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.red.withOpacity(0.3)),
-            ),
-            child: const Row(children: [
-              Icon(Icons.error_outline_rounded, color: Colors.red, size: 18),
-              SizedBox(width: 10),
-              Expanded(child: Text(
-                'Your GCash payment was rejected by the seller. Please verify the amount and reference number, then resubmit.',
-                style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.red),
-              )),
+            decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.withOpacity(0.3))),
+            child: Column(children: [
+              const Text('Show this code to the seller at the meetup:', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.blue)),
+              const SizedBox(height: 8),
+              Text(otp, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 32, letterSpacing: 8, color: Colors.blue)),
             ]),
-          ),
+          )
         );
+      }
+
+      if (_status == 'HANDOFF_PENDING') {
+        buttons.add(_actionBtn('Confirm I Received This', Colors.green, Icons.check_circle_outline_rounded, 
+            () => _handleSpringAction('confirm-receipt', {'buyerId': actorId}, 'Receipt confirmed!')));
+      }
+
+      if (_status == 'COMPLETED') {
         buttons.add(const SizedBox(height: 10));
-        buttons.add(_actionBtn(
-          '🔁 Resubmit GCash Payment',
-          Colors.indigo,
-          Icons.refresh_rounded,
-          () => _showGCashSubmitDialog(),
-        ));
-        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn('Request Return / Refund', Colors.orange, Icons.assignment_return_rounded, _showReturnRequestDialog));
       }
 
-      // Buyer: Confirm received
-      if ((_status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') && !buyerConfirmed) {
-        buttons.add(_actionBtn('Confirm I Received This', Colors.green, Icons.check_circle_outline_rounded, () => _confirmHandoff(false)));
-      }
-
-      // Buyer: Request Return / Refund (if accepted or completed)
-      if (_status == 'COMPLETED' || _status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_VERIFIED') {
-        if (_status != 'RETURN_REQUESTED' && _status != 'RETURN_APPROVED' && _status != 'RETURN_DECLINED') {
-          buttons.add(const SizedBox(height: 10));
-          buttons.add(_actionBtn('Request Return / Refund', Colors.orange, Icons.assignment_return_rounded, _showReturnRequestDialog));
-        }
-      }
-
-      // Buyer: Cancel Order (if order is still pending/active before handoff)
-      if (_status == 'PENDING_SELLER_ACCEPT' || _status == 'INQUIRY_SENT' || _status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_SUBMITTED') {
+      if (_status == 'PLACED' || _status == 'ACCEPTED' || _status == 'MEETUP_SCHEDULED') {
         buttons.add(const SizedBox(height: 10));
         buttons.add(SizedBox(
           width: double.infinity,
