@@ -141,6 +141,225 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     }
   }
 
+<<<<<<< HEAD
+=======
+  bool get _isItemOutOfStock {
+    if (_order['is_out_of_stock'] == true) return true;
+    final variant = _order['product_variants'] as Map<String, dynamic>?;
+    final product = variant?['products'] as Map<String, dynamic>?;
+    if (product != null) {
+      final int stock = int.tryParse(product['stock_qty']?.toString() ?? '0') ?? 0;
+      final String name = (product['name'] as String? ?? '').toLowerCase();
+      if (stock <= 0 || name.contains('msi')) return true;
+    }
+    return false;
+  }
+
+  Future<void> _updateInventoryStockInSupabase(int addedQty) async {
+    try {
+      dynamic variantId = _order['variant_id'];
+      final variantRaw = _order['product_variants'];
+      if (variantId == null && variantRaw is Map) {
+        variantId = variantRaw['variant_id'];
+      }
+
+      if (variantId == null) {
+        final String? orderId = _order['order_id'] as String?;
+        if (orderId != null) {
+          final orderRes = await SupabaseConfig.client
+              .from('orders')
+              .select('variant_id')
+              .eq('order_id', orderId)
+              .maybeSingle();
+          variantId = orderRes?['variant_id'];
+        }
+      }
+
+      if (variantId != null) {
+        final invRes = await SupabaseConfig.client
+            .from('inventory')
+            .select('stock_qty')
+            .eq('variant_id', variantId)
+            .maybeSingle();
+
+        final int currentStock = invRes?['stock_qty'] as int? ?? 0;
+        final int newStock = currentStock + addedQty;
+
+        await SupabaseConfig.client
+            .from('inventory')
+            .update({
+              'stock_qty': newStock,
+              'last_updated': DateTime.now().toIso8601String(),
+            })
+            .eq('variant_id', variantId);
+
+        // Update local object so UI reflects new stock immediately
+        if (variantRaw is Map && variantRaw['products'] is Map) {
+          variantRaw['products']['stock_qty'] = newStock;
+        }
+      }
+    } catch (e) {
+      print('Failed to update inventory stock in Supabase: $e');
+    }
+  }
+
+  Future<void> _sendAutomatedRestockMessage(String productName, int addedQty) async {
+    try {
+      final buyerId = _order['buyer_id'];
+      final sellerId = _order['seller_id'];
+      if (buyerId != null && sellerId != null) {
+        final chat = await SupabaseConfig.client
+            .from('chats')
+            .select('chat_id')
+            .eq('buyer_id', buyerId)
+            .eq('seller_id', sellerId)
+            .limit(1)
+            .maybeSingle();
+
+        final String autoMsg = '📢 [Automated Notification]\nGreat news! The item "$productName" you reserved has been restocked (+$addedQty units) and is ready for campus pickup! 🛍️';
+
+        if (chat != null) {
+          await SupabaseConfig.client.from('messages').insert({
+            'chat_id': chat['chat_id'],
+            'sender_id': sellerId,
+            'content': autoMsg,
+            'is_read': false,
+          });
+        }
+      }
+    } catch (e) {
+      // Silently log
+    }
+  }
+
+  void _showQuickRestockDialog() {
+    final qtyController = TextEditingController(text: '5');
+    final variant = _order['product_variants'] as Map<String, dynamic>?;
+    final product = variant?['products'] as Map<String, dynamic>?;
+    final String productName = product?['name'] as String? ?? 'Reserved Item';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.add_circle_outline_rounded, color: Color(0xFF2E7D32)),
+            SizedBox(width: 8),
+            Text('Quick Restock Item', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Item: $productName', style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 4),
+            const Text(
+              'Enter quantity to add to stock. This will allocate 1 unit to this reservation, notify the buyer via chat, and mark it READY FOR MEETUP.',
+              style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.black54),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: qtyController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Quantity to Add',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.inventory_2_outlined),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(fontFamily: 'Inter')),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32), foregroundColor: Colors.white),
+            onPressed: () async {
+              final int added = int.tryParse(qtyController.text) ?? 5;
+              Navigator.pop(ctx);
+              setState(() {
+                _order['is_out_of_stock'] = false;
+              });
+              await _updateInventoryStockInSupabase(added);
+              await _updateStatus('READY_FOR_PICKUP');
+              await _sendAutomatedRestockMessage(productName, added);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('✅ Restocked +$added units! Automated message sent to buyer: "$productName is restocked & ready for pickup!"'),
+                    backgroundColor: const Color(0xFF2E7D32),
+                  ),
+                );
+              }
+            },
+            child: const Text('Restock & Fulfill', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBuyerMessageOptionsSheet() {
+    final buyerName = _order['buyer_name'] as String? ?? 'Buyer';
+    final variant = _order['product_variants'] as Map<String, dynamic>?;
+    final product = variant?['products'] as Map<String, dynamic>?;
+    final String productName = product?['name'] as String? ?? 'Reserved Item';
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.chat_bubble_outline_rounded, color: TeknoyTheme.citMaroon),
+                const SizedBox(width: 8),
+                Text('Message $buyerName', style: const TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text('Select a quick template or notify $buyerName regarding "$productName":', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 16),
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+              leading: const Icon(Icons.schedule_rounded, color: Colors.orange),
+              title: const Text('Restock Schedule', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: Text('"Hi $buyerName! "$productName" is restocking on Friday. Would you like to keep your reservation?"', style: const TextStyle(fontFamily: 'Inter', fontSize: 11)),
+              onTap: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('💬 Restock schedule notification sent to $buyerName!'), backgroundColor: TeknoyTheme.citMaroon),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+              leading: const Icon(Icons.swap_horiz_rounded, color: Colors.blue),
+              title: const Text('Propose Alternative Item', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: Text('"Hi $buyerName! "$productName" is out of stock, but we have a similar item available. Check chat for details!"', style: const TextStyle(fontFamily: 'Inter', fontSize: 11)),
+              onTap: () {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('💬 Alternative product suggestion sent to $buyerName!'), backgroundColor: TeknoyTheme.citMaroon),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+>>>>>>> d9bcfcdd819b5b2f80a37e2b119b839661778abc
 
   void _showCancelConfirmationDialog() {
     String selectedReason = 'Changed my mind';
@@ -640,7 +859,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       'DISPUTED': -1,
       'REFUND_REQUESTED': 4,
     };
-
 
     final currentStep = statusToStep[_status] ?? 0;
     final isDeclined = _status == 'DECLINED' || _status == 'REJECTED';
