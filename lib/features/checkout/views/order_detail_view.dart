@@ -141,8 +141,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     }
   }
 
-<<<<<<< HEAD
-=======
   bool get _isItemOutOfStock {
     if (_order['is_out_of_stock'] == true) return true;
     final variant = _order['product_variants'] as Map<String, dynamic>?;
@@ -359,7 +357,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       ),
     );
   }
->>>>>>> d9bcfcdd819b5b2f80a37e2b119b839661778abc
 
   void _showCancelConfirmationDialog() {
     String selectedReason = 'Changed my mind';
