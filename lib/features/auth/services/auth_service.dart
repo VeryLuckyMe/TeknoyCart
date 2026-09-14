@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
@@ -67,91 +68,72 @@ class AuthService {
 
     final emailTrimmed = email.trim().toLowerCase();
 
-    // Check database for lockout status and email verification status
-    final userRecord = await _client
-        .from('users')
-        .select('is_locked, failed_attempts, lock_until, is_verified, full_name')
-        .eq('email', emailTrimmed)
-        .maybeSingle();
-
-
-    if (userRecord != null) {
-      final isVerified = userRecord['is_verified'] as bool? ?? false;
-      if (!isVerified) {
-        throw UnverifiedEmailException(
-          emailTrimmed,
-          userRecord['full_name'] as String? ?? 'Student',
-        );
-      }
-
-      final isLocked = userRecord['is_locked'] as bool? ?? false;
-      final lockUntilStr = userRecord['lock_until'] as String?;
-      if (isLocked && lockUntilStr != null) {
-        final lockUntil = DateTime.parse(lockUntilStr).toLocal();
-        if (DateTime.now().isBefore(lockUntil)) {
-          final remaining = lockUntil.difference(DateTime.now()).inMinutes;
-          final secs = lockUntil.difference(DateTime.now()).inSeconds % 60;
-          throw FormatException(
-            'Account locked. 5 failed login attempts. Try again in $remaining min, $secs sec.',
-          );
-        } else {
-          // Lock duration expired: reset parameters in database
-          await _client.from('users').update({
-            'is_locked': false,
-            'failed_attempts': 0,
-            'lock_until': null,
-          }).eq('email', emailTrimmed);
-        }
-      }
-    }
+    // Call server-authoritative backend /auth/login endpoint
+    final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/login');
+    http.Response response;
 
     try {
-      final response = await _client.auth.signInWithPassword(
-        email: email.trim(),
-        password: password,
-      );
-
-      final user = response.user;
-      if (user == null) {
-        throw Exception('Authentication failed. Please check your credentials.');
-      }
-
-      // Reset lockout columns on successful login
-      await _client.from('users').update({
-        'is_locked': false,
-        'failed_attempts': 0,
-        'lock_until': null,
-      }).eq('email', emailTrimmed);
-
-      return _userToProfile(user);
+      response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': emailTrimmed,
+          'password': password,
+        }),
+      ).timeout(const Duration(seconds: 25));
     } catch (e) {
-      if (userRecord != null) {
-        final currentAttempts = (userRecord['failed_attempts'] as int? ?? 0) + 1;
-        if (currentAttempts >= 5) {
-          final lockTime = DateTime.now().toUtc().add(const Duration(minutes: 15));
-          await _client.from('users').update({
-            'is_locked': true,
-            'failed_attempts': currentAttempts,
-            'lock_until': lockTime.toIso8601String(),
-          }).eq('email', emailTrimmed);
-          
-          throw const FormatException(
-            'Too many failed attempts. Account locked for 15 minutes.',
-          );
-        } else {
-          await _client.from('users').update({
-            'failed_attempts': currentAttempts,
-          }).eq('email', emailTrimmed);
-          
-          final remaining = 5 - currentAttempts;
-          throw FormatException(
-            'Incorrect password. $remaining attempts remaining before lockout.',
-          );
-        }
-      }
-      rethrow;
+      throw Exception('Unable to reach server. Please check your internet connection.');
     }
+
+    Map<String, dynamic> body = {};
+    try {
+      body = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {}
+
+    if (response.statusCode == 200) {
+      // Establish Supabase session using the minted session returned by backend
+      final sessionData = body['session'] as Map<String, dynamic>?;
+      final refreshToken = sessionData?['refresh_token'] as String?;
+      if (refreshToken != null) {
+        await _client.auth.setSession(refreshToken);
+      }
+
+      final profile = currentUser;
+      if (profile != null) {
+        return profile;
+      }
+
+      // Fallback profile from backend response if auth state stream hasn't settled yet
+      final userData = body['user'] as Map<String, dynamic>?;
+      return Profile(
+        id: userData?['userId'] as String? ?? '',
+        username: userData?['fullName'] as String? ?? emailTrimmed.split('@').first,
+        email: userData?['email'] as String? ?? emailTrimmed,
+        createdAt: DateTime.now(),
+      );
+    }
+
+    final errorType = body['type'] as String?;
+    final errorMessage = body['message'] as String? ?? 'Authentication failed.';
+
+    if (response.statusCode == 403) {
+      if (errorType == 'EMAIL_UNVERIFIED') {
+        throw UnverifiedEmailException(
+          body['email'] as String? ?? emailTrimmed,
+          body['fullName'] as String? ?? 'Student',
+        );
+      }
+      // ACCOUNT_LOCKED or forbidden
+      throw FormatException(errorMessage);
+    }
+
+    if (response.statusCode == 400) {
+      throw FormatException(errorMessage);
+    }
+
+    throw Exception(errorMessage);
   }
+
 
   // ── Sign Up ──
   Future<Profile> signUp({

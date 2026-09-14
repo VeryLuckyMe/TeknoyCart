@@ -226,15 +226,129 @@ FOR EACH ROW
 EXECUTE FUNCTION verify_user_email_domain();
 
 -- =============================================================
--- 5. REALTIME & SECURITY INITIALIZATION
+-- 5. REALTIME & SECURITY INITIALIZATION (SECURED RLS)
 -- =============================================================
 -- Enable realtime updates for messaging & chat logs
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.chats;
 
--- Disable RLS for development/testing convenience (re-enable in production)
-ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.chats DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.inquiries DISABLE ROW LEVEL SECURITY;
+-- Enable Row Level Security (RLS) across all tables
+ALTER TABLE IF EXISTS public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.store_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.product_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.product_variants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.inventory ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.inquiries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.chats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.payment_proofs ENABLE ROW LEVEL SECURITY;
+
+-- -------------------------------------------------------------
+-- USERS & PRIVILEGE ESCALATION PROTECTION
+-- -------------------------------------------------------------
+CREATE POLICY "users_select_authenticated" ON public.users FOR SELECT TO authenticated USING (true);
+CREATE POLICY "users_insert_own_profile" ON public.users FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "users_update_own_profile" ON public.users FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE OR REPLACE FUNCTION public.protect_user_security_columns()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF current_user = 'postgres' OR current_setting('request.jwt.claim.role', true) = 'service_role' THEN
+        RETURN NEW;
+    END IF;
+
+    IF NEW.role IS DISTINCT FROM OLD.role THEN
+        RAISE EXCEPTION 'Modifying user role directly is forbidden.';
+    END IF;
+    IF NEW.is_verified IS DISTINCT FROM OLD.is_verified THEN
+        RAISE EXCEPTION 'Modifying is_verified directly is forbidden.';
+    END IF;
+    IF NEW.is_locked IS DISTINCT FROM OLD.is_locked OR NEW.lock_until IS DISTINCT FROM OLD.lock_until THEN
+        RAISE EXCEPTION 'Modifying account lockout parameters directly is forbidden.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_protect_user_security_columns ON public.users;
+CREATE TRIGGER trg_protect_user_security_columns
+    BEFORE UPDATE ON public.users
+    FOR EACH ROW EXECUTE FUNCTION public.protect_user_security_columns();
+
+-- -------------------------------------------------------------
+-- STORE PROFILES & CATALOG POLICIES
+-- -------------------------------------------------------------
+CREATE POLICY "store_profiles_select_public" ON public.store_profiles FOR SELECT TO public USING (true);
+CREATE POLICY "store_profiles_insert_owner" ON public.store_profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = seller_id);
+CREATE POLICY "store_profiles_update_owner" ON public.store_profiles FOR UPDATE TO authenticated USING (auth.uid() = seller_id) WITH CHECK (auth.uid() = seller_id);
+
+CREATE POLICY "categories_select_public" ON public.categories FOR SELECT TO public USING (true);
+
+CREATE POLICY "products_select_public" ON public.products FOR SELECT TO public USING (true);
+CREATE POLICY "products_insert_seller" ON public.products FOR INSERT TO authenticated WITH CHECK (auth.uid() = seller_id);
+CREATE POLICY "products_update_seller" ON public.products FOR UPDATE TO authenticated USING (auth.uid() = seller_id) WITH CHECK (auth.uid() = seller_id);
+CREATE POLICY "products_delete_seller" ON public.products FOR DELETE TO authenticated USING (auth.uid() = seller_id);
+
+CREATE POLICY "product_images_select_public" ON public.product_images FOR SELECT TO public USING (true);
+CREATE POLICY "product_images_all_seller" ON public.product_images FOR ALL TO authenticated USING (EXISTS (
+    SELECT 1 FROM public.products p WHERE p.product_id = product_images.product_id AND p.seller_id = auth.uid()
+));
+
+CREATE POLICY "product_variants_select_public" ON public.product_variants FOR SELECT TO public USING (true);
+CREATE POLICY "product_variants_all_seller" ON public.product_variants FOR ALL TO authenticated USING (EXISTS (
+    SELECT 1 FROM public.products p WHERE p.product_id = product_variants.product_id AND p.seller_id = auth.uid()
+));
+
+CREATE POLICY "inventory_select_authenticated" ON public.inventory FOR SELECT TO authenticated USING (true);
+CREATE POLICY "inventory_all_seller" ON public.inventory FOR ALL TO authenticated USING (EXISTS (
+    SELECT 1 FROM public.product_variants pv JOIN public.products p ON pv.product_id = p.product_id
+    WHERE pv.variant_id = inventory.variant_id AND p.seller_id = auth.uid()
+));
+
+-- -------------------------------------------------------------
+-- INQUIRIES, CHATS & MESSAGES POLICIES
+-- -------------------------------------------------------------
+CREATE POLICY "inquiries_select_parties" ON public.inquiries FOR SELECT TO authenticated USING (
+    auth.uid() = buyer_id OR EXISTS (SELECT 1 FROM public.products p WHERE p.product_id = inquiries.product_id AND p.seller_id = auth.uid())
+);
+CREATE POLICY "inquiries_insert_buyer" ON public.inquiries FOR INSERT TO authenticated WITH CHECK (auth.uid() = buyer_id);
+CREATE POLICY "inquiries_update_parties" ON public.inquiries FOR UPDATE TO authenticated USING (
+    auth.uid() = buyer_id OR EXISTS (SELECT 1 FROM public.products p WHERE p.product_id = inquiries.product_id AND p.seller_id = auth.uid())
+);
+
+CREATE POLICY "chats_parties_all" ON public.chats FOR ALL TO authenticated USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+
+CREATE POLICY "messages_select_parties" ON public.messages FOR SELECT TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.chats c WHERE c.chat_id = messages.chat_id AND (c.buyer_id = auth.uid() OR c.seller_id = auth.uid()))
+);
+CREATE POLICY "messages_insert_sender" ON public.messages FOR INSERT TO authenticated WITH CHECK (
+    auth.uid() = sender_id AND EXISTS (SELECT 1 FROM public.chats c WHERE c.chat_id = messages.chat_id AND (c.buyer_id = auth.uid() OR c.seller_id = auth.uid()))
+);
+CREATE POLICY "messages_update_parties" ON public.messages FOR UPDATE TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.chats c WHERE c.chat_id = messages.chat_id AND (c.buyer_id = auth.uid() OR c.seller_id = auth.uid()))
+);
+
+-- -------------------------------------------------------------
+-- ORDERS & PAYMENT PROOFS POLICIES
+-- -------------------------------------------------------------
+CREATE POLICY "orders_select_parties" ON public.orders FOR SELECT TO authenticated USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+CREATE POLICY "orders_insert_buyer" ON public.orders FOR INSERT TO authenticated WITH CHECK (
+    auth.uid() = buyer_id
+    AND (status::text = 'PLACED' OR status::text = 'INQUIRY_SENT')
+    AND (seller_handed_off IS FALSE OR seller_handed_off IS NULL)
+    AND (buyer_confirmed_receipt IS FALSE OR buyer_confirmed_receipt IS NULL)
+    AND handoff_otp IS NULL AND payment_reference IS NULL AND payment_proof_url IS NULL
+);
+
+CREATE POLICY "payment_proofs_select_parties" ON public.payment_proofs FOR SELECT TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.orders o WHERE o.order_id = payment_proofs.order_id AND (o.buyer_id = auth.uid() OR o.seller_id = auth.uid()))
+);
+CREATE POLICY "payment_proofs_insert_buyer" ON public.payment_proofs FOR INSERT TO authenticated WITH CHECK (
+    EXISTS (SELECT 1 FROM public.orders o WHERE o.order_id = payment_proofs.order_id AND o.buyer_id = auth.uid())
+);
+
 

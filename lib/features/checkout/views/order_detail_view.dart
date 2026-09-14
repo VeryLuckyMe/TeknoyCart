@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 // Use localhost for Web/Windows, or 10.0.2.2 if you switch back to Android emulator
-const String backendUrl = 'http://localhost:8080/api/orders';
+const String backendUrl = 'https://teknoycart-backend.onrender.com/api/orders';
 
 /// Full-screen order detail view with status stepper, party info, cancellation & return request capabilities.
 class OrderDetailView extends ConsumerStatefulWidget {
@@ -31,6 +31,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     super.initState();
     _order = Map<String, dynamic>.from(widget.order);
     _subscribeToOrderUpdates();
+    _refreshOrder();
   }
 
   void _subscribeToOrderUpdates() {
@@ -65,15 +66,34 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
   }
 
   Future<void> _callSpringApi(String action, Map<String, dynamic> body) async {
+    final token = SupabaseConfig.client.auth.currentSession?.accessToken;
     final url = Uri.parse('$backendUrl/${_order['order_id']}/$action');
     final response = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
       body: jsonEncode(body),
     );
     if (response.statusCode >= 400) {
       throw Exception('API Error: ${response.statusCode} - ${response.body}');
     }
+    try {
+      if (response.body.isNotEmpty) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) {
+          if (mounted) {
+            setState(() {
+              if (data['handoffOtp'] != null) _order['handoff_otp'] = data['handoffOtp'].toString();
+              if (data['status'] != null) _order['status'] = data['status'];
+              if (data['sellerHandedOff'] != null) _order['seller_handed_off'] = data['sellerHandedOff'];
+              if (data['buyerConfirmedReceipt'] != null) _order['buyer_confirmed_receipt'] = data['buyerConfirmedReceipt'];
+            });
+          }
+        }
+      }
+    } catch (_) {}
   }
 
 
@@ -96,6 +116,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             order_id, total_amount, status, quantity, created_at,
             pickup_location, pickup_day, pickup_time, payment_method,
             seller_confirmed_at, buyer_confirmed_at, buyer_id, seller_id,
+            handoff_otp, seller_handed_off, buyer_confirmed_receipt,
             product_variants (
               variant_value,
               products ( name, product_images (image_url, is_primary) )
@@ -416,7 +437,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 Navigator.pop(context);
                 final actorId = ref.read(authStateProvider).valueOrNull?.id;
                 if (actorId != null) {
-                  await _handleSpringAction('cancel', {'actorId': actorId, 'reason': selectedReason}, 'Order cancelled successfully.');
+                  await _handleSpringAction('cancel', {'reason': selectedReason}, 'Order cancelled successfully.');
                 }
                 // Fire-and-forget: notify seller with the cancellation reason.
                 try {
@@ -514,7 +535,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 final user = ref.read(authStateProvider).valueOrNull;
                 if (user != null) {
                   await _handleSpringAction('refund', {
-                    'buyerId': user.id,
                     'reason': selectedReason,
                     'evidence': notesController.text.trim()
                   }, 'Return / Refund request submitted.');
@@ -632,13 +652,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             onPressed: () async {
               final referenceNumber = refController.text.trim();
               Navigator.pop(context);
-              // Store reference number in order notes if needed
-              try {
-                await SupabaseConfig.client.from('orders').update({
-                  'gcash_reference': referenceNumber,
-                }).eq('order_id', _order['order_id']);
-              } catch (_) {}
-              _updateStatus('PAYMENT_SUBMITTED');
+              await _handleSpringAction('submit-payment', {
+                'payment_reference': referenceNumber,
+              }, 'GCash reference submitted! Awaiting seller verification.');
             },
             icon: const Icon(Icons.send_rounded, size: 16, color: Colors.white),
             label: const Text('Confirm Payment Sent', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
@@ -681,7 +697,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               Navigator.pop(context);
               final sellerId = ref.read(authStateProvider).valueOrNull?.id;
               if (sellerId != null) {
-                await _handleSpringAction('verify-handoff', {'sellerId': sellerId, 'otp': otpController.text.trim()}, 'Handoff verified successfully!');
+                await _handleSpringAction('verify-handoff', {'otp': otpController.text.trim()}, 'Handoff verified successfully!');
               }
             },
             child: const Text('Verify'),
@@ -820,9 +836,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _order['gcash_reference'] != null && (_order['gcash_reference'] as String).isNotEmpty
-                                ? 'GCash ref: ${_order['gcash_reference']} — Awaiting seller verification.'
-                                : 'GCash payment submitted. Awaiting seller verification.',
+                            ((_order['payment_reference'] != null && (_order['payment_reference'] as String).isNotEmpty)
+                                    ? 'GCash ref: ${_order['payment_reference']} — Awaiting seller verification.'
+                                    : (_order['gcash_reference'] != null && (_order['gcash_reference'] as String).isNotEmpty)
+                                        ? 'GCash ref: ${_order['gcash_reference']} — Awaiting seller verification.'
+                                        : 'GCash payment submitted. Awaiting seller verification.'),
                             style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.indigo),
                           ),
                         ),
@@ -850,6 +868,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       'PLACED': 0,
       'ACCEPTED': 1,
       'MEETUP_SCHEDULED': 2,
+      'NEEDS_REVIEW': 2,
       'HANDOFF_PENDING': 3,
       'COMPLETED': 4,
       'CANCELLED': -1,
@@ -860,6 +879,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     final currentStep = statusToStep[_status] ?? 0;
     final isDeclined = _status == 'DECLINED' || _status == 'REJECTED';
     final isCancelled = _status == 'CANCELLED';
+    final isNeedsReview = _status == 'NEEDS_REVIEW';
     final isReturnRequested = _status == 'RETURN_REQUESTED';
     final isReturnApproved = _status == 'RETURN_APPROVED';
     final isReturnDeclined = _status == 'RETURN_DECLINED';
@@ -880,6 +900,16 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 isCancelled ? 'This order was cancelled.' : 'This order was declined by the seller.',
                 style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.red),
               ),
+            ]),
+          )
+        else if (isNeedsReview)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.amber.withOpacity(0.12), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.amber.withOpacity(0.4))),
+            child: const Row(children: [
+              Icon(Icons.schedule_rounded, color: Colors.amber, size: 16),
+              SizedBox(width: 8),
+              Expanded(child: Text('Meetup timed out (>24h without handoff). You can reschedule or cancel this order.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.amber))),
             ]),
           )
         else if (isReturnRequested)
@@ -951,23 +981,60 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     if (widget.isSeller) {
       if (_status == 'PLACED') {
         buttons.add(_actionBtn('Decline Order', Colors.red, Icons.close_rounded, 
-            () => _handleSpringAction('cancel', {'actorId': actorId, 'reason': 'Seller declined'}, 'Order declined.')));
+            () => _handleSpringAction('cancel', {'reason': 'Seller declined'}, 'Order declined.')));
         buttons.add(const SizedBox(height: 10));
         buttons.add(_actionBtn('Accept Order', Colors.green, Icons.check_circle_outline_rounded, 
-            () => _handleSpringAction('accept', {'sellerId': actorId}, 'Order accepted.')));
+            () => _handleSpringAction('accept', {}, 'Order accepted.')));
       }
       
       if (_status == 'ACCEPTED') {
         buttons.add(_actionBtn('Schedule Meetup', Colors.blue, Icons.calendar_month_rounded, 
-            () => _handleSpringAction('schedule', {'actorId': actorId}, 'Meetup scheduled. OTP generated.')));
+            () => _handleSpringAction('schedule', {}, 'Meetup scheduled. OTP generated.')));
+      }
+
+      if (_status == 'NEEDS_REVIEW') {
+        buttons.add(_actionBtn('Reschedule Meetup', Colors.blue, Icons.refresh_rounded, 
+            () => _handleSpringAction('schedule', {}, 'Meetup rescheduled. New OTP generated.')));
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _isActing ? null : _showCancelConfirmationDialog,
+            icon: const Icon(Icons.cancel_outlined, size: 18, color: Colors.red),
+            label: const Text('Cancel Order', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red)),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.red, width: 1.5),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ));
+      }
+
+      if (_isGCash && _status == 'PAYMENT_SUBMITTED') {
+        buttons.add(_actionBtn('Verify GCash Payment', Colors.teal, Icons.verified_rounded, 
+            () => _handleSpringAction('verify-payment', {}, 'GCash payment verified!')));
+        buttons.add(const SizedBox(height: 10));
       }
 
       if (_status == 'MEETUP_SCHEDULED') {
         buttons.add(_actionBtn('Verify Buyer Handoff (OTP)', TeknoyTheme.citMaroon, Icons.verified_user_rounded, _showOTPInputDialog));
       }
     } else {
+      if (_isGCash && (_status == 'PLACED' || _status == 'ACCEPTED' || _status == 'APPROVED')) {
+        buttons.add(_actionBtn('Submit GCash Reference', Colors.indigo, Icons.receipt_long_rounded, _showGCashSubmitDialog));
+        buttons.add(const SizedBox(height: 10));
+      }
+
+      if (_status == 'NEEDS_REVIEW') {
+        buttons.add(_actionBtn('Reschedule Meetup', Colors.blue, Icons.refresh_rounded, 
+            () => _handleSpringAction('schedule', {}, 'Meetup rescheduled. New code generated.')));
+      }
+
       if (_status == 'MEETUP_SCHEDULED') {
-        final otp = _order['handoff_otp'] as String? ?? '------';
+        final otp = (_order['handoff_otp'] != null && _order['handoff_otp'].toString().isNotEmpty)
+            ? _order['handoff_otp'].toString()
+            : '------';
         buttons.add(
           Container(
             padding: const EdgeInsets.all(12),
@@ -976,6 +1043,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               const Text('Show this code to the seller at the meetup:', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.blue)),
               const SizedBox(height: 8),
               Text(otp, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 32, letterSpacing: 8, color: Colors.blue)),
+              if (otp == '------') ...[
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: _isActing ? null : () => _handleSpringAction('schedule', {}, 'Meetup code generated!'),
+                  icon: const Icon(Icons.refresh_rounded, size: 16, color: Colors.blue),
+                  label: const Text('Generate Code Now', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, color: Colors.blue)),
+                ),
+              ],
             ]),
           )
         );
@@ -983,7 +1058,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
 
       if (_status == 'HANDOFF_PENDING') {
         buttons.add(_actionBtn('Confirm I Received This', Colors.green, Icons.check_circle_outline_rounded, 
-            () => _handleSpringAction('confirm-receipt', {'buyerId': actorId}, 'Receipt confirmed!')));
+            () => _handleSpringAction('confirm-receipt', {}, 'Receipt confirmed!')));
       }
 
       if (_status == 'COMPLETED') {
@@ -991,7 +1066,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         buttons.add(_actionBtn('Request Return / Refund', Colors.orange, Icons.assignment_return_rounded, _showReturnRequestDialog));
       }
 
-      if (_status == 'PLACED' || _status == 'ACCEPTED' || _status == 'MEETUP_SCHEDULED') {
+      if (_status == 'PLACED' || _status == 'ACCEPTED' || _status == 'MEETUP_SCHEDULED' || _status == 'NEEDS_REVIEW') {
         buttons.add(const SizedBox(height: 10));
         buttons.add(SizedBox(
           width: double.infinity,
