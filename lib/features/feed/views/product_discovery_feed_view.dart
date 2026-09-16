@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +13,7 @@ import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/navigation_drawer.dart';
 import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
 import 'package:teknoycart/features/feed/models/product.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
@@ -1277,16 +1280,39 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 ElevatedButton(
                   onPressed: () async {
                     try {
-                      await SupabaseConfig.client
-                          .from('users')
-                          .update({'role': 'SELLER', 'is_seller_verified': false})
-                          .eq('user_id', authState.id);
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Seller upgrade request submitted! Admin will review your account.')),
-                      );
-                      _profileFuture = null; // Clear cache to trigger reload
-                      setState(() {}); // Refresh the builder
+                      final token = await SecureTokenService.getBearerToken();
+                      if (token == null) {
+                        throw Exception('Authentication required. Please log in again.');
+                      }
+                      final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/request-seller-upgrade');
+                      final response = await http.post(
+                        url,
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': 'Bearer $token',
+                        },
+                      ).timeout(const Duration(seconds: 25));
+
+                      if (response.statusCode == 200) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Seller upgrade request submitted! Admin will review your account.')),
+                        );
+                        _profileFuture = null; // Clear cache to trigger reload
+                        setState(() {}); // Refresh the builder
+                      } else {
+                        String msg = 'Failed to submit request';
+                        try {
+                          final data = jsonDecode(response.body);
+                          if (data is Map && data['message'] != null) {
+                            msg = data['message'];
+                          }
+                        } catch (_) {}
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(msg)),
+                        );
+                      }
                     } catch (e) {
                       if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(

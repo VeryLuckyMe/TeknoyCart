@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:http/http.dart' as http;
 
@@ -93,7 +94,17 @@ class AuthService {
     if (response.statusCode == 200) {
       // Establish Supabase session using the minted session returned by backend
       final sessionData = body['session'] as Map<String, dynamic>?;
+      final accessToken = sessionData?['access_token'] as String?;
       final refreshToken = sessionData?['refresh_token'] as String?;
+      final backendJwt = body['token'] as String?;
+
+      // Securely store credentials via hardware-backed Keystore/Keychain (HIGH-01)
+      await SecureTokenService.saveTokens(
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        backendToken: backendJwt,
+      );
+
       if (refreshToken != null) {
         await _client.auth.setSession(refreshToken);
       }
@@ -247,6 +258,7 @@ class AuthService {
 
   // ── Sign Out ──
   Future<void> signOut() async {
+    await SecureTokenService.clearTokens();
     await _client.auth.signOut();
   }
 

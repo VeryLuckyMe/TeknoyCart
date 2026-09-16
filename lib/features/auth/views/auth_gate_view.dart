@@ -182,7 +182,11 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
               msg.contains('400')) {
             msg = 'No account found matching these credentials. Please check your email and password, or sign up.';
           } else {
-            msg = msg.replaceAll('AuthException: ', '').replaceAll('Exception: ', '').trim();
+            msg = msg
+                .replaceAll('AuthException: ', '')
+                .replaceAll('FormatException: ', '')
+                .replaceAll('Exception: ', '')
+                .trim();
           }
           _showErrorSnackBar(msg);
         }

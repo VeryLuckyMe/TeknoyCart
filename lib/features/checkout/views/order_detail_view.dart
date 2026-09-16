@@ -6,6 +6,7 @@ import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:teknoycart/core/services/secure_token_service.dart';
 
 // Use localhost for Web/Windows, or 10.0.2.2 if you switch back to Android emulator
 const String backendUrl = 'https://teknoycart-backend.onrender.com/api/orders';
@@ -66,7 +67,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
   }
 
   Future<void> _callSpringApi(String action, Map<String, dynamic> body) async {
-    final token = SupabaseConfig.client.auth.currentSession?.accessToken;
+    final token = await SecureTokenService.getBearerToken();
     final url = Uri.parse('$backendUrl/${_order['order_id']}/$action');
     final response = await http.post(
       url,
