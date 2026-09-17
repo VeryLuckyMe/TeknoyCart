@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:teknoycart/features/reports/views/download_helper.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,7 +17,7 @@ class FinancialReportsView extends ConsumerStatefulWidget {
 
 class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
   String _selectedPeriod = 'Monthly';
-  final List<String> _periods = ['Daily', 'Weekly', 'Monthly'];
+  final List<String> _periods = ['Daily', 'Weekly', 'Monthly', 'All Time'];
 
   Future<Map<String, dynamic>> _getFinancialSummary(String userId) async {
     try {
@@ -24,16 +25,18 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
           .from('orders')
           .select('''
             order_id,
-            negotiated_price,
+            total_amount,
             status,
             created_at,
-            products (
-              name,
-              category_id,
-              seller_id
+            product_variants (
+              products (
+                name,
+                category_id
+              )
             )
           ''')
-          .eq('products.seller_id', userId);
+          .eq('seller_id', userId)
+          .order('created_at', ascending: false);
 
       final List<dynamic> orders = res as List<dynamic>;
 
@@ -46,14 +49,41 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
       double othersRevenue = 0.0;
 
       final List<Map<String, dynamic>> txns = [];
+      final now = DateTime.now();
 
       for (var o in orders) {
-        final double price = double.tryParse(o['negotiated_price'].toString()) ?? 0;
-        final product = o['products'] as Map<String, dynamic>?;
-        if (product == null) continue;
+        final double price = double.tryParse(o['total_amount']?.toString() ?? '0') ?? 0;
+        
+        String productName = 'Merchandise';
+        int catId = 5;
+        final variantRaw = o['product_variants'];
+        if (variantRaw is Map) {
+          final productRaw = variantRaw['products'];
+          if (productRaw is Map) {
+            productName = productRaw['name'] as String? ?? 'Merchandise';
+            catId = productRaw['category_id'] as int? ?? 5;
+          }
+        }
 
         final status = o['status'] as String? ?? '';
-        final catId = product['category_id'] as int? ?? 5;
+        final createdAtRaw = o['created_at']?.toString();
+
+        // Apply period filter
+        if (_selectedPeriod != 'All Time' && createdAtRaw != null) {
+          final dt = DateTime.tryParse(createdAtRaw);
+          if (dt != null) {
+            if (_selectedPeriod == 'Daily') {
+              final startOfDay = DateTime(now.year, now.month, now.day);
+              if (dt.isBefore(startOfDay)) continue;
+            } else if (_selectedPeriod == 'Weekly') {
+              final startOfWeek = now.subtract(const Duration(days: 7));
+              if (dt.isBefore(startOfWeek)) continue;
+            } else if (_selectedPeriod == 'Monthly') {
+              final startOfMonth = now.subtract(const Duration(days: 30));
+              if (dt.isBefore(startOfMonth)) continue;
+            }
+          }
+        }
         
         if (status == 'COMPLETED' || status == 'PAYMENT_VERIFIED' || status == 'READY_FOR_PICKUP') {
           totalRevenue += price;
@@ -72,11 +102,16 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
           }
         }
 
+        final rawId = o['order_id']?.toString() ?? '';
+        final displayId = 'TXN-${rawId.length >= 4 ? rawId.substring(0, 4).toUpperCase() : rawId.toUpperCase()}';
+        final rawDate = createdAtRaw ?? '';
+        final displayDate = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+
         txns.add({
-          'id': 'TXN-${() { final s = o['order_id'].toString(); return s.substring(0, s.length < 4 ? s.length : 4).toUpperCase(); }()}',
-          'item': product['name'] ?? 'Merchandise',
+          'id': displayId,
+          'item': productName,
           'amount': price,
-          'date': () { final s = o['created_at'].toString(); return s.substring(0, s.length < 10 ? s.length : 10); }(),
+          'date': displayDate,
           'status': status,
         });
       }
@@ -92,6 +127,7 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
         'txns': txns,
       };
     } catch (e) {
+      debugPrint('FINANCIAL_REPORTS_QUERY_ERROR: $e');
       return {
         'revenue': 0.0,
         'count': 0,
@@ -115,10 +151,11 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
       }
       
       downloadCsvWeb(csvData.toString(), 'teknoycart_sales_report.csv');
+      Clipboard.setData(ClipboardData(text: csvData.toString()));
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ Sales Report exported as CSV successfully!'),
+          content: Text('✅ Sales Report exported & copied to clipboard!'),
           backgroundColor: TeknoyTheme.success,
         ),
       );
