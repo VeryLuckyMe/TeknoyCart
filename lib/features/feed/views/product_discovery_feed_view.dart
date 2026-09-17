@@ -20,7 +20,6 @@ import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/feed/views/search_results_view.dart';
 import 'package:teknoycart/features/chat/views/inbox_view.dart';
-import 'package:teknoycart/features/auth/views/auth_gate_view.dart';
 import 'package:teknoycart/features/checkout/views/order_history_view.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/views/cart_view.dart';
@@ -46,7 +45,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   final _sellDescController = TextEditingController();
   String _sellCategory = 'Books';
   String _sellCondition = 'New';
-  bool _sellHasUploadedMockImage = false;
   XFile? _selectedImageFile;
   bool _isUploadingProductImage = false;
   final _imagePicker = ImagePicker();
@@ -255,7 +253,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     setState(() {
       _sellCategory = 'Books';
       _sellCondition = 'New';
-      _sellHasUploadedMockImage = false;
       _selectedImageFile = null;
       _activeTab = 0;
     });
@@ -280,7 +277,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       if (picked == null) return;
       setState(() {
         _selectedImageFile = picked;
-        _sellHasUploadedMockImage = true;
       });
     } catch (e) {
       if (mounted) {
@@ -1080,142 +1076,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     );
   }
 
-  // ── Index 1: Negotiations List Body
-  Widget _buildNegotiationsTabBody(BuildContext context) {
-    // We display a beautiful scrollable active channels list pulling from the product list
-    final products = ref.watch(filteredProductsProvider);
-    if (products.isEmpty) {
-      return const Center(
-        child: Text('No active negotiations catalog items found.', style: TextStyle(fontFamily: 'Inter', color: Colors.grey)),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16.0),
-      itemCount: products.length > 3 ? 3 : products.length,
-      itemBuilder: (context, index) {
-        final p = products[index];
-        final buyers = ['Maria Santos (CIT-U CCS)', 'John Doe (CIT-U CEA)', 'Jane Smith (CIT-U CBA)'];
-        final times = ['2 mins ago', '1 hour ago', '3 hours ago'];
-        final prices = ['₱400.00', '₱350.00', '₱850.00'];
-        final statuses = ['P2P Validation', 'Reserved', 'P2P Validation'];
-        
-        return Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: 2,
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(16),
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                p.imageUrl ?? '',
-                width: 50,
-                height: 50,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Icon(Icons.shopping_bag, size: 30),
-              ),
-            ),
-            title: Text(
-              p.title,
-              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                Text('Sender: ${buyers[index]}', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: statuses[index] == 'Reserved'
-                            ? Colors.blue.shade50
-                            : Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        statuses[index],
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: statuses[index] == 'Reserved'
-                              ? Colors.blue.shade700
-                              : Colors.orange.shade800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(times[index], style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey)),
-                  ],
-                ),
-              ],
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  prices[index],
-                  style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16, color: TeknoyTheme.citMaroon),
-                ),
-                const SizedBox(height: 4),
-                const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
-              ],
-            ),
-            onTap: () async {
-              final buyerId = ref.read(authStateProvider).valueOrNull?.id;
-              if (buyerId == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please log in to negotiate.')),
-                );
-                return;
-              }
-
-              // Show micro-loading dialog
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) => const Center(
-                  child: CircularProgressIndicator(color: TeknoyTheme.citMaroon),
-                ),
-              );
-
-              try {
-                final chatService = ref.read(chatServiceProvider);
-                final roomId = await chatService.getOrCreateChatRoom(
-                  buyerId: buyerId,
-                  sellerId: p.sellerId,
-                  productId: p.id,
-                );
-
-                Navigator.pop(context); // close loader
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ChatView(
-                      product: p,
-                      roomId: roomId,
-                    ),
-                  ),
-                );
-              } catch (e) {
-                Navigator.pop(context); // close loader
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to initialize chat: $e')),
-                );
-              }
-            },
-          ),
-        );
-      },
-    );
-  }
-
   Future<Map<String, dynamic>?> _getUserRoleAndStatus(String userId) async {
     try {
       final res = await SupabaseConfig.client
@@ -1520,7 +1380,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                           child: GestureDetector(
                             onTap: () => setState(() {
                               _selectedImageFile = null;
-                              _sellHasUploadedMockImage = false;
                             }),
                             child: Container(
                               padding: const EdgeInsets.all(6),
@@ -1676,79 +1535,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     } catch (e) {
       return {'buy': [], 'sell': []};
     }
-  }
-
-  // ── Index 3: Orders Tracker Body (Meetups Timeline)
-  Widget _buildOrdersTabBody(BuildContext context) {
-    final authState = ref.watch(authStateProvider).valueOrNull;
-
-    if (authState == null) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24.0),
-          child: Text(
-            'Please sign in to track orders.',
-            style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-        ),
-      );
-    }
-
-    return FutureBuilder<Map<String, List<Map<String, dynamic>>>>(
-      future: _getUserOrdersAndSales(authState.id),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon));
-        }
-
-        final data = snapshot.data ?? {'buy': [], 'sell': []};
-        final buyOrders = data['buy'] ?? [];
-        final sellOrders = data['sell'] ?? [];
-
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-
-        return DefaultTabController(
-          length: 2,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Tab Bar — theme-aware
-              Container(
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF141418) : Colors.white,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: isDark ? const Color(0xFF22222A) : const Color(0xFFE8E8EC),
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: TabBar(
-                  labelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
-                  unselectedLabelStyle: const TextStyle(fontFamily: 'Outfit', fontSize: 13),
-                  labelColor: TeknoyTheme.citMaroon,
-                  unselectedLabelColor: isDark ? Colors.white54 : Colors.grey,
-                  indicatorColor: TeknoyTheme.citMaroon,
-                  indicatorWeight: 2.5,
-                  tabs: [
-                    Tab(text: 'My Purchases (${buyOrders.length})'),
-                    Tab(text: 'Incoming Orders (${sellOrders.length})'),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _buildOrdersList(context, buyOrders, isBuyer: true),
-                    _buildOrdersList(context, sellOrders, isBuyer: false),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   Widget _buildOrdersList(BuildContext context, List<Map<String, dynamic>> orders, {required bool isBuyer}) {
@@ -2451,38 +2237,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       ),
     );
   }
-  // ── Index 4: Profile Page Body Helpers ──
-  Future<Map<String, dynamic>> _getUserRoleAndVerification(String userId) async {
-    try {
-      final res = await SupabaseConfig.client
-          .from('users')
-          .select('role, is_verified, student_id')
-          .eq('user_id', userId)
-          .single();
-
-      String storeName = '';
-      try {
-        final storeRes = await SupabaseConfig.client
-            .from('store_profiles')
-            .select('store_name')
-            .eq('seller_id', userId)
-            .maybeSingle();
-        if (storeRes != null) {
-          storeName = storeRes['store_name'] as String? ?? '';
-        }
-      } catch (_) {}
-
-      return {
-        'role': res['role'] as String? ?? 'BUYER',
-        'is_verified': res['is_verified'] as bool? ?? false,
-        'student_id': res['student_id'] as String?,
-        'store_name': storeName,
-      };
-    } catch (e) {
-      return {'role': 'BUYER', 'is_verified': false, 'store_name': ''};
-    }
-  }
-
   Future<void> _updateProfileMetadata(String dept, String contact, String gcashNumber, {String? storeName}) async {
     try {
       final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
@@ -2690,7 +2444,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     const cardBgDark = Color(0xFF1A1A1E);
     const cardBorderDark = Color(0xFF2A2A30);
     const accentRed = Color(0xFFB22222);
-    const adminGold = Color(0xFFFFC107);
     const labelColorDark = Color(0xFF8A8A94);
     const valueColorDark = Color(0xFFE8E8EC);
 

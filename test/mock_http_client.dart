@@ -68,7 +68,6 @@ class _MockHttpHeaders implements HttpHeaders {
 
   bool get _isSupabase => url.host.contains('supabase.co') || url.path.contains('api/');
 
-  @override
   Iterable<String> get keys => _isSupabase ? const ['content-type'] : const [];
 
   @override

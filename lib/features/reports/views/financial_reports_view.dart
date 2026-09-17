@@ -59,11 +59,17 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
           totalRevenue += price;
           completedTransactions++;
 
-          if (catId == 1) booksRevenue += price;
-          else if (catId == 2) drawingRevenue += price;
-          else if (catId == 3) uniformsRevenue += price;
-          else if (catId == 4) electronicsRevenue += price;
-          else othersRevenue += price;
+          if (catId == 1) {
+            booksRevenue += price;
+          } else if (catId == 2) {
+            drawingRevenue += price;
+          } else if (catId == 3) {
+            uniformsRevenue += price;
+          } else if (catId == 4) {
+            electronicsRevenue += price;
+          } else {
+            othersRevenue += price;
+          }
         }
 
         txns.add({

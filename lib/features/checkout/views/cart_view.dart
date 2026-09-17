@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/theme.dart';
-import 'package:teknoycart/features/checkout/models/cart_item.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 
