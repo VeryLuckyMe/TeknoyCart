@@ -57,9 +57,18 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
   }
 
   /// Helper to fetch available stock info
-  Future<Map<String, int>> _getInventoryStatus(String productId) async {
+  Future<Map<String, dynamic>> _getInventoryStatus(String productId) async {
     try {
       final client = SupabaseConfig.client;
+
+      // 1. Fetch preorder status from products
+      final prodRecord = await client
+          .from('products')
+          .select('is_preorder_enabled')
+          .eq('product_id', productId)
+          .maybeSingle();
+      final bool isPreorder = prodRecord?['is_preorder_enabled'] as bool? ?? widget.product.isPreorderEnabled;
+
       final variants = await client
           .from('product_variants')
           .select('variant_id')
@@ -69,7 +78,7 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
       if ((variants as List).isEmpty) {
         // No variant rows means this is a single‑item listing.
         // Treat it as in‑stock so the UI shows a "Buy Now" button.
-        return {'stock': 1, 'reserved': 0, 'available': 1};
+        return {'stock': 1, 'reserved': 0, 'available': 1, 'is_preorder_enabled': isPreorder};
       }
 
       final String variantId = variants[0]['variant_id'] as String;
@@ -87,13 +96,14 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
           'stock': stock,
           'reserved': reserved,
           'available': stock - reserved,
+          'is_preorder_enabled': isPreorder,
         };
       }
     } catch (e) {
       // ignore
     }
     // Fallback: treat active products as in-stock when inventory lookup fails
-    return {'stock': 1, 'reserved': 0, 'available': 1};
+    return {'stock': 1, 'reserved': 0, 'available': 1, 'is_preorder_enabled': widget.product.isPreorderEnabled};
   }
 
   @override
@@ -230,7 +240,7 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                   ),
                                 ),
                               ),
-                              FutureBuilder<Map<String, int>>(
+                              FutureBuilder<Map<String, dynamic>>(
                                 future: _getInventoryStatus(product.id),
                                 builder: (context, snapshot) {
                                   if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
@@ -253,39 +263,50 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                     );
                                   }
 
-                                  final inv = snapshot.data ?? {'stock': 0, 'reserved': 0, 'available': 0};
-                                  final available = inv['available'] ?? 0;
+                                  final inv = snapshot.data ?? {'stock': 0, 'reserved': 0, 'available': 0, 'is_preorder_enabled': false};
+                                  final available = inv['available'] as int? ?? 0;
                                   final isOutOfStock = available <= 0;
+                                  final bool isPreorder = (inv['is_preorder_enabled'] == true) || (inv['is_preorder_enabled'] == 1);
+
+                                  String badgeText;
+                                  Color badgeColor;
+                                  IconData badgeIcon;
+
+                                  if (!isOutOfStock) {
+                                    badgeText = '$available IN STOCK';
+                                    badgeColor = Colors.green;
+                                    badgeIcon = Icons.check_circle_outline_rounded;
+                                  } else if (isPreorder) {
+                                    badgeText = 'PRE-ORDER OPEN';
+                                    badgeColor = const Color(0xFFD97706);
+                                    badgeIcon = Icons.auto_mode_rounded;
+                                  } else {
+                                    badgeText = 'SOLD OUT';
+                                    badgeColor = Colors.red;
+                                    badgeIcon = Icons.cancel_outlined;
+                                  }
                                   
                                   return Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                                     decoration: BoxDecoration(
-                                      color: isOutOfStock 
-                                          ? Colors.amber.withOpacity(isDark ? 0.2 : 0.12)
-                                          : Colors.green.withOpacity(isDark ? 0.15 : 0.08),
+                                      color: badgeColor.withOpacity(isDark ? 0.2 : 0.12),
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
-                                        color: isOutOfStock
-                                            ? Colors.amber.withOpacity(0.5)
-                                            : Colors.green.withOpacity(0.3),
+                                        color: badgeColor.withOpacity(0.4),
                                       ),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        if (isOutOfStock) ...[
-                                          const Icon(Icons.bookmark_add_rounded, size: 12, color: Color(0xFFD97706)),
-                                          const SizedBox(width: 4),
-                                        ],
+                                        Icon(badgeIcon, size: 12, color: badgeColor),
+                                        const SizedBox(width: 4),
                                         Text(
-                                          isOutOfStock 
-                                              ? 'OUT OF STOCK (RESERVABLE)' 
-                                              : '$available IN STOCK',
+                                          badgeText,
                                           style: TextStyle(
                                             fontFamily: 'Outfit',
                                             fontSize: 10,
                                             fontWeight: FontWeight.w800,
-                                            color: isOutOfStock ? const Color(0xFFD97706) : Colors.green,
+                                            color: badgeColor,
                                             letterSpacing: 0.8,
                                           ),
                                         ),
@@ -363,11 +384,12 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                           const SizedBox(height: 16),
 
                           // Quantity Selector Counter Deck
-                          FutureBuilder<Map<String, int>>(
+                          FutureBuilder<Map<String, dynamic>>(
                             future: _getInventoryStatus(widget.product.id),
                             builder: (context, snapshot) {
-                              final inv = snapshot.data ?? {'stock': 0, 'reserved': 0, 'available': 0};
-                              final available = inv['available'] ?? 0;
+                              final inv = snapshot.data ?? {'stock': 0, 'reserved': 0, 'available': 0, 'is_preorder_enabled': false};
+                              final available = inv['available'] as int? ?? 0;
+                              final bool isPreorder = (inv['is_preorder_enabled'] == true) || (inv['is_preorder_enabled'] == 1);
                               final int maxAllowed = available > 0 ? available : 99;
 
                               return Container(
@@ -395,7 +417,9 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                           ),
                                         ),
                                         Text(
-                                          available > 0 ? 'Max $available units' : 'Pre-order / Reservation',
+                                          available > 0 
+                                              ? 'Max $available units' 
+                                              : (isPreorder ? 'Pre-order batch quantity' : 'Out of stock'),
                                           style: TextStyle(
                                             fontFamily: 'Inter',
                                             fontSize: 11,
@@ -578,13 +602,14 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                       ),
                       const SizedBox(height: 18),
                       // Action Button Deck wrapped in FutureBuilder to dynamically switch between Buy Now and Reserve Item when out of stock
-                      FutureBuilder<Map<String, int>>(
+                      FutureBuilder<Map<String, dynamic>>(
                         future: _getInventoryStatus(widget.product.id),
                         builder: (context, snapshot) {
                           final isLoading = snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData;
-                          final inv = snapshot.data ?? {'stock': 1, 'reserved': 0, 'available': 1};
-                          final available = inv['available'] ?? 0;
+                          final inv = snapshot.data ?? {'stock': 1, 'reserved': 0, 'available': 1, 'is_preorder_enabled': false};
+                          final available = inv['available'] as int? ?? 0;
                           final isOutOfStock = available <= 0;
+                          final bool isPreorder = (inv['is_preorder_enabled'] == true) || (inv['is_preorder_enabled'] == 1);
 
                           return Row(
                             children: [
@@ -735,20 +760,92 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                     ),
                                     const SizedBox(width: 8),
                                   ],
-                                  Expanded(
-                                    child: Container(
-                                      decoration: isOutOfStock
-                                          ? BoxDecoration(
-                                              borderRadius: BorderRadius.circular(16),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.amber.withOpacity(0.3),
-                                                  blurRadius: 12,
-                                                  offset: const Offset(0, 4),
-                                                )
-                                              ],
+                                  if (isOutOfStock && !isPreorder)
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: null,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: isDark ? Colors.white10 : Colors.grey.shade300,
+                                          disabledBackgroundColor: isDark ? Colors.white10 : Colors.grey.shade300,
+                                          disabledForegroundColor: isDark ? Colors.white38 : Colors.grey.shade600,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                          padding: const EdgeInsets.symmetric(vertical: 18),
+                                          elevation: 0,
+                                        ),
+                                        child: const Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.remove_shopping_cart_outlined, size: 18),
+                                            SizedBox(width: 6),
+                                            Text(
+                                              'Out of Stock',
+                                              style: TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  else if (isOutOfStock && isPreorder)
+                                    Expanded(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(16),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: const Color(0xFFD97706).withOpacity(0.35),
+                                              blurRadius: 12,
+                                              offset: const Offset(0, 4),
                                             )
-                                          : null,
+                                          ],
+                                        ),
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            Navigator.pop(context);
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => CheckoutView(
+                                                  product: widget.product,
+                                                  agreedPrice: widget.product.price,
+                                                  isDirectBuy: true,
+                                                  quantity: _quantity,
+                                                  isReservation: false,
+                                                  isPreorder: true,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(0xFFD97706),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                            padding: const EdgeInsets.symmetric(vertical: 18),
+                                            elevation: 0,
+                                          ),
+                                          child: const Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.auto_mode_rounded, size: 18, color: Colors.white),
+                                              SizedBox(width: 6),
+                                              Text(
+                                                'Pre-Order Now',
+                                                style: TextStyle(
+                                                  fontFamily: 'Outfit',
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Expanded(
                                       child: ElevatedButton(
                                         onPressed: () {
                                           Navigator.pop(context);
@@ -760,29 +857,26 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                                 agreedPrice: widget.product.price,
                                                 isDirectBuy: true,
                                                 quantity: _quantity,
-                                                isReservation: isOutOfStock,
+                                                isReservation: false,
+                                                isPreorder: false,
                                               ),
                                             ),
                                           );
                                         },
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: isOutOfStock ? const Color(0xFFD97706) : TeknoyTheme.citMaroon,
+                                          backgroundColor: TeknoyTheme.citMaroon,
                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                           padding: const EdgeInsets.symmetric(vertical: 18),
                                           elevation: 0,
                                         ),
-                                        child: Row(
+                                        child: const Row(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            Icon(
-                                              isOutOfStock ? Icons.bookmark_add_rounded : Icons.shopping_cart_checkout_rounded,
-                                              size: 18,
-                                              color: Colors.white,
-                                            ),
-                                            const SizedBox(width: 6),
+                                            Icon(Icons.shopping_cart_checkout_rounded, size: 18, color: Colors.white),
+                                            SizedBox(width: 6),
                                             Text(
-                                              isOutOfStock ? 'Reserve Item' : 'Buy Now',
-                                              style: const TextStyle(
+                                              'Buy Now',
+                                              style: TextStyle(
                                                 fontFamily: 'Outfit',
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 13,
@@ -793,7 +887,6 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                         ),
                                       ),
                                     ),
-                                  ),
                                 ],
                               ],
                             ],

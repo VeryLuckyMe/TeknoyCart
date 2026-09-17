@@ -131,6 +131,7 @@ class ProductListNotifier
             description,
             base_price,
             status,
+            is_preorder_enabled,
             category_id,
             seller_id,
             created_at,
@@ -214,6 +215,7 @@ class ProductListNotifier
               : 'Standard',
           sellerId: row['seller_id'] as String? ?? '',
           sellerStoreName: storeName,
+          isPreorderEnabled: row['is_preorder_enabled'] as bool? ?? false,
           createdAt: DateTime.tryParse(row['created_at'] as String? ?? '') ??
               DateTime.now(),
         );

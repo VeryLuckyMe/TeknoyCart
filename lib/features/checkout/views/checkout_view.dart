@@ -45,6 +45,7 @@ class CheckoutView extends ConsumerStatefulWidget {
   final int quantity;
   final List<CheckoutItem>? items;
   final bool isReservation;
+  final bool isPreorder;
 
   const CheckoutView({
     super.key,
@@ -55,6 +56,7 @@ class CheckoutView extends ConsumerStatefulWidget {
     this.quantity = 1,
     this.items,
     this.isReservation = false,
+    this.isPreorder = false,
   });
 
   @override
@@ -296,9 +298,36 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           final String dbPaymentMethod =
               _selectedPaymentMethod == 'GCash' ? 'GCASH' : 'CASH_ON_PICKUP';
 
-          // FIX #1: Use per-item reservation status from the map.
-          final bool thisItemIsReservation =
-              _itemReservationMap[item.product.id] ?? false;
+          // ATOMIC DB-LEVEL INVENTORY LOCK (Prevents race conditions / double-booking)
+          if (itemVariantId != null) {
+            try {
+              final rpcRes = await client.rpc('reserve_inventory_atomic', params: {
+                'p_variant_id': itemVariantId,
+                'p_quantity': item.quantity,
+                'p_allow_preorder': widget.isPreorder || item.product.isPreorderEnabled,
+              });
+              if (rpcRes is Map && rpcRes['success'] == false) {
+                final err = rpcRes['error']?.toString();
+                String errorMsg = 'Failed to reserve stock.';
+                if (err == 'INSUFFICIENT_STOCK') {
+                  errorMsg = 'Sorry, "${item.product.title}" was just claimed by another student!';
+                } else if (err == 'PRODUCT_NOT_ACTIVE') {
+                  errorMsg = 'This listing is no longer active.';
+                } else if (err == 'CANNOT_RESERVE_OWN_PRODUCT') {
+                  errorMsg = 'You cannot purchase your own product listing.';
+                }
+                if (mounted) {
+                  setState(() => _isSubmitting = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(errorMsg), backgroundColor: TeknoyTheme.error),
+                  );
+                }
+                return;
+              }
+            } catch (rpcErr) {
+              debugPrint("RPC reserve_inventory_atomic fallback: $rpcErr");
+            }
+          }
 
           // Insert into orders.
           await client.from('orders').insert({
@@ -309,14 +338,12 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             'quantity': item.quantity,
             'unit_price': item.price,
             'total_amount': item.price * item.quantity,
-            'status': thisItemIsReservation ? 'APPROVED' : 'INQUIRY_SENT',
-            'pickup_location': _selectedLocation,
+            'status': 'APPROVED',
+            'pickup_location': widget.isPreorder ? '[PRE-ORDER] $_selectedLocation' : _selectedLocation,
             'pickup_day': _selectedDay,
             'pickup_time': _selectedTimeSlot,
             'payment_method': dbPaymentMethod,
-            'reservation_expires_at': thisItemIsReservation
-                ? DateTime.now().add(const Duration(hours: 24)).toIso8601String()
-                : null,
+            'reservation_expires_at': DateTime.now().add(const Duration(hours: 24)).toIso8601String(),
           });
 
           // Send handshake message to chat room if available.
@@ -372,7 +399,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             const Icon(Icons.check_circle_rounded, color: TeknoyTheme.success, size: 28),
             const SizedBox(width: 10),
             Text(
-              _isAnyItemReservation ? 'Item Reserved!' : 'Deal Logged!',
+              widget.isPreorder ? 'Pre-Order Secured!' : 'Deal Logged!',
               style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
             ),
           ],
@@ -382,7 +409,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Your order for ₱${_totalPrice.toStringAsFixed(2)} has been successfully logged! Awaiting seller acceptance. You can track this in the Orders Hub.',
+              widget.isPreorder
+                  ? 'Your pre-order for ₱${_totalPrice.toStringAsFixed(2)} has been secured! The seller will prepare your item and notify you via chat once the batch is ready.'
+                  : 'Your order for ₱${_totalPrice.toStringAsFixed(2)} has been successfully logged! 1 unit is held for your campus meetup within 24 hours.',
               style: const TextStyle(fontFamily: 'Inter', height: 1.5),
             ),
             const SizedBox(height: 12),
@@ -1103,7 +1132,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
                     : Text(
-                        _isAnyItemReservation ? 'Reserve & Confirm Meetup Deal' : 'Confirm Meetup Deal',
+                        widget.isPreorder ? 'Confirm Pre-Order' : 'Confirm Meetup Deal',
                         style: const TextStyle(
                           fontFamily: 'Outfit',
                           fontSize: 16,

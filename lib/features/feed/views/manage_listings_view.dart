@@ -38,12 +38,14 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
             name,
             base_price,
             status,
+            is_preorder_enabled,
             category_id,
             product_images (image_url, is_primary),
             product_variants (
               variant_id,
               inventory (
-                stock_qty
+                stock_qty,
+                reserved_qty
               )
             )
           ''')
@@ -76,6 +78,30 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to update status: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _togglePreorder(String productId, bool currentPreorder) async {
+    try {
+      await SupabaseConfig.client
+          .from('products')
+          .update({'is_preorder_enabled': !currentPreorder})
+          .eq('product_id', productId);
+      _fetchListings();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(!currentPreorder ? 'Pre-orders enabled for this listing' : 'Pre-orders disabled'),
+            backgroundColor: TeknoyTheme.citMaroon,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update pre-order settings: $e')),
         );
       }
     }
@@ -248,53 +274,151 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                               const SizedBox(height: 6),
                               Text('₱ ${item['base_price']}', style: const TextStyle(color: TeknoyTheme.citMaroon, fontWeight: FontWeight.bold, fontSize: 14)),
                               const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: item['status'] == 'ACTIVE' 
-                                          ? (isDark ? Colors.green.withOpacity(0.15) : Colors.green.withOpacity(0.1)) 
-                                          : (isDark ? Colors.orange.withOpacity(0.15) : Colors.orange.withOpacity(0.1)),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: item['status'] == 'ACTIVE' 
-                                            ? Colors.green.withOpacity(0.3) 
-                                            : Colors.orange.withOpacity(0.3),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      item['status'] ?? 'PENDING',
-                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: item['status'] == 'ACTIVE' ? Colors.green : Colors.orange),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Builder(
-                                    builder: (context) {
-                                      final variants = item['product_variants'] as List<dynamic>? ?? [];
-                                      int stock = 0;
-                                      if (variants.isNotEmpty) {
-                                        final inv = variants[0]['inventory'];
-                                        if (inv is List && inv.isNotEmpty) {
-                                          stock = inv[0]['stock_qty'] ?? 0;
-                                        } else if (inv is Map) {
-                                          stock = inv['stock_qty'] ?? 0;
-                                        }
-                                      }
-                                      return Row(
-                                        children: [
-                                          Icon(Icons.inventory_2_outlined, size: 14, color: isDark ? Colors.white54 : Colors.black54),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            '$stock in stock', 
-                                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: isDark ? Colors.white70 : Colors.black87)
-                                          ),
-                                        ],
-                                      );
+                              Builder(
+                                builder: (context) {
+                                  final variants = item['product_variants'] as List<dynamic>? ?? [];
+                                  int stockQty = 0;
+                                  int reservedQty = 0;
+                                  if (variants.isNotEmpty) {
+                                    final inv = variants[0]['inventory'];
+                                    if (inv is List && inv.isNotEmpty) {
+                                      stockQty = inv[0]['stock_qty'] ?? 0;
+                                      reservedQty = inv[0]['reserved_qty'] ?? 0;
+                                    } else if (inv is Map) {
+                                      stockQty = inv['stock_qty'] ?? 0;
+                                      reservedQty = inv['reserved_qty'] ?? 0;
                                     }
-                                  ),
-                                ],
+                                  }
+                                  final int available = (stockQty - reservedQty).clamp(0, 999999);
+                                  final bool isPreorder = item['is_preorder_enabled'] == true;
+
+                                  return Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    children: [
+                                      // 1. Status Pill (ACTIVE / INACTIVE)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: item['status'] == 'ACTIVE' 
+                                              ? (isDark ? Colors.green.withOpacity(0.15) : Colors.green.withOpacity(0.1)) 
+                                              : (isDark ? Colors.orange.withOpacity(0.15) : Colors.orange.withOpacity(0.1)),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: item['status'] == 'ACTIVE' 
+                                                ? Colors.green.withOpacity(0.3) 
+                                                : Colors.orange.withOpacity(0.3),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          item['status'] ?? 'PENDING',
+                                          style: TextStyle(
+                                            fontSize: 9, 
+                                            fontWeight: FontWeight.w800, 
+                                            letterSpacing: 0.5, 
+                                            color: item['status'] == 'ACTIVE' ? Colors.green : Colors.orange
+                                          ),
+                                        ),
+                                      ),
+
+                                      // 2. Available Stock Split Pill
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: available > 0 
+                                              ? (isDark ? const Color(0xFF1B382B) : const Color(0xFFE8F5E9))
+                                              : (isDark ? const Color(0xFF38231B) : const Color(0xFFFFEBEE)),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: available > 0 ? const Color(0xFF2E7D32).withOpacity(0.4) : Colors.red.withOpacity(0.3),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              available > 0 ? Icons.check_circle_outline_rounded : Icons.cancel_outlined, 
+                                              size: 11, 
+                                              color: available > 0 ? const Color(0xFF2E7D32) : Colors.red
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '$available Available',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                fontFamily: 'Inter',
+                                                color: available > 0 ? const Color(0xFF2E7D32) : Colors.red,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+
+                                      // 3. Reserved / In Meetup Pill (Only if reserved > 0)
+                                      if (reservedQty > 0)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: isDark ? const Color(0xFF362810) : const Color(0xFFFFF8E1),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: Colors.amber.shade700.withOpacity(0.4)),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.handshake_outlined, size: 11, color: Colors.amber.shade900),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '$reservedQty in Meetup',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontFamily: 'Inter',
+                                                  color: Colors.amber.shade900,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+
+                                      // 4. Pre-Order Tag
+                                      if (isPreorder)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: isDark ? const Color(0xFF231B38) : const Color(0xFFEDE7F6),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: Colors.deepPurple.shade300),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.auto_mode_rounded, size: 11, color: Colors.deepPurple.shade700),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Pre-Order',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontFamily: 'Inter',
+                                                  color: Colors.deepPurple.shade700,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+
+                                      // Total physical inventory
+                                      Text(
+                                        '($stockQty total)',
+                                        style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black45),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                             ],
                           ),
@@ -303,6 +427,8 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                           onSelected: (value) {
                             if (value == 'toggle') {
                               _toggleStatus(item['product_id'], item['status']);
+                            } else if (value == 'preorder') {
+                              _togglePreorder(item['product_id'], item['is_preorder_enabled'] == true);
                             } else if (value == 'stock') {
                               final variants = item['product_variants'] as List<dynamic>? ?? [];
                               int stock = 0;
@@ -329,6 +455,20 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                   Icon(item['status'] == 'ACTIVE' ? Icons.visibility_off : Icons.visibility, size: 20),
                                   const SizedBox(width: 8),
                                   Text(item['status'] == 'ACTIVE' ? 'Hide Listing' : 'Make Active'),
+                                ],
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'preorder',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    item['is_preorder_enabled'] == true ? Icons.layers_clear_outlined : Icons.layers_outlined, 
+                                    size: 20, 
+                                    color: Colors.deepPurple
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(item['is_preorder_enabled'] == true ? 'Disable Pre-Orders' : 'Enable Pre-Orders'),
                                 ],
                               ),
                             ),

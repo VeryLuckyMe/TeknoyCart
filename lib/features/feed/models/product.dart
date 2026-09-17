@@ -11,6 +11,7 @@ class Product {
   final String condition; // e.g., 'New', 'Like New', 'Gently Used', 'Fair'
   final String sellerId;
   final String? sellerStoreName;
+  final bool isPreorderEnabled;
   final DateTime createdAt;
 
   const Product({
@@ -23,6 +24,7 @@ class Product {
     required this.condition,
     required this.sellerId,
     this.sellerStoreName,
+    this.isPreorderEnabled = false,
     required this.createdAt,
   });
 
@@ -38,6 +40,7 @@ class Product {
       condition: json['condition'] as String,
       sellerId: json['seller_id'] as String,
       sellerStoreName: json['seller_store_name'] as String?,
+      isPreorderEnabled: json['is_preorder_enabled'] as bool? ?? false,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
@@ -54,6 +57,7 @@ class Product {
       'condition': condition,
       'seller_id': sellerId,
       'seller_store_name': sellerStoreName,
+      'is_preorder_enabled': isPreorderEnabled,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -69,6 +73,7 @@ class Product {
     String? condition,
     String? sellerId,
     String? sellerStoreName,
+    bool? isPreorderEnabled,
     DateTime? createdAt,
   }) {
     return Product(
@@ -81,6 +86,7 @@ class Product {
       condition: condition ?? this.condition,
       sellerId: sellerId ?? this.sellerId,
       sellerStoreName: sellerStoreName ?? this.sellerStoreName,
+      isPreorderEnabled: isPreorderEnabled ?? this.isPreorderEnabled,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -99,6 +105,7 @@ class Product {
           condition == other.condition &&
           sellerId == other.sellerId &&
           sellerStoreName == other.sellerStoreName &&
+          isPreorderEnabled == other.isPreorderEnabled &&
           createdAt == other.createdAt;
 
   @override
@@ -112,5 +119,6 @@ class Product {
       condition.hashCode ^
       sellerId.hashCode ^
       sellerStoreName.hashCode ^
+      isPreorderEnabled.hashCode ^
       createdAt.hashCode;
 }
