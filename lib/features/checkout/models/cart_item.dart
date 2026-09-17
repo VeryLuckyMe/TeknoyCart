@@ -5,11 +5,13 @@ class CartItem {
   final int quantity;
   final String? variantId;
   final String? variantName;
+  final int? maxStock;
 
   CartItem({
     required this.product,
     required this.quantity,
     this.variantId,
     this.variantName,
+    this.maxStock,
   });
 }

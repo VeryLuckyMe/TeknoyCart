@@ -203,6 +203,22 @@ class _CartViewState extends ConsumerState<CartView> {
                                       ),
                                     ),
                                   ],
+                                  if (item.maxStock != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      item.quantity >= item.maxStock!
+                                          ? 'Max stock reached (${item.maxStock})'
+                                          : '${item.maxStock} in stock',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: item.quantity >= item.maxStock!
+                                            ? Colors.orange.shade700
+                                            : (isDark ? Colors.white54 : Colors.black45),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -247,6 +263,17 @@ class _CartViewState extends ConsumerState<CartView> {
                                     ),
                                     GestureDetector(
                                       onTap: () {
+                                        if (item.maxStock != null && item.quantity >= item.maxStock!) {
+                                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Cannot add more. Only ${item.maxStock} available in stock.'),
+                                              backgroundColor: TeknoyTheme.citMaroon,
+                                              duration: const Duration(seconds: 2),
+                                            ),
+                                          );
+                                          return;
+                                        }
                                         ref.read(cartProvider.notifier).updateQuantity(
                                               item.product.id,
                                               item.variantId,
@@ -256,10 +283,20 @@ class _CartViewState extends ConsumerState<CartView> {
                                       child: Container(
                                         padding: const EdgeInsets.all(4),
                                         decoration: BoxDecoration(
-                                          border: Border.all(color: cardBorder),
+                                          border: Border.all(
+                                            color: (item.maxStock != null && item.quantity >= item.maxStock!)
+                                                ? (isDark ? Colors.white24 : Colors.grey.shade300)
+                                                : cardBorder,
+                                          ),
                                           borderRadius: BorderRadius.circular(6),
                                         ),
-                                        child: const Icon(Icons.add, size: 14),
+                                        child: Icon(
+                                          Icons.add,
+                                          size: 14,
+                                          color: (item.maxStock != null && item.quantity >= item.maxStock!)
+                                              ? (isDark ? Colors.white38 : Colors.grey)
+                                              : null,
+                                        ),
                                       ),
                                     ),
                                   ],

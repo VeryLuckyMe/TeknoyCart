@@ -704,14 +704,15 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                     Expanded(
                                       child: OutlinedButton(
                                         onPressed: () {
-                                          ref.read(cartProvider.notifier).addToCart(
+                                          final result = ref.read(cartProvider.notifier).addToCart(
                                                 widget.product,
                                                 quantity: _quantity,
+                                                maxStock: available > 0 ? available : 1,
                                               );
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             SnackBar(
-                                              content: Text('Added ${widget.product.title} to your cart!'),
-                                              backgroundColor: TeknoyTheme.success,
+                                              content: Text(result.message),
+                                              backgroundColor: result.success ? TeknoyTheme.success : TeknoyTheme.citMaroon,
                                               duration: const Duration(seconds: 2),
                                             ),
                                           );
