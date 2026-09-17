@@ -67,10 +67,10 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
         }
 
         txns.add({
-          'id': 'TXN-${o['order_id'].toString().substring(0, 4).toUpperCase()}',
+          'id': 'TXN-${() { final s = o['order_id'].toString(); return s.substring(0, s.length < 4 ? s.length : 4).toUpperCase(); }()}',
           'item': product['name'] ?? 'Merchandise',
           'amount': price,
-          'date': o['created_at'].toString().substring(0, 10),
+          'date': () { final s = o['created_at'].toString(); return s.substring(0, s.length < 10 ? s.length : 10); }(),
           'status': status,
         });
       }

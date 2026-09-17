@@ -95,7 +95,7 @@ class ChatService {
           'product_id': productId,
           'variant_name': 'Standard',
           'variant_value': 'Default',
-          'sku': 'SKU-${productId.substring(0, 8).toUpperCase()}-DEFAULT',
+          'sku': 'SKU-${productId.substring(0, productId.length < 8 ? productId.length : 8).toUpperCase()}-DEFAULT',
         }).select().single();
         variantId = newVariant['variant_id'] as String;
         
