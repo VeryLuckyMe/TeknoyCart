@@ -67,7 +67,9 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
           .limit(1);
 
       if ((variants as List).isEmpty) {
-        return {'stock': 0, 'reserved': 0, 'available': 0};
+        // No variant rows means this is a single‑item listing.
+        // Treat it as in‑stock so the UI shows a "Buy Now" button.
+        return {'stock': 1, 'reserved': 0, 'available': 1};
       }
 
       final String variantId = variants[0]['variant_id'] as String;
@@ -90,7 +92,8 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
     } catch (e) {
       // ignore
     }
-    return {'stock': 0, 'reserved': 0, 'available': 0};
+    // Fallback: treat active products as in-stock when inventory lookup fails
+    return {'stock': 1, 'reserved': 0, 'available': 1};
   }
 
   @override
@@ -579,7 +582,7 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                         future: _getInventoryStatus(widget.product.id),
                         builder: (context, snapshot) {
                           final isLoading = snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData;
-                          final inv = snapshot.data ?? {'stock': 0, 'reserved': 0, 'available': 0};
+                          final inv = snapshot.data ?? {'stock': 1, 'reserved': 0, 'available': 1};
                           final available = inv['available'] ?? 0;
                           final isOutOfStock = available <= 0;
 
