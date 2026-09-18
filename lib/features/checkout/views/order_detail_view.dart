@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:teknoycart/core/services/secure_token_service.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 const String backendUrl = 'https://teknoycart-backend.onrender.com/api/orders';
 
@@ -437,16 +439,54 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _openQrScanner(
+                    title: 'Scan Return Meetup QR',
+                    onScanned: (scannedCode) async {
+                      final body = <String, dynamic>{'otp': scannedCode};
+                      if (refundRefController.text.trim().isNotEmpty) {
+                        body['refund_reference'] = refundRefController.text.trim();
+                      }
+                      await _handleSpringAction('verify-return-handoff', body, 'Return handoff verified successfully!');
+                    },
+                    onManualRequested: _showReturnOTPInputDialog,
+                  );
+                },
+                icon: const Icon(Icons.qr_code_scanner_rounded, size: 20, color: Colors.white),
+                label: const Text('Scan Return QR Code', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: Divider(color: Colors.grey.shade300)),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    child: Text('OR ENTER CODE', style: TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  ),
+                  Expanded(child: Divider(color: Colors.grey.shade300)),
+                ],
+              ),
+              const SizedBox(height: 14),
               const Text('Inspect the returned physical item. Enter the 6-digit code shown on buyer\'s phone:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
               const SizedBox(height: 12),
               TextField(
                 controller: otpController,
                 keyboardType: TextInputType.number,
                 maxLength: 6,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 22, letterSpacing: 6),
                 decoration: InputDecoration(
-                  hintText: 'e.g. 123456',
+                  hintText: '123456',
+                  counterText: '',
                   prefixIcon: const Icon(Icons.pin_rounded, color: Colors.teal),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
@@ -615,34 +655,82 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Verify Handoff', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.verified_user_rounded, color: TeknoyTheme.citMaroon),
+            SizedBox(width: 8),
+            Text('Verify Handoff', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _openQrScanner(
+                  title: 'Scan Buyer Handoff QR',
+                  onScanned: (scannedCode) async {
+                    final sellerId = ref.read(authStateProvider).valueOrNull?.id;
+                    if (sellerId != null) {
+                      await _handleSpringAction('verify-handoff', {'otp': scannedCode}, 'Handoff verified successfully!');
+                    }
+                  },
+                  onManualRequested: _showOTPInputDialog,
+                );
+              },
+              icon: const Icon(Icons.qr_code_scanner_rounded, size: 20, color: Colors.white),
+              label: const Text('Scan Buyer\'s QR Code', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TeknoyTheme.citMaroon,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('OR ENTER CODE', style: TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                ),
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+              ],
+            ),
+            const SizedBox(height: 14),
             const Text('Enter the 6-digit code shown on buyer\'s phone to complete handoff:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             TextField(
               controller: otpController,
               keyboardType: TextInputType.number,
               maxLength: 6,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 22, letterSpacing: 6),
               decoration: InputDecoration(
                 hintText: '123456',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                counterText: '',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             onPressed: () async {
+              final code = otpController.text.trim();
+              if (code.isEmpty) return;
               Navigator.pop(context);
               final sellerId = ref.read(authStateProvider).valueOrNull?.id;
               if (sellerId != null) {
-                await _handleSpringAction('verify-handoff', {'otp': otpController.text.trim()}, 'Handoff verified successfully!');
+                await _handleSpringAction('verify-handoff', {'otp': code}, 'Handoff verified successfully!');
               }
             },
-            child: const Text('Verify'),
+            style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.citMaroon),
+            child: const Text('Verify Code', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1111,22 +1199,84 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             : '------';
         buttons.add(
           Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.withOpacity(0.3))),
-            child: Column(children: [
-              const Text('Show this code to the seller at the meetup:', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.blue)),
-              const SizedBox(height: 8),
-              Text(otp, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 32, letterSpacing: 8, color: Colors.blue)),
-              if (otp == '------') ...[
-                const SizedBox(height: 8),
-                TextButton.icon(
-                  onPressed: _isActing ? null : () => _handleSpringAction('schedule', {}, 'Meetup code generated!'),
-                  icon: const Icon(Icons.refresh_rounded, size: 16, color: Colors.blue),
-                  label: const Text('Generate Code Now', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, color: Colors.blue)),
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1B2332) : const Color(0xFFF0F6FF),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.blue.withOpacity(0.35), width: 1.5),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.qr_code_2_rounded, color: Colors.blue, size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Handoff Verification',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: isDark ? Colors.blue[200] : Colors.blue[900],
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  'Present this QR code or 6-digit code to the seller at the meetup spot:',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 12,
+                    color: isDark ? Colors.white70 : Colors.black87,
+                  ),
+                ),
+                if (otp != '------') ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: QrImageView(
+                      data: otp,
+                      version: QrVersions.auto,
+                      size: 160.0,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    otp.split('').join(' '),
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 34,
+                      letterSpacing: 8,
+                      color: isDark ? Colors.blue[300] : Colors.blue[800],
+                    ),
+                  ),
+                ],
+                if (otp == '------') ...[
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: _isActing ? null : () => _handleSpringAction('schedule', {}, 'Meetup code generated!'),
+                    icon: const Icon(Icons.refresh_rounded, size: 16, color: Colors.blue),
+                    label: const Text('Generate Code Now', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, color: Colors.blue)),
+                  ),
+                ],
               ],
-            ]),
-          )
+            ),
+          ),
         );
         buttons.add(const SizedBox(height: 10));
         buttons.add(_actionBtn('Report No-Show', Colors.orange, Icons.person_off_rounded, _showNoShowDialog));
@@ -1150,14 +1300,67 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             : '------';
         buttons.add(
           Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.teal.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.teal.withOpacity(0.3))),
-            child: Column(children: [
-              const Text('Show this return code to seller at return meetup:', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.teal)),
-              const SizedBox(height: 8),
-              Text(returnOtp, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 32, letterSpacing: 8, color: Colors.teal)),
-            ]),
-          )
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF142B28) : const Color(0xFFE6F7F5),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.teal.withOpacity(0.35), width: 1.5),
+            ),
+            child: Column(
+              children: [
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.qr_code_2_rounded, color: Colors.teal, size: 22),
+                    SizedBox(width: 8),
+                    Text(
+                      'Return Handoff Verification',
+                      style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16, color: Colors.teal),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Present this QR code or 6-digit code to seller at return meetup:',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.teal),
+                ),
+                if (returnOtp != '------') ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: QrImageView(
+                      data: returnOtp,
+                      version: QrVersions.auto,
+                      size: 160.0,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    returnOtp.split('').join(' '),
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 34,
+                      letterSpacing: 8,
+                      color: Colors.teal,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         );
       }
 
@@ -1246,5 +1449,174 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       const SizedBox(width: 10),
       Text(label, style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: done ? Colors.green : (isDark ? Colors.white54 : Colors.black54), fontWeight: done ? FontWeight.bold : FontWeight.normal)),
     ]);
+  }
+
+  void _openQrScanner({
+    required String title,
+    required ValueChanged<String> onScanned,
+    required VoidCallback onManualRequested,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _QrScannerSheet(
+        title: title,
+        onScanned: onScanned,
+        onManualRequested: onManualRequested,
+      ),
+    );
+  }
+}
+
+class _QrScannerSheet extends StatefulWidget {
+  final ValueChanged<String> onScanned;
+  final VoidCallback onManualRequested;
+  final String title;
+
+  const _QrScannerSheet({
+    required this.onScanned,
+    required this.onManualRequested,
+    this.title = 'Scan Meetup QR Code',
+  });
+
+  @override
+  State<_QrScannerSheet> createState() => _QrScannerSheetState();
+}
+
+class _QrScannerSheetState extends State<_QrScannerSheet> {
+  late final MobileScannerController _scannerController;
+  bool _hasScanned = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scannerController = MobileScannerController();
+  }
+
+  @override
+  void dispose() {
+    _scannerController.dispose();
+    super.dispose();
+  }
+
+  void _handleBarcode(BarcodeCapture capture) {
+    if (_hasScanned) return;
+    for (final barcode in capture.barcodes) {
+      final raw = barcode.rawValue?.trim();
+      if (raw != null && raw.isNotEmpty) {
+        _hasScanned = true;
+        final match = RegExp(r'\b\d{6}\b').firstMatch(raw);
+        final code = match != null ? match.group(0)! : raw;
+        Navigator.pop(context);
+        widget.onScanned(code);
+        break;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.72,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF141418) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(widget.title, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18)),
+                IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.pop(context)),
+              ],
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: Text(
+              'Align the QR code within the frame to verify automatically.',
+              style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                color: Colors.black,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  MobileScanner(
+                    controller: _scannerController,
+                    errorBuilder: (context, error) => Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.videocam_off_rounded, size: 48, color: Colors.orange),
+                            const SizedBox(height: 12),
+                            const Text('Camera Unavailable', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                            const SizedBox(height: 6),
+                            const Text('Camera permission was denied or no camera is connected.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.white70), textAlign: TextAlign.center),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                widget.onManualRequested();
+                              },
+                              child: const Text('Enter Code Manually'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    onDetect: _handleBarcode,
+                  ),
+                  Container(
+                    width: 220,
+                    height: 220,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.white.withOpacity(0.8), width: 2.5),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  widget.onManualRequested();
+                },
+                icon: const Icon(Icons.keyboard_rounded, size: 18),
+                label: const Text('Enter 6-Digit Code Manually', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
