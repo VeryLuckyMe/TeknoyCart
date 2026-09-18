@@ -8,7 +8,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:teknoycart/core/services/secure_token_service.dart';
 
-// Use localhost for Web/Windows, or 10.0.2.2 if you switch back to Android emulator
 const String backendUrl = 'https://teknoycart-backend.onrender.com/api/orders';
 
 /// Full-screen order detail view with status stepper, party info, cancellation & return request capabilities.
@@ -90,6 +89,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               if (data['status'] != null) _order['status'] = data['status'];
               if (data['sellerHandedOff'] != null) _order['seller_handed_off'] = data['sellerHandedOff'];
               if (data['buyerConfirmedReceipt'] != null) _order['buyer_confirmed_receipt'] = data['buyerConfirmedReceipt'];
+              if (data['handoffCompletedAt'] != null) _order['handoff_completed_at'] = data['handoffCompletedAt'];
+              if (data['returnOtp'] != null) _order['return_otp'] = data['returnOtp'].toString();
+              if (data['refundReference'] != null) _order['refund_reference'] = data['refundReference'];
+              if (data['disputeReason'] != null) _order['dispute_reason'] = data['disputeReason'];
+              if (data['disputeRuling'] != null) _order['dispute_ruling'] = data['disputeRuling'];
+              if (data['returnCompletedAt'] != null) _order['return_completed_at'] = data['returnCompletedAt'];
             });
           }
         }
@@ -97,14 +102,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     } catch (_) {}
   }
 
-
   String get _status {
     final raw = _order['status'] as String? ?? '';
-    // Map legacy DB statuses to the new state machine to avoid breaking existing demo data
     if (raw == 'PENDING_SELLER_ACCEPT' || raw == 'INQUIRY_SENT') return 'PLACED';
     if (raw == 'APPROVED' || raw == 'SELLER_ACCEPTED') return 'ACCEPTED';
     return raw;
   }
+
   String get _rawPaymentMethod => _order['payment_method'] as String? ?? 'CASH_ON_PICKUP';
   String get _paymentMethod => (_rawPaymentMethod == 'GCASH' || _rawPaymentMethod == 'GCash') ? 'GCash' : 'Cash on Pickup';
   bool get _isGCash => _paymentMethod == 'GCash';
@@ -118,6 +122,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             pickup_location, pickup_day, pickup_time, payment_method,
             seller_confirmed_at, buyer_confirmed_at, buyer_id, seller_id,
             handoff_otp, seller_handed_off, buyer_confirmed_receipt,
+            handoff_completed_at, return_otp, refund_reference,
+            dispute_reason, dispute_ruling, return_completed_at,
             product_variants (
               variant_value,
               products ( name, product_images (image_url, is_primary) )
@@ -131,18 +137,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         });
       }
     } catch (_) {}
-  }
-
-  Future<void> _updateStatus(String newStatus) async {
-    // Legacy fallback or UI refresh trigger
-    setState(() => _isActing = true);
-    try {
-      await _refreshOrder();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Action failed: $e')));
-    } finally {
-      if (mounted) setState(() => _isActing = false);
-    }
   }
 
   Future<void> _handleSpringAction(String action, Map<String, dynamic> body, String successMsg) async {
@@ -162,7 +156,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       if (mounted) setState(() => _isActing = false);
     }
   }
-
 
   void _showCancelConfirmationDialog() {
     String selectedReason = 'Changed my mind';
@@ -207,7 +200,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 },
               ),
               const SizedBox(height: 12),
-              const Text('This will release the item reservation and notify the seller.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.black54)),
+              const Text('This will release the item reservation and notify the other party.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.black54)),
             ],
           ),
           actions: [
@@ -216,35 +209,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               child: const Text('No, Keep Order', style: TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
-              // Send the reason to the seller via chat (same pattern as return requests)
-              // before updating the order status.
               onPressed: () async {
                 Navigator.pop(context);
                 final actorId = ref.read(authStateProvider).valueOrNull?.id;
                 if (actorId != null) {
                   await _handleSpringAction('cancel', {'reason': selectedReason}, 'Order cancelled successfully.');
                 }
-                // Fire-and-forget: notify seller with the cancellation reason.
-                try {
-                  final buyerId = _order['buyer_id'] as String?;
-                  final sellerId = _order['seller_id'] as String?;
-                  if (buyerId != null && sellerId != null) {
-                    Map<String, dynamic>? chat = await SupabaseConfig.client
-                        .from('chats').select('chat_id')
-                        .eq('buyer_id', buyerId).eq('seller_id', sellerId)
-                        .limit(1).maybeSingle();
-                    chat ??= await SupabaseConfig.client
-                        .from('chats')
-                        .insert({'buyer_id': buyerId, 'seller_id': sellerId})
-                        .select('chat_id').single();
-                    await SupabaseConfig.client.from('messages').insert({
-                      'chat_id': chat['chat_id'],
-                      'sender_id': buyerId,
-                      'content': '📢 [Automated Message]\nI have cancelled this order.\nReason: $selectedReason',
-                      'is_read': false,
-                    });
-                  }
-                } catch (_) {}
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: const Text('Yes, Cancel Order', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -255,6 +225,73 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     );
   }
 
+  void _showNoShowDialog() {
+    String selectedReason = 'Other party did not appear at landmark';
+    const noShowReasons = [
+      'Other party did not appear at landmark',
+      'Waited over 20 minutes with no contact',
+      'Other party unreachable in campus chat',
+      'Other party cancelled at last minute',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.person_off_rounded, color: Colors.red, size: 24),
+              SizedBox(width: 8),
+              Text('Report No-Show', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Please select the reason for reporting a no-show:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: selectedReason,
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                items: noShowReasons
+                    .map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontFamily: 'Inter', fontSize: 13))))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) setModalState(() => selectedReason = val);
+                },
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _isGCash
+                    ? 'Because payment was attached, this report will open an Admin Mediation Dispute to resolve funds.'
+                    : 'This will cancel the order and release the item reservation.',
+                style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.black54),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Back', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _handleSpringAction('report-no-show', {'reason': selectedReason}, 'No-show report submitted.');
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Confirm No-Show', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   void _showReturnRequestDialog() {
     String selectedReason = 'Defective or Damaged Item';
@@ -296,13 +333,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                   },
                 ),
                 const SizedBox(height: 14),
-                const Text('Additional Explanation (Optional):', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
+                const Text('Additional Explanation / Evidence:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: notesController,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    hintText: 'Describe why you are requesting a return...',
+                    hintText: 'Describe defect or issue...',
                     hintStyle: const TextStyle(fontFamily: 'Inter', fontSize: 12),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   ),
@@ -319,61 +356,181 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               onPressed: () async {
                 final user = ref.read(authStateProvider).valueOrNull;
                 if (user != null) {
+                  Navigator.pop(context);
                   await _handleSpringAction('refund', {
                     'reason': selectedReason,
-                    'evidence': notesController.text.trim()
-                  }, 'Return / Refund request submitted.');
-                  try {
-
-                    // FIX #4: Always ensure a chat room exists before posting the automated
-                    // return notification. If none exists (e.g. direct-buy with no prior chat),
-                    // create one so the seller is reliably notified in their inbox.
-                    final buyerId = _order['buyer_id'] as String?;
-                    final sellerId = _order['seller_id'] as String?;
-
-                    if (buyerId != null && sellerId != null) {
-                      // Try to find an existing chat room.
-                      Map<String, dynamic>? chat = await SupabaseConfig.client
-                          .from('chats')
-                          .select('chat_id')
-                          .eq('buyer_id', buyerId)
-                          .eq('seller_id', sellerId)
-                          .limit(1)
-                          .maybeSingle();
-
-                      // If no chat exists, create one now so the notification goes through.
-                      if (chat == null) {
-                        chat = await SupabaseConfig.client
-                            .from('chats')
-                            .insert({'buyer_id': buyerId, 'seller_id': sellerId})
-                            .select('chat_id')
-                            .single();
-                      }
-
-                      String msg = '📢 [Automated Message]\nI have submitted a Return / Refund request for this order.\nReason: $selectedReason';
-                      if (notesController.text.trim().isNotEmpty) {
-                        msg += '\nNotes: ${notesController.text.trim()}';
-                      }
-                      msg += '\n\nPlease check the order details to review my request.';
-
-                      await SupabaseConfig.client.from('messages').insert({
-                        'chat_id': chat['chat_id'],
-                        'sender_id': user.id,
-                        'content': msg,
-                        'is_read': false,
-                      });
-                    }
-                  } catch (e) {
-                    debugPrint('Error submitting return: $e');
-                  }
+                    'evidence': notesController.text.trim().isNotEmpty ? notesController.text.trim() : 'Defect reported by buyer'
+                  }, 'Return request submitted to seller.');
                 }
-                if (mounted) Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
               child: const Text('Submit Request', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeclineReturnDialog() {
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.gavel_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Decline Return Request', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Declining will escalate this order to Admin Dispute Mediation. Please specify your reason:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'e.g. Item was verified functional at handoff...',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _handleSpringAction('decline-return', {
+                'reason': reasonController.text.trim()
+              }, 'Return declined. Escalated to Admin Dispute Mediation.');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Decline & Escalate', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReturnOTPInputDialog() {
+    final otpController = TextEditingController();
+    final refundRefController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.assignment_return_rounded, color: Colors.teal),
+            SizedBox(width: 8),
+            Text('Verify Return Handoff', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Inspect the returned physical item. Enter the 6-digit code shown on buyer\'s phone:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: otpController,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: InputDecoration(
+                  hintText: 'e.g. 123456',
+                  prefixIcon: const Icon(Icons.pin_rounded, color: Colors.teal),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              if (_isGCash) ...[
+                const SizedBox(height: 8),
+                const Text('GCash Refund Ref (if transferred):', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: refundRefController,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. 9876543210',
+                    prefixIcon: const Icon(Icons.receipt_rounded, color: Colors.teal),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            onPressed: () async {
+              final otp = otpController.text.trim();
+              if (otp.isEmpty) return;
+              Navigator.pop(context);
+              final body = <String, dynamic>{'otp': otp};
+              if (refundRefController.text.trim().isNotEmpty) {
+                body['refund_reference'] = refundRefController.text.trim();
+              }
+              await _handleSpringAction('verify-return-handoff', body, 'Return handoff verified successfully!');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+            child: const Text('Confirm Return', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showConfirmRefundDialog() {
+    final refController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.currency_exchange_rounded, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Issue GCash Refund', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Transfer ₱ ${_order['total_amount']} back to buyer\'s GCash, then enter transaction reference number:', style: const TextStyle(fontFamily: 'Inter', fontSize: 13)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: refController,
+              decoration: InputDecoration(
+                hintText: 'e.g. 9876543210',
+                prefixIcon: const Icon(Icons.receipt_long_rounded, color: Colors.green),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            onPressed: () async {
+              final refText = refController.text.trim();
+              if (refText.isEmpty) return;
+              Navigator.pop(context);
+              await _handleSpringAction('confirm-refund', {'refund_reference': refText}, 'Refund issued and confirmed!');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Confirm Refund', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }
@@ -462,7 +619,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Enter the 6-digit code shown on the buyer\'s screen to verify handoff.', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
+            const Text('Enter the 6-digit code shown on buyer\'s phone to complete handoff:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
             const SizedBox(height: 12),
             TextField(
               controller: otpController,
@@ -492,6 +649,69 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     );
   }
 
+  Widget _buildGuaranteeBanner(bool isDark) {
+    if (_status != 'HANDOFF_PENDING') return const SizedBox.shrink();
+
+    DateTime? handoffTime;
+    if (_order['handoff_completed_at'] != null) {
+      handoffTime = DateTime.tryParse(_order['handoff_completed_at'].toString());
+    }
+    handoffTime ??= DateTime.tryParse(_order['created_at']?.toString() ?? '') ?? DateTime.now();
+
+    final expireTime = handoffTime.add(const Duration(hours: 24));
+    final remaining = expireTime.difference(DateTime.now());
+    final hoursLeft = remaining.inHours.clamp(0, 24);
+    final minutesLeft = (remaining.inMinutes % 60).clamp(0, 59);
+    final isExpiringSoon = remaining.inHours < 4;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isExpiringSoon ? Colors.red.withOpacity(0.08) : Colors.green.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isExpiringSoon ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.verified_user_rounded,
+                color: isExpiringSoon ? Colors.red : Colors.green,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '24-Hour TeknoyCart Guarantee Active',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: isExpiringSoon ? Colors.red : Colors.green,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            remaining.isNegative
+                ? 'Inspection window has elapsed. Transaction is finalizing.'
+                : 'You have ${hoursLeft}h ${minutesLeft}m remaining in your guarantee inspection window. Test your item thoroughly. If defective or misrepresented, request a return before this window closes.',
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 12,
+              color: isDark ? Colors.white70 : Colors.black87,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -521,7 +741,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
 
     final sellerConfirmed = _order['seller_confirmed_at'] != null;
     final buyerConfirmed = _order['buyer_confirmed_at'] != null;
-    final isCompleted = _status == 'COMPLETED';
+    final isCompleted = _status == 'COMPLETED' || _status == 'RETURN_COMPLETED' || _status == 'REFUND_COMPLETED';
 
     return Scaffold(
       appBar: AppBar(
@@ -561,6 +781,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             _buildStatusStepper(isDark),
             const SizedBox(height: 16),
 
+            // 24-Hour Guarantee Banner
+            _buildGuaranteeBanner(isDark),
+
             // Party info
             _section(isDark, child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -592,7 +815,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                     child: Row(children: [
                       const Icon(Icons.info_outline, color: Colors.blue, size: 16),
                       const SizedBox(width: 8),
-                      Expanded(child: Text('Send GCash to: $sellerGcash — then share the reference number in chat with the seller.', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.blue))),
+                      Expanded(child: Text('Send GCash to: $sellerGcash — then submit the reference number below.', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.blue))),
                     ]),
                   ),
                 ],
@@ -605,7 +828,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               _section(isDark, child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _sectionTitle(Icons.handshake_rounded, 'Meetup Confirmation', isDark),
+                  _sectionTitle(Icons.handshake_rounded, 'Transaction Details', isDark),
                   const SizedBox(height: 12),
                   if (_isGCash && _status == 'PAYMENT_SUBMITTED')
                     Container(
@@ -623,17 +846,23 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                           child: Text(
                             ((_order['payment_reference'] != null && (_order['payment_reference'] as String).isNotEmpty)
                                     ? 'GCash ref: ${_order['payment_reference']} — Awaiting seller verification.'
-                                    : (_order['gcash_reference'] != null && (_order['gcash_reference'] as String).isNotEmpty)
-                                        ? 'GCash ref: ${_order['gcash_reference']} — Awaiting seller verification.'
-                                        : 'GCash payment submitted. Awaiting seller verification.'),
+                                    : 'GCash payment submitted. Awaiting seller verification.'),
                             style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.indigo),
                           ),
                         ),
                       ]),
                     ),
-                  _confirmRow('Seller handed off', sellerConfirmed, isDark),
+                  _confirmRow('Seller handed off', sellerConfirmed || _order['seller_handed_off'] == true, isDark),
                   const SizedBox(height: 8),
-                  _confirmRow('Buyer confirmed receipt', buyerConfirmed, isDark),
+                  _confirmRow('Buyer confirmed receipt', buyerConfirmed || _order['buyer_confirmed_receipt'] == true, isDark),
+                  if (_order['refund_reference'] != null && (_order['refund_reference'] as String).isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _detailRow('Refund Ref', _order['refund_reference'], isDark),
+                  ],
+                  if (_order['dispute_ruling'] != null && (_order['dispute_ruling'] as String).isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _detailRow('Admin Ruling', _order['dispute_ruling'], isDark),
+                  ],
                 ],
               )),
             const SizedBox(height: 24),
@@ -652,22 +881,31 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     final statusToStep = {
       'PLACED': 0,
       'ACCEPTED': 1,
+      'PAYMENT_SUBMITTED': 1,
+      'PAYMENT_VERIFIED': 1,
       'MEETUP_SCHEDULED': 2,
       'NEEDS_REVIEW': 2,
       'HANDOFF_PENDING': 3,
       'COMPLETED': 4,
+      'RETURN_COMPLETED': 4,
+      'REFUND_COMPLETED': 4,
       'CANCELLED': -1,
       'DISPUTED': -1,
-      'REFUND_REQUESTED': 4,
+      'RETURN_REQUESTED': 3,
+      'RETURN_APPROVED': 3,
+      'REFUND_REQUESTED': 1,
     };
 
     final currentStep = statusToStep[_status] ?? 0;
     final isDeclined = _status == 'DECLINED' || _status == 'REJECTED';
     final isCancelled = _status == 'CANCELLED';
     final isNeedsReview = _status == 'NEEDS_REVIEW';
+    final isDisputed = _status == 'DISPUTED';
     final isReturnRequested = _status == 'RETURN_REQUESTED';
     final isReturnApproved = _status == 'RETURN_APPROVED';
-    final isReturnDeclined = _status == 'RETURN_DECLINED';
+    final isReturnCompleted = _status == 'RETURN_COMPLETED';
+    final isRefundCompleted = _status == 'REFUND_COMPLETED';
+    final isRefundRequested = _status == 'REFUND_REQUESTED';
 
     return _section(isDark, child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -687,6 +925,16 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               ),
             ]),
           )
+        else if (isDisputed)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.purple.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.purple.withOpacity(0.3))),
+            child: const Row(children: [
+              Icon(Icons.gavel_rounded, color: Colors.purple, size: 16),
+              SizedBox(width: 8),
+              Expanded(child: Text('Under Admin Mediation. Campus administrators are adjudicating this dispute.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.purple))),
+            ]),
+          )
         else if (isNeedsReview)
           Container(
             padding: const EdgeInsets.all(10),
@@ -694,7 +942,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             child: const Row(children: [
               Icon(Icons.schedule_rounded, color: Colors.amber, size: 16),
               SizedBox(width: 8),
-              Expanded(child: Text('Meetup timed out (>24h without handoff). You can reschedule or cancel this order.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.amber))),
+              Expanded(child: Text('Meetup timed out (>24h) or had failed attempts. Reschedule meetup or report no-show.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.amber))),
             ]),
           )
         else if (isReturnRequested)
@@ -704,7 +952,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             child: const Row(children: [
               Icon(Icons.assignment_return_rounded, color: Colors.orange, size: 16),
               SizedBox(width: 8),
-              Expanded(child: Text('Return / Refund requested by buyer. Awaiting seller response.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.orange))),
+              Expanded(child: Text('Return requested by buyer. Awaiting seller review.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.orange))),
             ]),
           )
         else if (isReturnApproved)
@@ -714,24 +962,43 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             child: const Row(children: [
               Icon(Icons.check_circle_outline_rounded, color: Colors.teal, size: 16),
               SizedBox(width: 8),
-              Expanded(child: Text('Return Approved! Meet up at landmark for item & refund exchange.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.teal))),
+              Expanded(child: Text('Return Approved! Meet up at landmark to return item & verify return code.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.teal))),
             ]),
           )
-        else if (isReturnDeclined)
+        else if (isReturnCompleted)
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.withOpacity(0.2))),
+            decoration: BoxDecoration(color: Colors.green.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.withOpacity(0.25))),
             child: const Row(children: [
-              Icon(Icons.gavel_rounded, color: Colors.red, size: 16),
+              Icon(Icons.verified_rounded, color: Colors.green, size: 16),
               SizedBox(width: 8),
-              Expanded(child: Text('Return request was declined by the seller.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.red))),
+              Expanded(child: Text('Return Completed! Item returned and cash refunded at the meetup.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.green))),
+            ]),
+          )
+        else if (isRefundCompleted)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.green.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.withOpacity(0.25))),
+            child: const Row(children: [
+              Icon(Icons.verified_rounded, color: Colors.green, size: 16),
+              SizedBox(width: 8),
+              Expanded(child: Text('Refund Completed! GCash refund transaction has been verified.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.green))),
+            ]),
+          )
+        else if (isRefundRequested)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.indigo.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.indigo.withOpacity(0.25))),
+            child: const Row(children: [
+              Icon(Icons.currency_exchange_rounded, color: Colors.indigo, size: 16),
+              SizedBox(width: 8),
+              Expanded(child: Text('Refund Requested. Awaiting seller to return GCash payment.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.indigo))),
             ]),
           )
         else
           Row(
             children: List.generate(steps.length * 2 - 1, (i) {
               if (i.isOdd) {
-                // connector
                 final stepIdx = i ~/ 2;
                 return Expanded(child: Container(height: 2, color: stepIdx < currentStep ? TeknoyTheme.citMaroon : (isDark ? Colors.white12 : Colors.black12)));
               }
@@ -772,14 +1039,16 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             () => _handleSpringAction('accept', {}, 'Order accepted.')));
       }
       
-      if (_status == 'ACCEPTED') {
+      if (_status == 'ACCEPTED' || _status == 'PAYMENT_VERIFIED') {
         buttons.add(_actionBtn('Schedule Meetup', Colors.blue, Icons.calendar_month_rounded, 
-            () => _handleSpringAction('schedule', {}, 'Meetup scheduled. OTP generated.')));
+            () => _handleSpringAction('schedule', {}, 'Meetup scheduled. OTP code generated.')));
       }
 
       if (_status == 'NEEDS_REVIEW') {
         buttons.add(_actionBtn('Reschedule Meetup', Colors.blue, Icons.refresh_rounded, 
             () => _handleSpringAction('schedule', {}, 'Meetup rescheduled. New OTP generated.')));
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn('Report No-Show', Colors.orange, Icons.person_off_rounded, _showNoShowDialog));
         buttons.add(const SizedBox(height: 10));
         buttons.add(SizedBox(
           width: double.infinity,
@@ -804,8 +1073,26 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
 
       if (_status == 'MEETUP_SCHEDULED') {
         buttons.add(_actionBtn('Verify Buyer Handoff (OTP)', TeknoyTheme.citMaroon, Icons.verified_user_rounded, _showOTPInputDialog));
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn('Report No-Show', Colors.orange, Icons.person_off_rounded, _showNoShowDialog));
+      }
+
+      if (_status == 'RETURN_REQUESTED') {
+        buttons.add(_actionBtn('Approve Return & Meetup', Colors.teal, Icons.check_circle_outline_rounded, 
+            () => _handleSpringAction('approve-return', {}, 'Return approved! Return code generated.')));
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn('Decline Return Request', Colors.red, Icons.close_rounded, _showDeclineReturnDialog));
+      }
+
+      if (_status == 'RETURN_APPROVED') {
+        buttons.add(_actionBtn('Verify Return Handoff (Enter OTP)', Colors.teal, Icons.assignment_return_rounded, _showReturnOTPInputDialog));
+      }
+
+      if (_status == 'REFUND_REQUESTED') {
+        buttons.add(_actionBtn('Issue GCash Refund', Colors.green, Icons.currency_exchange_rounded, _showConfirmRefundDialog));
       }
     } else {
+      // Buyer actions
       if (_isGCash && (_status == 'PLACED' || _status == 'ACCEPTED' || _status == 'APPROVED')) {
         buttons.add(_actionBtn('Submit GCash Reference', Colors.indigo, Icons.receipt_long_rounded, _showGCashSubmitDialog));
         buttons.add(const SizedBox(height: 10));
@@ -814,6 +1101,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       if (_status == 'NEEDS_REVIEW') {
         buttons.add(_actionBtn('Reschedule Meetup', Colors.blue, Icons.refresh_rounded, 
             () => _handleSpringAction('schedule', {}, 'Meetup rescheduled. New code generated.')));
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn('Report No-Show', Colors.orange, Icons.person_off_rounded, _showNoShowDialog));
       }
 
       if (_status == 'MEETUP_SCHEDULED') {
@@ -839,11 +1128,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             ]),
           )
         );
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn('Report No-Show', Colors.orange, Icons.person_off_rounded, _showNoShowDialog));
       }
 
       if (_status == 'HANDOFF_PENDING') {
         buttons.add(_actionBtn('Confirm I Received This', Colors.green, Icons.check_circle_outline_rounded, 
-            () => _handleSpringAction('confirm-receipt', {}, 'Receipt confirmed!')));
+            () => _handleSpringAction('confirm-receipt', {}, 'Receipt confirmed! Order completed.')));
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn('Request Return / Refund', Colors.orange, Icons.assignment_return_rounded, _showReturnRequestDialog));
       }
 
       if (_status == 'COMPLETED') {
@@ -851,7 +1144,29 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         buttons.add(_actionBtn('Request Return / Refund', Colors.orange, Icons.assignment_return_rounded, _showReturnRequestDialog));
       }
 
-      if (_status == 'PLACED' || _status == 'ACCEPTED' || _status == 'MEETUP_SCHEDULED' || _status == 'NEEDS_REVIEW') {
+      if (_status == 'RETURN_APPROVED') {
+        final returnOtp = (_order['return_otp'] != null && _order['return_otp'].toString().isNotEmpty)
+            ? _order['return_otp'].toString()
+            : '------';
+        buttons.add(
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.teal.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.teal.withOpacity(0.3))),
+            child: Column(children: [
+              const Text('Show this return code to seller at return meetup:', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.teal)),
+              const SizedBox(height: 8),
+              Text(returnOtp, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 32, letterSpacing: 8, color: Colors.teal)),
+            ]),
+          )
+        );
+      }
+
+      if (_status == 'REFUND_REQUESTED') {
+        buttons.add(_actionBtn('Escalate to Admin Mediation', Colors.purple, Icons.gavel_rounded, 
+            () => _handleSpringAction('dispute', {'reason': 'Seller unresponsive to refund request'}, 'Dispute opened with Admin.')));
+      }
+
+      if (_status == 'PLACED' || _status == 'ACCEPTED' || _status == 'NEEDS_REVIEW') {
         buttons.add(const SizedBox(height: 10));
         buttons.add(SizedBox(
           width: double.infinity,
@@ -919,7 +1234,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     return Padding(
       padding: const EdgeInsets.only(top: 6),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 90, child: Text('$label:', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: isDark ? Colors.white54 : Colors.black54))),
+        SizedBox(width: 100, child: Text('$label:', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: isDark ? Colors.white54 : Colors.black54))),
         Expanded(child: Text(value, style: TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.black87))),
       ]),
     );
