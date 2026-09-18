@@ -198,6 +198,484 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
     }
   }
 
+  Future<void> _showReservedOrdersSheet({
+    required BuildContext context,
+    required String variantId,
+    required String productName,
+    required int initialReservedQty,
+    required int stockQty,
+  }) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        int reservedCount = initialReservedQty;
+        int totalStock = stockQty;
+        bool isLoading = true;
+        bool isReconciling = false;
+        List<Map<String, dynamic>> orders = [];
+
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            Future<void> loadOrders() async {
+              try {
+                final res = await SupabaseConfig.client
+                    .from('orders')
+                    .select('order_id, quantity, status, created_at, buyer_id, total_amount')
+                    .eq('variant_id', variantId)
+                    .inFilter('status', [
+                      'PLACED', 'ACCEPTED', 'PAYMENT_SUBMITTED', 'PAYMENT_VERIFIED',
+                      'MEETUP_SCHEDULED', 'NEEDS_REVIEW', 'REFUND_REQUESTED'
+                    ])
+                    .order('created_at', ascending: false);
+
+                final List<Map<String, dynamic>> enriched = [];
+                for (final item in (res as List)) {
+                  final m = Map<String, dynamic>.from(item);
+                  try {
+                    final u = await SupabaseConfig.client
+                        .from('users')
+                        .select('full_name, email')
+                        .eq('user_id', m['buyer_id'])
+                        .maybeSingle();
+                    m['buyer_name'] = u?['full_name'] ?? 'Buyer';
+                    m['buyer_email'] = u?['email'] ?? '';
+                  } catch (_) {
+                    m['buyer_name'] = 'Buyer';
+                    m['buyer_email'] = '';
+                  }
+                  enriched.add(m);
+                }
+
+                if (sheetContext.mounted) {
+                  setSheetState(() {
+                    orders = enriched;
+                    isLoading = false;
+                  });
+                }
+              } catch (_) {
+                if (sheetContext.mounted) {
+                  setSheetState(() => isLoading = false);
+                }
+              }
+            }
+
+            if (isLoading && orders.isEmpty) {
+              loadOrders();
+            }
+
+            Future<void> reconcile() async {
+              setSheetState(() => isReconciling = true);
+              try {
+                int actualReserved = 0;
+                try {
+                  final rpcRes = await SupabaseConfig.client.rpc(
+                    'reconcile_inventory_holds',
+                    params: {'p_variant_id': variantId},
+                  );
+                  if (rpcRes is Map && rpcRes['reserved_qty'] != null) {
+                    actualReserved = (rpcRes['reserved_qty'] as num).toInt();
+                    if (rpcRes['stock_qty'] != null) {
+                      totalStock = (rpcRes['stock_qty'] as num).toInt();
+                    }
+                  }
+                } catch (_) {
+                  // Direct ground-truth active orders sum fallback
+                  for (final o in orders) {
+                    actualReserved += (o['quantity'] as num? ?? 0).toInt();
+                  }
+                  await SupabaseConfig.client
+                      .from('inventory')
+                      .update({
+                        'reserved_qty': actualReserved,
+                        'last_updated': DateTime.now().toIso8601String(),
+                      })
+                      .eq('variant_id', variantId);
+                }
+
+                reservedCount = actualReserved;
+                await _fetchListings();
+                if (sheetContext.mounted) {
+                  setSheetState(() => isReconciling = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Reconciled holds! Reserved is now $actualReserved (Available: ${(totalStock - actualReserved).clamp(0, 999999)}).'),
+                      backgroundColor: TeknoyTheme.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (sheetContext.mounted) {
+                  setSheetState(() => isReconciling = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to reconcile: $e'), backgroundColor: TeknoyTheme.error),
+                  );
+                }
+              }
+            }
+
+            Future<void> cancelOrder(String orderId) async {
+              final confirm = await showDialog<bool>(
+                context: sheetContext,
+                builder: (dCtx) => AlertDialog(
+                  title: const Text('Cancel In-Flight Order?'),
+                  content: const Text(
+                    'Cancelling this order will release its reserved stock hold immediately back to Available inventory.',
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Keep Order')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(dCtx, true),
+                      child: const Text('Cancel Order', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm != true) return;
+
+              try {
+                await SupabaseConfig.client
+                    .from('orders')
+                    .update({'status': 'CANCELLED'})
+                    .eq('order_id', orderId);
+
+                await loadOrders();
+                await reconcile();
+                if (sheetContext.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Order cancelled and reserved hold released.')),
+                  );
+                }
+              } catch (e) {
+                if (sheetContext.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to cancel order: $e')),
+                  );
+                }
+              }
+            }
+
+            final available = (totalStock - reservedCount).clamp(0, 999999);
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF141418) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Reserved Stock Inspector',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                productName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 13,
+                                  color: isDark ? Colors.white60 : Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1C1C22) : const Color(0xFFF6F6F9),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF2C2C35) : const Color(0xFFE5E5EA),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildMetricColumn('Available', '$available', Colors.green, isDark),
+                          Container(width: 1, height: 28, color: isDark ? Colors.white12 : Colors.black12),
+                          _buildMetricColumn('Reserved', '$reservedCount', Colors.amber.shade800, isDark),
+                          Container(width: 1, height: 28, color: isDark ? Colors.white12 : Colors.black12),
+                          _buildMetricColumn('Total Stock', '$totalStock', isDark ? Colors.white70 : Colors.black87, isDark),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: TeknoyTheme.citMaroon.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: TeknoyTheme.citMaroon.withOpacity(0.15)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.sync_problem_rounded, color: TeknoyTheme.citMaroon, size: 20),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Got orphaned holds? Reconcile syncs reserved count with real active orders.',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 11,
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: isReconciling ? null : reconcile,
+                            icon: isReconciling
+                                ? const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  )
+                                : const Icon(Icons.auto_fix_high_rounded, size: 14),
+                            label: const Text(
+                              'Reconcile',
+                              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: TeknoyTheme.citMaroon,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: isLoading
+                        ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
+                        : orders.isEmpty
+                            ? Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24.0),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle_outline_rounded,
+                                        size: 48,
+                                        color: Colors.green.shade400,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      const Text(
+                                        'No Active Orders Holding Stock',
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        reservedCount > 0
+                                            ? 'There are $reservedCount orphaned reservations from test runs. Tap "Reconcile" above to clear them.'
+                                            : 'All $totalStock physical units are available for immediate checkout.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 12,
+                                          color: isDark ? Colors.white60 : Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: orders.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                                itemBuilder: (context, i) {
+                                  final o = orders[i];
+                                  final orderId = o['order_id']?.toString() ?? '';
+                                  final shortId = orderId.length >= 8 ? orderId.substring(0, 8).toUpperCase() : orderId;
+                                  final qty = o['quantity'] ?? 1;
+                                  final status = o['status'] ?? 'PLACED';
+                                  final buyerName = o['buyer_name'] ?? 'Buyer';
+                                  final createdAt = o['created_at'] != null
+                                      ? DateTime.tryParse(o['created_at'].toString())
+                                      : null;
+                                  final dateStr = createdAt != null
+                                      ? '${createdAt.month}/${createdAt.day} ${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}'
+                                      : '';
+
+                                  return Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF1B1B20) : const Color(0xFFFAFAFC),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: isDark ? const Color(0xFF2B2B34) : const Color(0xFFEEEEF2),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.amber.shade700.withOpacity(0.12),
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: Icon(Icons.hourglass_top_rounded, color: Colors.amber.shade800, size: 20),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    '#$shortId',
+                                                    style: const TextStyle(
+                                                      fontFamily: 'Outfit',
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.amber.withOpacity(0.15),
+                                                      borderRadius: BorderRadius.circular(6),
+                                                    ),
+                                                    child: Text(
+                                                      status,
+                                                      style: TextStyle(
+                                                        fontFamily: 'Inter',
+                                                        fontSize: 9,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Colors.amber.shade800,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 3),
+                                              Text(
+                                                'Buyer: $buyerName • $qty unit${qty > 1 ? 's' : ''} held',
+                                                style: TextStyle(
+                                                  fontFamily: 'Inter',
+                                                  fontSize: 12,
+                                                  color: isDark ? Colors.white70 : Colors.black87,
+                                                ),
+                                              ),
+                                              if (dateStr.isNotEmpty)
+                                                Text(
+                                                  'Placed: $dateStr',
+                                                  style: TextStyle(
+                                                    fontFamily: 'Inter',
+                                                    fontSize: 10,
+                                                    color: isDark ? Colors.white38 : Colors.black38,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => cancelOrder(orderId),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: Colors.red,
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          child: const Text('Cancel', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  static Widget _buildMetricColumn(String label, String value, Color color, bool isDark) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+            color: isDark ? Colors.white54 : Colors.black45,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -279,7 +757,9 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                   final variants = item['product_variants'] as List<dynamic>? ?? [];
                                   int stockQty = 0;
                                   int reservedQty = 0;
+                                  String? variantId;
                                   if (variants.isNotEmpty) {
+                                    variantId = variants[0]['variant_id']?.toString();
                                     final inv = variants[0]['inventory'];
                                     if (inv is List && inv.isNotEmpty) {
                                       stockQty = inv[0]['stock_qty'] ?? 0;
@@ -357,34 +837,69 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                         ),
                                       ),
 
-                                      // 3. Reserved / In Meetup Pill (Only if reserved > 0)
+                                      // 3. Interactive Reserved Pill (Clickable to inspect holds & reconcile)
                                       if (reservedQty > 0)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: isDark ? const Color(0xFF362810) : const Color(0xFFFFF8E1),
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: Colors.amber.shade700.withOpacity(0.4)),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(Icons.handshake_outlined, size: 11, color: Colors.amber.shade900),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                '$reservedQty in Meetup',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                  fontFamily: 'Inter',
-                                                  color: Colors.amber.shade900,
+                                        InkWell(
+                                          onTap: variantId != null
+                                              ? () => _showReservedOrdersSheet(
+                                                    context: context,
+                                                    variantId: variantId!,
+                                                    productName: item['name'] ?? 'Product',
+                                                    initialReservedQty: reservedQty,
+                                                    stockQty: stockQty,
+                                                  )
+                                              : null,
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: isDark ? const Color(0xFF362810) : const Color(0xFFFFF8E1),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(color: Colors.amber.shade700.withOpacity(0.4)),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.hourglass_top_rounded, size: 11, color: Colors.amber.shade900),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  '$reservedQty Reserved',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontFamily: 'Inter',
+                                                    color: Colors.amber.shade900,
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
+                                                const SizedBox(width: 3),
+                                                Icon(Icons.info_outline_rounded, size: 11, color: Colors.amber.shade900),
+                                              ],
+                                            ),
                                           ),
                                         ),
 
-                                      // 4. Pre-Order Tag
+                                      // 4. Total Physical Stock Pill
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: isDark ? Colors.white.withOpacity(0.06) : Colors.grey.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: isDark ? Colors.white12 : Colors.black12,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '$stockQty Total',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            fontFamily: 'Inter',
+                                            color: isDark ? Colors.white60 : Colors.black87,
+                                          ),
+                                        ),
+                                      ),
+
+                                      // 5. Pre-Order Tag
                                       if (isPreorder)
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -396,8 +911,8 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Icon(Icons.auto_mode_rounded, size: 11, color: Colors.deepPurple.shade700),
-                                              const SizedBox(width: 4),
+                                              Icon(Icons.bolt_rounded, size: 12, color: Colors.deepPurple.shade700),
+                                              const SizedBox(width: 3),
                                               Text(
                                                 'Pre-Order',
                                                 style: TextStyle(
@@ -410,12 +925,6 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                             ],
                                           ),
                                         ),
-
-                                      // Total physical inventory
-                                      Text(
-                                        '($stockQty total)',
-                                        style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black45),
-                                      ),
                                     ],
                                   );
                                 },
@@ -443,6 +952,28 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                 }
                               }
                               _addStock(variantId, stock);
+                            } else if (value == 'inspect') {
+                              final variants = item['product_variants'] as List<dynamic>? ?? [];
+                              if (variants.isNotEmpty) {
+                                final vId = variants[0]['variant_id']?.toString() ?? '';
+                                int stock = 0;
+                                int reserved = 0;
+                                final inv = variants[0]['inventory'];
+                                if (inv is List && inv.isNotEmpty) {
+                                  stock = inv[0]['stock_qty'] ?? 0;
+                                  reserved = inv[0]['reserved_qty'] ?? 0;
+                                } else if (inv is Map) {
+                                  stock = inv['stock_qty'] ?? 0;
+                                  reserved = inv['reserved_qty'] ?? 0;
+                                }
+                                _showReservedOrdersSheet(
+                                  context: context,
+                                  variantId: vId,
+                                  productName: item['name'] ?? 'Product',
+                                  initialReservedQty: reserved,
+                                  stockQty: stock,
+                                );
+                              }
                             } else if (value == 'delete') {
                               _deleteProduct(item['product_id']);
                             }
@@ -479,6 +1010,16 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                   Icon(Icons.inventory_2_outlined, size: 20),
                                   SizedBox(width: 8),
                                   Text('Add Stock'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'inspect',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.manage_search_rounded, size: 20, color: Colors.amber),
+                                  SizedBox(width: 8),
+                                  Text('Inspect Reservations'),
                                 ],
                               ),
                             ),

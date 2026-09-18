@@ -459,6 +459,60 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     );
   }
 
+  Widget _buildPreorderNoticeBanner(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF231738) : const Color(0xFFF3E8FF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF7C3AED).withValues(alpha: 0.5) : const Color(0xFFC084FC),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF7C3AED).withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.bolt_rounded, color: Color(0xFF7C3AED), size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pre-Order Item (Est. Ready in 3-7 Days)',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Color(0xFF7C3AED),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'This item is sourced or prepared on demand by the seller. You will be notified via in-app chat once the batch is ready for campus meetup.',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 12,
+                    height: 1.35,
+                    color: isDark ? Colors.white70 : const Color(0xFF374151),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProductSpotlightCard(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -997,9 +1051,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Confirm P2P Deal',
-          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+        title: Text(
+          widget.isPreorder ? 'Confirm Pre-Order' : 'Confirm P2P Deal',
+          style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
         ),
       ),
       body: SingleChildScrollView(
@@ -1009,6 +1063,10 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (widget.isPreorder) ...[
+                _buildPreorderNoticeBanner(isDark),
+                const SizedBox(height: 16),
+              ],
               _buildProductSpotlightCard(isDark),
               const SizedBox(height: 28),
 
