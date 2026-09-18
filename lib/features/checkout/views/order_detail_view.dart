@@ -9,6 +9,9 @@ import 'dart:convert';
 import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:teknoycart/features/chat/views/chat_view.dart';
+import 'package:teknoycart/features/chat/services/chat_service.dart';
+import 'package:teknoycart/features/feed/models/product.dart';
 
 const String backendUrl = 'https://teknoycart-backend.onrender.com/api/orders';
 
@@ -115,6 +118,70 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
   String get _paymentMethod => (_rawPaymentMethod == 'GCASH' || _rawPaymentMethod == 'GCash') ? 'GCash' : 'Cash on Pickup';
   bool get _isGCash => _paymentMethod == 'GCash';
 
+  bool get _isPreorder {
+    if (_order['is_preorder'] == true) return true;
+    final loc = _order['pickup_location']?.toString() ?? '';
+    final day = _order['pickup_day']?.toString() ?? '';
+    final variant = _order['product_variants'] as Map<String, dynamic>?;
+    final prod = variant?['products'] as Map<String, dynamic>?;
+    return loc.contains('[PRE-ORDER]') ||
+        day.contains('3-7') ||
+        day.contains('Batch') ||
+        prod?['is_preorder_enabled'] == true;
+  }
+
+  Product _extractProductFromOrder() {
+    final variant = _order['product_variants'] as Map<String, dynamic>?;
+    final prod = variant?['products'] as Map<String, dynamic>?;
+    final images = prod?['product_images'] as List<dynamic>? ?? [];
+    final imgUrl = images.isNotEmpty
+        ? (images.firstWhere((img) => img['is_primary'] == true, orElse: () => images[0])['image_url'] as String?)
+        : null;
+    return Product(
+      id: prod?['product_id'] as String? ?? 'prod-${_order['order_id']}',
+      title: prod?['name'] as String? ?? 'Campus Product',
+      description: prod?['description'] as String? ?? '',
+      price: double.tryParse(_order['total_amount']?.toString() ?? '0') ?? 0.0,
+      category: 'Campus Gear',
+      condition: 'Like New',
+      sellerId: _order['seller_id'] as String? ?? '',
+      imageUrl: imgUrl,
+      isPreorderEnabled: _isPreorder,
+      createdAt: DateTime.tryParse(_order['created_at']?.toString() ?? '') ?? DateTime.now(),
+    );
+  }
+
+  Future<void> _openChatWithOtherParty() async {
+    try {
+      final buyerId = _order['buyer_id'] as String?;
+      final sellerId = _order['seller_id'] as String?;
+      if (buyerId == null || sellerId == null) return;
+      final product = _extractProductFromOrder();
+
+      final chatService = ChatService();
+      final roomId = await chatService.getOrCreateChatRoom(
+        buyerId: buyerId,
+        sellerId: sellerId,
+        productId: product.id,
+      );
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChatView(product: product, roomId: roomId),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open chat: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _refreshOrder() async {
     try {
       final res = await SupabaseConfig.client
@@ -125,10 +192,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             seller_confirmed_at, buyer_confirmed_at, buyer_id, seller_id,
             handoff_otp, seller_handed_off, buyer_confirmed_receipt,
             handoff_completed_at, return_otp, refund_reference,
-            dispute_reason, dispute_ruling, return_completed_at,
+            dispute_reason, dispute_ruling, return_completed_at, is_preorder,
             product_variants (
+              variant_id,
               variant_value,
-              products ( name, product_images (image_url, is_primary) )
+              products ( product_id, name, base_price, description, is_preorder_enabled, product_images (image_url, is_primary) )
             )
           ''')
           .eq('order_id', _order['order_id'])
@@ -575,6 +643,372 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     );
   }
 
+  void _showNotifyItemReadyDialog({required bool isPreorder}) async {
+    final variant = _order['product_variants'] as Map<String, dynamic>?;
+    final product = variant?['products'] as Map<String, dynamic>?;
+    final productName = product?['name'] as String? ?? 'Campus Product';
+    final variantId = variant?['variant_id'] as String?;
+
+    int liveStockQty = 0;
+    if (variantId != null) {
+      try {
+        final invRes = await SupabaseConfig.client
+            .from('inventory')
+            .select('stock_qty')
+            .eq('variant_id', variantId)
+            .maybeSingle();
+        if (invRes != null && invRes['stock_qty'] != null) {
+          liveStockQty = (invRes['stock_qty'] as num).toInt();
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+
+    final landmarks = ['Library Lobby', 'Canteen Area', 'Science Building Lobby', 'Admin Building Vestibule', 'Wildcat Circle'];
+    final timeSlots = [
+      '09:00 AM - 10:30 AM',
+      '12:00 PM - 01:30 PM',
+      '03:00 PM - 04:30 PM',
+      '05:00 PM - 06:30 PM',
+    ];
+
+    String rawLoc = (_order['pickup_location'] as String? ?? '').replaceAll('[PRE-ORDER] ', '').trim();
+    String selectedLandmark = landmarks.contains(rawLoc) ? rawLoc : landmarks.first;
+
+    String rawTime = (_order['pickup_time'] as String? ?? '').trim();
+    String selectedTime = timeSlots.contains(rawTime) ? rawTime : '12:00 PM - 01:30 PM';
+
+    String selectedDay = 'Today';
+    final dayOptions = ['Today', 'Tomorrow', 'Next Business Day'];
+
+    String generateMessage(String landmark, String day, String time) {
+      if (isPreorder) {
+        return 'GOOD NEWS! Your pre-order for "$productName" has arrived on campus and is ready for pickup!\n\nMeetup Location: $landmark\nDate: $day\nTime: $time\n\nPlease bring exact payment / your CIT-U ID. See you on campus!';
+      } else {
+        return 'Hi! I\'m ready to meet up on campus for "$productName".\n\nMeetup Location: $landmark\nDate: $day\nTime: $time\n\nSee you on campus!';
+      }
+    }
+
+    final messageController = TextEditingController(text: generateMessage(selectedLandmark, selectedDay, selectedTime));
+    bool isCustomized = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+
+          void updateTextIfNotCustomized() {
+            if (!isCustomized) {
+              messageController.text = generateMessage(selectedLandmark, selectedDay, selectedTime);
+            }
+          }
+
+          return Container(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              top: 20,
+              left: 20,
+              right: 20,
+            ),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1B1B20) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Drag handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white24 : Colors.black12,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: TeknoyTheme.citMaroon.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          isPreorder ? Icons.campaign_rounded : Icons.calendar_month_rounded,
+                          color: TeknoyTheme.citMaroon,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isPreorder ? 'Pre-Order Ready for Meetup' : 'Finalize Meetup Schedule',
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              isPreorder
+                                  ? 'Notify buyer via chat & generate handoff OTP'
+                                  : 'Confirm date, location & notify buyer',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                color: isDark ? Colors.white60 : Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Buyer's requested preference highlight
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: TeknoyTheme.citGold.withOpacity(isDark ? 0.12 : 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: TeknoyTheme.citGold.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline_rounded, color: TeknoyTheme.citGold, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Buyer requested: $rawLoc • $rawTime',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white70 : const Color(0xFF374151),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Advisory banner if physical stock is 0
+                  if (liveStockQty == 0) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.amber.withOpacity(0.35)),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.inventory_2_outlined, color: Colors.amber, size: 16),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Inventory notice: Listing currently shows 0 stock. Please ensure your received batch has been logged via Manage Listings so physical handoff deductions balance.',
+                              style: TextStyle(fontFamily: 'Inter', fontSize: 11.5, color: Colors.amber),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+
+                  // Meetup Day Selector
+                  const Text('1. Meetup Day', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: dayOptions.map((day) {
+                      final isSel = selectedDay == day;
+                      return ChoiceChip(
+                        label: Text(day, style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: isSel ? Colors.white : (isDark ? Colors.white70 : Colors.black87))),
+                        selected: isSel,
+                        selectedColor: TeknoyTheme.citMaroon,
+                        backgroundColor: isDark ? const Color(0xFF24242C) : const Color(0xFFF1F1F4),
+                        onSelected: (val) {
+                          if (val) {
+                            setModalState(() {
+                              selectedDay = day;
+                              updateTextIfNotCustomized();
+                            });
+                          }
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Time Slot Selector
+                  const Text('2. Campus Time Window', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedTime,
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.schedule_rounded, size: 20),
+                    ),
+                    items: timeSlots.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontFamily: 'Inter', fontSize: 13)))).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setModalState(() {
+                          selectedTime = val;
+                          updateTextIfNotCustomized();
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Landmark Selector
+                  const Text('3. Campus Landmark', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedLandmark,
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.place_rounded, size: 20),
+                    ),
+                    items: landmarks.map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontFamily: 'Inter', fontSize: 13)))).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setModalState(() {
+                          selectedLandmark = val;
+                          updateTextIfNotCustomized();
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Automated Message Preview
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('4. Automated In-App Chat Notice', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text('(Editable)', style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: isDark ? Colors.white54 : Colors.black45)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: messageController,
+                    maxLines: 4,
+                    onChanged: (_) => isCustomized = true,
+                    style: const TextStyle(fontFamily: 'Inter', fontSize: 12.5, height: 1.4),
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      fillColor: isDark ? const Color(0xFF141418) : const Color(0xFFF9F9FC),
+                      filled: true,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Confirm button
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      setState(() => _isActing = true);
+                      try {
+                        // 1. Update orders table in Supabase
+                        await SupabaseConfig.client.from('orders').update({
+                          'pickup_day': selectedDay,
+                          'pickup_time': selectedTime,
+                          'pickup_location': selectedLandmark,
+                        }).eq('order_id', _order['order_id']);
+
+                        // 2. Call Spring API schedule to transition status & generate OTP
+                        await _callSpringApi('schedule', {});
+
+                        // 3. Send automated notification to chat room
+                        final buyerId = _order['buyer_id'] as String?;
+                        final sellerId = _order['seller_id'] as String?;
+                        if (buyerId != null && sellerId != null) {
+                          final productModel = _extractProductFromOrder();
+                          final chatService = ChatService();
+                          final roomId = await chatService.getOrCreateChatRoom(
+                            buyerId: buyerId,
+                            sellerId: sellerId,
+                            productId: productModel.id,
+                          );
+                          await chatService.sendMessage(
+                            senderId: sellerId,
+                            receiverId: buyerId,
+                            roomId: roomId,
+                            content: messageController.text.trim(),
+                          );
+                        }
+
+                        await _refreshOrder();
+
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Buyer notified via in-app chat! Meetup scheduled for $selectedDay ($selectedTime) at $selectedLandmark.'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed to schedule: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => _isActing = false);
+                      }
+                    },
+                    icon: const Icon(Icons.send_rounded, size: 18, color: Colors.white),
+                    label: const Text(
+                      'Send Notice & Confirm Schedule',
+                      style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: TeknoyTheme.citMaroon,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _showGCashSubmitDialog() {
     final refController = TextEditingController();
 
@@ -856,7 +1290,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                   children: [
                     Text(productName, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 4),
-                    Text('₱ ${_order['total_amount']}', style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18, color: TeknoyTheme.citMaroon)),
+                    Text('₱ ${_order['total_amount']}', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)),
                     const SizedBox(height: 4),
                     Text('Placed: $createdAt', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: isDark ? Colors.white54 : Colors.black45)),
                   ],
@@ -881,6 +1315,31 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 _detailRow('Name', otherPartyName, isDark),
                 if (otherPartyContact != null) _detailRow('Contact', otherPartyContact, isDark),
                 if (!widget.isSeller && _isGCash && sellerGcash != null) _detailRow('GCash No.', sellerGcash, isDark),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _openChatWithOtherParty,
+                    icon: Icon(Icons.chat_bubble_rounded, size: 18, color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon),
+                    label: Text(
+                      'Chat with $otherPartyLabel',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      backgroundColor: (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon).withOpacity(0.06),
+                      side: BorderSide(
+                        color: (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon).withOpacity(0.4),
+                        width: 1.2,
+                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
               ],
             )),
             const SizedBox(height: 16),
@@ -964,7 +1423,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
   }
 
   Widget _buildStatusStepper(bool isDark) {
-    final steps = ['Placed', 'Accepted', 'Meetup', 'Handoff', 'Done'];
+    final steps = _isPreorder
+        ? ['Pre-Ordered', 'Batch Sourcing', 'Ready & Scheduled', 'Handoff', 'Done']
+        : ['Placed', 'Accepted', 'Meetup', 'Handoff', 'Done'];
 
     final statusToStep = {
       'PLACED': 0,
@@ -1109,6 +1570,60 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               ]);
             }),
           ),
+        if (_isPreorder && (_status == 'ACCEPTED' || _status == 'PAYMENT_VERIFIED')) ...[
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: TeknoyTheme.citGold.withOpacity(isDark ? 0.12 : 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: TeknoyTheme.citGold.withOpacity(0.35)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.hourglass_top_rounded, color: TeknoyTheme.citGold, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.isSeller
+                        ? 'Batch in Sourcing: You are preparing this pre-order. Once your batch arrives on campus, tap "Item Arrived — Schedule Meetup" below to finalize the meetup and send an automated in-app chat notice.'
+                        : 'Batch in Preparation: The seller is preparing your pre-order (Est. 3-7 days). You will receive an automated in-app chat notification the moment the item arrives on campus and is ready for pickup!',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      height: 1.35,
+                      color: isDark ? Colors.white70 : const Color(0xFF374151),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else if (_isPreorder && _status == 'MEETUP_SCHEDULED') ...[
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.campaign_rounded, color: Colors.green, size: 18),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Pre-Order Ready: Campus meetup has been scheduled! Review the meetup spot and time below and check your in-app chat for messages.',
+                    style: TextStyle(fontFamily: 'Inter', fontSize: 12, height: 1.35, color: Colors.green),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     ));
   }
@@ -1128,8 +1643,52 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       }
       
       if (_status == 'ACCEPTED' || _status == 'PAYMENT_VERIFIED') {
-        buttons.add(_actionBtn('Schedule Meetup', Colors.blue, Icons.calendar_month_rounded, 
-            () => _handleSpringAction('schedule', {}, 'Meetup scheduled. OTP code generated.')));
+        if (_isPreorder) {
+          buttons.add(
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: TeknoyTheme.citMaroon.withOpacity(0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ElevatedButton.icon(
+                onPressed: _isActing ? null : () => _showNotifyItemReadyDialog(isPreorder: true),
+                icon: const Icon(Icons.campaign_rounded, size: 22, color: TeknoyTheme.citGold),
+                label: const Text(
+                  'Item Arrived — Schedule Meetup',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+          );
+        } else {
+          buttons.add(_actionBtn('Schedule Meetup & Notify Buyer', TeknoyTheme.citMaroon, Icons.calendar_month_rounded, 
+              () => _showNotifyItemReadyDialog(isPreorder: false)));
+        }
       }
 
       if (_status == 'NEEDS_REVIEW') {

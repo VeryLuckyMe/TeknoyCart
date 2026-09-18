@@ -224,7 +224,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     switch (status) {
       case 'PENDING_SELLER_ACCEPT': return 'Awaiting Seller';
       case 'SELLER_ACCEPTED':
-      case 'APPROVED': return isOos ? '⚠️ RESERVED (OUT OF STOCK)' : 'RESERVED';
+      case 'APPROVED': return isOos ? 'RESERVED (OUT OF STOCK)' : 'RESERVED';
       case 'PAYMENT_SUBMITTED': return 'Payment Sent';
       case 'PAYMENT_VERIFIED': return 'Payment Verified';
       case 'COMPLETED': return 'Completed';

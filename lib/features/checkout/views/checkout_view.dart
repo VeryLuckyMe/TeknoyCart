@@ -137,6 +137,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   @override
   void initState() {
     super.initState();
+    if (widget.isPreorder) {
+      _selectedDay = 'When Batch Ready (Est. 3-7 Days)';
+    }
     _fetchSellerGcash();
     _fetchAllInventoryStatuses();
   }
@@ -235,7 +238,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           content: Text(
             'The seller has not set up GCash. Please choose "Cash on Pickup" or contact the seller via chat.',
           ),
-          backgroundColor: Colors.orange,
+          backgroundColor: TeknoyTheme.warning,
           duration: Duration(seconds: 4),
         ),
       );
@@ -299,7 +302,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               _selectedPaymentMethod == 'GCash' ? 'GCASH' : 'CASH_ON_PICKUP';
 
           // ATOMIC DB-LEVEL INVENTORY LOCK (Prevents race conditions / double-booking)
-          if (itemVariantId != null) {
+          if (itemVariantId.isNotEmpty) {
             try {
               final rpcRes = await client.rpc('reserve_inventory_atomic', params: {
                 'p_variant_id': itemVariantId,
@@ -329,7 +332,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             }
           }
 
-          // Insert into orders.
+          // Insert into orders with explicit is_preorder snapshot and safe expiration
           await client.from('orders').insert({
             'inquiry_id': inquiryId,
             'buyer_id': buyerId,
@@ -340,25 +343,35 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             'total_amount': item.price * item.quantity,
             'status': 'PLACED',
             'pickup_location': widget.isPreorder ? '[PRE-ORDER] $_selectedLocation' : _selectedLocation,
-            'pickup_day': _selectedDay,
+            'pickup_day': widget.isPreorder ? 'When Batch Ready (Est. 3-7 Days)' : _selectedDay,
             'pickup_time': _selectedTimeSlot,
             'payment_method': dbPaymentMethod,
-            'reservation_expires_at': DateTime.now().add(const Duration(hours: 24)).toIso8601String(),
+            'is_preorder': widget.isPreorder,
+            'reservation_expires_at': widget.isPreorder ? null : DateTime.now().add(const Duration(hours: 24)).toIso8601String(),
           });
 
-          // Send handshake message to chat room if available.
-          if (widget.roomId != null) {
-            try {
-              await ref.read(chatControllerProvider.notifier).postMessage(
-                senderId: buyerId,
-                receiverId: item.product.sellerId,
-                content: 'Handshake Deal Confirmed! Meetup Scheduled.',
-                roomId: widget.roomId!,
-                product: item.product,
-              );
-            } catch (e) {
-              debugPrint("CHAT_CHECKOUT_MESSAGE_POST_ERROR: $e");
-            }
+          // Send handshake message to chat room (ensuring chat room exists)
+          try {
+            final chatService = ref.read(chatServiceProvider);
+            final activeRoomId = widget.roomId ?? await chatService.getOrCreateChatRoom(
+              buyerId: buyerId,
+              sellerId: item.product.sellerId,
+              productId: item.product.id,
+            );
+
+            final handshakeMessage = widget.isPreorder
+                ? '📦 [PRE-ORDER PLACED]\nHello! I placed a pre-order for ${item.product.title} (Qty: ${item.quantity}).\nEstimated lead time: 3-7 business days.\nPreferred campus availability: $_selectedTimeSlot at $_selectedLocation.\nPlease message me here once the batch arrives on campus!'
+                : '🤝 Handshake Deal Confirmed! Meetup requested for $_selectedDay ($_selectedTimeSlot) at $_selectedLocation.';
+
+            await ref.read(chatControllerProvider.notifier).postMessage(
+              senderId: buyerId,
+              receiverId: item.product.sellerId,
+              content: handshakeMessage,
+              roomId: activeRoomId,
+              product: item.product,
+            );
+          } catch (e) {
+            debugPrint("CHAT_CHECKOUT_MESSAGE_POST_ERROR: $e");
           }
 
           // Remove from cart if not direct buy.
@@ -389,18 +402,40 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   }
 
   void _showSuccessDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: isDark ? TeknoyTheme.darkSurface : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(
+            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
+            width: 1,
+          ),
+        ),
         title: Row(
           children: [
-            const Icon(Icons.check_circle_rounded, color: TeknoyTheme.success, size: 28),
-            const SizedBox(width: 10),
-            Text(
-              widget.isPreorder ? 'Pre-Order Secured!' : 'Deal Logged!',
-              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.25 : 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle_rounded, color: TeknoyTheme.citGold, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                widget.isPreorder ? 'Pre-Order Secured!' : 'Meetup Deal Logged!',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: isDark ? Colors.white : TeknoyTheme.citMaroonDark,
+                ),
+              ),
             ),
           ],
         ),
@@ -410,27 +445,41 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           children: [
             Text(
               widget.isPreorder
-                  ? 'Your pre-order for ₱${_totalPrice.toStringAsFixed(2)} has been secured! The seller will prepare your item and notify you via chat once the batch is ready.'
+                  ? 'Your pre-order for ₱${_totalPrice.toStringAsFixed(2)} has been secured! The seller will prepare your item and coordinate via chat once the batch is ready.'
                   : 'Your order for ₱${_totalPrice.toStringAsFixed(2)} has been successfully logged! 1 unit is held for your campus meetup within 24 hours.',
-              style: const TextStyle(fontFamily: 'Inter', height: 1.5),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.withValues(alpha: 0.25)),
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 13.5,
+                height: 1.5,
+                color: isDark ? Colors.white70 : const Color(0xFF374151),
               ),
-              child: const Row(
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF251C12) : TeknoyTheme.citGold.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: TeknoyTheme.citGold.withValues(alpha: 0.4),
+                  width: 1,
+                ),
+              ),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.hourglass_top_rounded, color: Colors.orange, size: 16),
-                  SizedBox(width: 8),
+                  const Icon(Icons.info_outline_rounded, color: TeknoyTheme.citGold, size: 18),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Coordinate with the seller via chat for meetup and payment verification updates.',
-                      style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.orange),
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.white.withValues(alpha: 0.9) : TeknoyTheme.citMaroonDark,
+                      ),
                     ),
                   ),
                 ],
@@ -446,8 +495,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: TeknoyTheme.citMaroon,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
             ),
             child: const Text(
               'Back to Feed',
@@ -459,50 +509,154 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     );
   }
 
-  Widget _buildPreorderNoticeBanner(bool isDark) {
+  Widget _buildSectionHeader({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required bool isDark,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: TeknoyTheme.citGold, size: 16),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              title,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : TeknoyTheme.citMaroonDark,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 33.0),
+            child: Text(
+              subtitle,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 12,
+                color: isDark ? Colors.white54 : Colors.black54,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPreorderHeroBanner(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF231738) : const Color(0xFFF3E8FF),
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1E0A0E), TeknoyTheme.darkSurface]
+              : [const Color(0xFFFFFBF5), const Color(0xFFFFF5F5)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? const Color(0xFF7C3AED).withValues(alpha: 0.5) : const Color(0xFFC084FC),
+          color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.35 : 0.45),
           width: 1.2,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.2 : 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF7C3AED).withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(10),
+              gradient: const LinearGradient(
+                colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: TeknoyTheme.citMaroon.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: const Icon(Icons.bolt_rounded, color: Color(0xFF7C3AED), size: 22),
+            child: const Icon(Icons.hourglass_top_rounded, color: TeknoyTheme.citGold, size: 22),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Pre-Order Item (Est. Ready in 3-7 Days)',
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.2 : 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.5), width: 0.8),
+                  ),
+                  child: const Text(
+                    'EST. 3–7 BUSINESS DAYS',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: TeknoyTheme.citGold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Made-to-Order / Batch Production',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
-                    color: Color(0xFF7C3AED),
+                    color: isDark ? Colors.white : TeknoyTheme.citMaroonDark,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'This item is sourced or prepared on demand by the seller. You will be notified via in-app chat once the batch is ready for campus meetup.',
+                  'This item is prepared on demand. Campus pickup will not take place today or tomorrow. Please specify your availability hours below so the seller can coordinate with your schedule when the batch arrives.',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 12,
-                    height: 1.35,
-                    color: isDark ? Colors.white70 : const Color(0xFF374151),
+                    height: 1.4,
+                    color: isDark ? Colors.white70 : TeknoyTheme.citMaroonDark.withValues(alpha: 0.75),
                   ),
                 ),
               ],
@@ -517,22 +671,18 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1B1B1F), const Color(0xFF16161B)]
-              : [Colors.white, const Color(0xFFF9F9FB)],
-        ),
-        borderRadius: BorderRadius.circular(24),
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? const Color(0xFF2C2C35) : const Color(0xFFECECEF),
+          color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: _checkoutItems.length == 1
@@ -560,10 +710,11 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                     children: [
                       Text(
                         _checkoutItems.first.product.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'Outfit',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -578,22 +729,44 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: TeknoyTheme.citGold.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          _checkoutItems.first.product.condition.toUpperCase(),
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 10,
-                            color: TeknoyTheme.citGold,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF251C12)
+                                  : TeknoyTheme.citGold.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: TeknoyTheme.citGold.withValues(alpha: 0.4),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              _checkoutItems.first.product.condition.toUpperCase(),
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 10,
+                                color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroonDark,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
                           ),
-                        ),
+                          const Spacer(),
+                          // High-contrast WCAG AAA price display:
+                          // citGold in dark mode (9.77:1), citMaroon in light mode (10.95:1)
+                          Text(
+                            '₱${_checkoutItems.first.price.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -605,14 +778,15 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               children: [
                 Text(
                   'Cart Items (${_checkoutItems.length})',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : TeknoyTheme.citMaroonDark,
                   ),
                 ),
-                const SizedBox(height: 12),
-                const Divider(),
+                const SizedBox(height: 10),
+                Divider(color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
                 const SizedBox(height: 8),
                 ..._checkoutItems.map((item) {
                   return Padding(
@@ -625,7 +799,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: TeknoyTheme.citGold.withValues(alpha: 0.2),
+                              color: TeknoyTheme.citGold.withValues(alpha: 0.25),
                               width: 1,
                             ),
                             image: DecorationImage(
@@ -641,10 +815,11 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                             children: [
                               Text(
                                 item.product.title,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontFamily: 'Outfit',
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : Colors.black87,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -654,17 +829,26 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                                 'Qty: ${item.quantity} | ₱${item.price.toStringAsFixed(2)} each',
                                 style: TextStyle(
                                   fontFamily: 'Inter',
-                                  fontSize: 11,
+                                  fontSize: 11.5,
                                   color: isDark ? Colors.white60 : Colors.black54,
                                 ),
                               ),
                             ],
                           ),
                         ),
+                        Text(
+                          '₱${(item.price * item.quantity).toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                          ),
+                        ),
                       ],
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ),
     );
@@ -676,35 +860,42 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         setState(() => _selectedLocation = landmark.name);
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        width: 170,
+        duration: const Duration(milliseconds: 220),
+        width: 175,
         margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
+          gradient: isSelected
+              ? const LinearGradient(
+                  colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
           color: isSelected
-              ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.9 : 0.85)
-              : (isDark ? const Color(0xFF16161B) : Colors.white),
-          borderRadius: BorderRadius.circular(20),
+              ? null
+              : (isDark ? TeknoyTheme.darkSurface : Colors.white),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isSelected
                 ? TeknoyTheme.citGold
-                : (isDark ? const Color(0xFF2C2C35) : const Color(0xFFECECEF)),
-            width: isSelected ? 2 : 1.2,
+                : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
+            width: isSelected ? 2.0 : 1.2,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: TeknoyTheme.citGold.withValues(alpha: 0.15),
+                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.35),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
-                  )
+                  ),
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
+                    color: Colors.black.withValues(alpha: isDark ? 0.1 : 0.02),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
-                  )
+                  ),
                 ],
         ),
         child: Column(
@@ -718,7 +909,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                   landmark.icon,
                   color: isSelected
                       ? TeknoyTheme.citGold
-                      : (isDark ? Colors.white70 : Colors.black54),
+                      : (isDark ? Colors.white70 : TeknoyTheme.citMaroon),
                   size: 26,
                 ),
                 if (isSelected)
@@ -729,7 +920,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                   ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -741,19 +932,19 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                     fontWeight: FontWeight.bold,
                     color: isSelected
                         ? Colors.white
-                        : (isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
+                        : (isDark ? Colors.white : Colors.black87),
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   landmark.description,
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 10.5,
                     color: isSelected
-                        ? Colors.white.withValues(alpha: 0.75)
+                        ? Colors.white.withValues(alpha: 0.8)
                         : (isDark ? Colors.white54 : Colors.black54),
                   ),
                   maxLines: 2,
@@ -767,33 +958,100 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     );
   }
 
+  Widget _buildPreorderScheduleClarification(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: TeknoyTheme.citGold.withValues(alpha: 0.35),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.1 : 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline_rounded, color: TeknoyTheme.citGold, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Select your preferred weekly campus time window below. The seller will use this to schedule your pickup once the batch arrives on campus.',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 12,
+                height: 1.4,
+                color: isDark ? Colors.white70 : Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDayChips(bool isDark) {
     final days = ['Today', 'Tomorrow', 'Next Day'];
     return Row(
       children: days.map((day) {
         final isSelected = _selectedDay == day;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8.0),
-          child: ChoiceChip(
-            label: Text(
-              day,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.bold,
-                color: isSelected
-                    ? Colors.white
-                    : (isDark ? Colors.white70 : Colors.black87),
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedDay = day),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  gradient: isSelected
+                      ? const LinearGradient(
+                          colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  color: isSelected
+                      ? null
+                      : (isDark ? TeknoyTheme.darkSurface : Colors.white),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected
+                        ? TeknoyTheme.citGold
+                        : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
+                    width: isSelected ? 1.8 : 1.2,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: TeknoyTheme.citMaroon.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Text(
+                  day,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                    color: isSelected
+                        ? Colors.white
+                        : (isDark ? Colors.white70 : Colors.black87),
+                  ),
+                ),
               ),
             ),
-            selected: isSelected,
-            selectedColor: TeknoyTheme.citMaroon,
-            backgroundColor: isDark ? const Color(0xFF16161B) : const Color(0xFFF1F1F4),
-            checkmarkColor: Colors.white,
-            onSelected: (selected) {
-              if (selected) {
-                setState(() => _selectedDay = day);
-              }
-            },
           ),
         );
       }).toList(),
@@ -814,7 +1072,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         crossAxisCount: 2,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 3.0,
+        childAspectRatio: 2.8,
       ),
       itemCount: slots.length,
       itemBuilder: (context, index) {
@@ -827,28 +1085,61 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
+              gradient: isSelected
+                  ? const LinearGradient(
+                      colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
               color: isSelected
-                  ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.9 : 0.8)
-                  : (isDark ? const Color(0xFF16161B) : const Color(0xFFF4F4F7)),
-              borderRadius: BorderRadius.circular(12),
+                  ? null
+                  : (isDark ? TeknoyTheme.darkSurface : Colors.white),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: isSelected
                     ? TeknoyTheme.citGold
-                    : (isDark ? const Color(0xFF2C2C35) : const Color(0xFFECECEF)),
+                    : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
                 width: isSelected ? 1.8 : 1.2,
               ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: TeknoyTheme.citMaroon.withValues(alpha: 0.25),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
             ),
-            child: Text(
-              slot,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected
-                    ? Colors.white
-                    : (isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.schedule_rounded,
+                  size: 14,
+                  color: isSelected
+                      ? TeknoyTheme.citGold
+                      : (isDark ? Colors.white38 : Colors.black38),
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    slot,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 11.5,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: isSelected
+                          ? Colors.white
+                          : (isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -857,39 +1148,266 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   }
 
   Widget _buildPaymentMethodSelector(bool isDark) {
+    final isCash = _selectedPaymentMethod == 'Cash on Pickup';
+    final isGcash = _selectedPaymentMethod == 'GCash';
+
     return Column(
       children: [
-        // FIX #3: Renamed label from 'Cash on Delivery' → 'Cash on Pickup'.
-        RadioListTile<String>(
-          title: const Text('Cash on Pickup', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-          subtitle: const Text('Pay with cash at the campus meetup spot.', style: TextStyle(fontFamily: 'Inter', fontSize: 12)),
-          value: 'Cash on Pickup',
-          groupValue: _selectedPaymentMethod,
-          activeColor: TeknoyTheme.citMaroon,
-          onChanged: (val) => setState(() => _selectedPaymentMethod = val!),
-        ),
-        RadioListTile<String>(
-          title: const Text('GCash', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-          subtitle: const Text('Direct GCash transfer to seller.', style: TextStyle(fontFamily: 'Inter', fontSize: 12)),
-          value: 'GCash',
-          groupValue: _selectedPaymentMethod,
-          activeColor: TeknoyTheme.citMaroon,
-          onChanged: (val) => setState(() => _selectedPaymentMethod = val!),
-        ),
-        if (_selectedPaymentMethod == 'GCash')
-          Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        // Cash on Pickup Card
+        GestureDetector(
+          onTap: () => setState(() => _selectedPaymentMethod = 'Cash on Pickup'),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              // FIX #2: Use orange/warning color if GCash is not configured, blue if it is.
+              color: isCash
+                  ? (isDark ? const Color(0xFF1F0F12) : const Color(0xFFFFF8F7))
+                  : (isDark ? TeknoyTheme.darkSurface : Colors.white),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isCash
+                    ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                    : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
+                width: isCash ? 1.8 : 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isCash
+                      ? TeknoyTheme.citMaroon.withValues(alpha: 0.12)
+                      : Colors.black.withValues(alpha: isDark ? 0.1 : 0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: isCash
+                        ? const LinearGradient(
+                            colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: isCash
+                        ? null
+                        : (isDark ? TeknoyTheme.darkBorder : const Color(0xFFF1F1F4)),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.payments_rounded,
+                    color: isCash ? TeknoyTheme.citGold : (isDark ? Colors.white70 : Colors.black87),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Cash on Pickup',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Legible, high-contrast Recommended Badge
+                          // Light: citMaroonDark text on gold fill (8.22:1 AAA)
+                          // Dark: citGold text on dark warm fill (8.5:1 AAA)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF251C12)
+                                  : TeknoyTheme.citGold.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: TeknoyTheme.citGold.withValues(alpha: 0.45),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              'RECOMMENDED',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroonDark,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Pay with exact physical cash upon verifying goods at the campus landmark.',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 11.5,
+                          color: isDark ? Colors.white60 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isCash
+                        ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                        : Colors.transparent,
+                    border: Border.all(
+                      color: isCash
+                          ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                          : (isDark ? Colors.white38 : Colors.black26),
+                      width: 2,
+                    ),
+                  ),
+                  child: isCash
+                      ? Icon(
+                          Icons.check,
+                          size: 14,
+                          color: isDark ? Colors.black : Colors.white,
+                        )
+                      : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // GCash Card
+        GestureDetector(
+          onTap: () => setState(() => _selectedPaymentMethod = 'GCash'),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isGcash
+                  ? (isDark ? const Color(0xFF1F0F12) : const Color(0xFFFFF8F7))
+                  : (isDark ? TeknoyTheme.darkSurface : Colors.white),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isGcash
+                    ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                    : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
+                width: isGcash ? 1.8 : 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isGcash
+                      ? TeknoyTheme.citMaroon.withValues(alpha: 0.12)
+                      : Colors.black.withValues(alpha: isDark ? 0.1 : 0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: isGcash
+                        ? const LinearGradient(
+                            colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: isGcash
+                        ? null
+                        : (isDark ? TeknoyTheme.darkBorder : const Color(0xFFF1F1F4)),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.account_balance_wallet_rounded,
+                    color: isGcash ? TeknoyTheme.citGold : (isDark ? Colors.white70 : Colors.black87),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'GCash Transfer',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Direct e-wallet payment. Seller verification and reference receipt required.',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 11.5,
+                          color: isDark ? Colors.white60 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isGcash
+                        ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                        : Colors.transparent,
+                    border: Border.all(
+                      color: isGcash
+                          ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                          : (isDark ? Colors.white38 : Colors.black26),
+                      width: 2,
+                    ),
+                  ),
+                  child: isGcash
+                      ? Icon(
+                          Icons.check,
+                          size: 14,
+                          color: isDark ? Colors.black : Colors.white,
+                        )
+                      : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // GCash Warning / Info Drawer
+        if (isGcash) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
               color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
-                  ? Colors.orange.withValues(alpha: 0.1)
-                  : Colors.blue.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+                  ? TeknoyTheme.warning.withValues(alpha: 0.1)
+                  : (isDark ? const Color(0xFF251C12) : TeknoyTheme.citGold.withValues(alpha: 0.12)),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
-                    ? Colors.orange.withValues(alpha: 0.4)
-                    : Colors.blue.withValues(alpha: 0.3),
+                    ? TeknoyTheme.warning.withValues(alpha: 0.4)
+                    : TeknoyTheme.citGold.withValues(alpha: 0.35),
+                width: 1.2,
               ),
             ),
             child: Row(
@@ -898,10 +1416,10 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 Icon(
                   (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
                       ? Icons.warning_amber_rounded
-                      : Icons.info_outline_rounded,
+                      : Icons.verified_user_rounded,
                   color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
-                      ? Colors.orange
-                      : Colors.blue,
+                      ? TeknoyTheme.warning
+                      : TeknoyTheme.citGold,
                   size: 20,
                 ),
                 const SizedBox(width: 12),
@@ -910,57 +1428,90 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                       ? const Align(
                           alignment: Alignment.centerLeft,
                           child: SizedBox(
-                            height: 14,
-                            width: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue),
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: TeknoyTheme.citGold),
                           ),
                         )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _sellerGcashNumber != null && _sellerGcashNumber!.isNotEmpty
-                                  ? 'Transfer GCash to Seller: $_sellerGcashNumber'
-                                  // FIX #2: Clearly warn that GCash is unavailable and block submission.
-                                  : 'GCash Unavailable — Seller has not configured their GCash number. You cannot proceed with GCash. Please switch to Cash on Pickup or contact the seller.',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 12,
-                                color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
-                                    ? Colors.orange[800]
-                                    : (isDark ? Colors.blue[200] : Colors.blue[800]),
-                              ),
-                            ),
-                          ],
+                      : Text(
+                          _sellerGcashNumber != null && _sellerGcashNumber!.isNotEmpty
+                              ? 'Transfer GCash to Seller: $_sellerGcashNumber'
+                              : 'GCash Unavailable — Seller has not configured their GCash number. Please switch to Cash on Pickup.',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
+                                ? TeknoyTheme.warning
+                                : (isDark ? Colors.white : TeknoyTheme.citMaroonDark),
+                          ),
                         ),
                 ),
               ],
             ),
           ),
+        ],
       ],
     );
   }
 
   Widget _buildPriceFinalizer(bool isDark) {
+    final int totalUnits = _checkoutItems.fold<int>(0, (sum, item) => sum + item.quantity);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : const Color(0xFFF4F4F7),
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? const Color(0xFF22222A) : const Color(0xFFE5E5E9),
-          width: 1.2,
+          color: TeknoyTheme.citGold.withValues(alpha: 0.35),
+          width: 1.4,
         ),
-      ),
-      child: Center(
-        child: Text(
-          '₱${_totalPrice.toStringAsFixed(2)}',
-          style: const TextStyle(
-            fontFamily: 'Outfit',
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
+        boxShadow: [
+          BoxShadow(
+            color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.15 : 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-        ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Total Payable',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : TeknoyTheme.citMaroonDark,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '$totalUnits ${totalUnits == 1 ? 'item' : 'items'} total • ${widget.isPreorder ? 'Pay upon batch handoff' : 'Pay upon meetup handoff'}',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 11,
+                  color: isDark ? Colors.white54 : Colors.black54,
+                ),
+              ),
+            ],
+          ),
+          // Contrast WCAG AAA compliant price:
+          // citGold in dark mode (9.77:1), citMaroon in light mode (10.95:1)
+          Text(
+            '₱${_totalPrice.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -970,44 +1521,71 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF141418) : const Color(0xFFF4F4F7),
+          color: isDark ? TeknoyTheme.darkSurface : Colors.white,
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
+          ),
         ),
-        child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: TeknoyTheme.citMaroon)),
+        child: const Center(
+          child: CircularProgressIndicator(strokeWidth: 2, color: TeknoyTheme.citMaroon),
+        ),
       );
     }
 
-    // FIX #1: Use the aggregate reservation status across all items.
     final isReservation = _isAnyItemReservation;
+
+    final String title;
+    final String subtitle;
+    final IconData icon;
+    final Color accentColor;
+
+    if (widget.isPreorder) {
+      title = 'Pre-Order Batch Fulfillment';
+      subtitle = 'Prepared on demand by seller. In-app chat updates when ready for campus pickup.';
+      icon = Icons.hourglass_top_rounded;
+      accentColor = TeknoyTheme.citGold;
+    } else if (isReservation) {
+      title = 'Automatic Stock Reservation';
+      subtitle = 'One or more items are out of stock. Held until restock or seller handoff.';
+      icon = Icons.schedule_rounded;
+      accentColor = TeknoyTheme.warning;
+    } else {
+      title = 'Campus Meetup Stock Hold';
+      subtitle = '1 on-hand unit held for 24 hours until verified campus meetup handoff.';
+      icon = Icons.verified_rounded;
+      accentColor = TeknoyTheme.citGold;
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isReservation
-            ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.12 : 0.06)
-            : (isDark ? const Color(0xFF141418) : const Color(0xFFF4F4F7)),
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isReservation
-              ? TeknoyTheme.citMaroon.withValues(alpha: 0.5)
-              : (isDark ? const Color(0xFF22222A) : const Color(0xFFE5E5E9)),
+          color: accentColor.withValues(alpha: 0.35),
           width: 1.2,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.1 : 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isReservation
-                  ? TeknoyTheme.citMaroon
-                  : (isDark ? const Color(0xFF22222A) : Colors.white),
+              color: accentColor.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(
-              Icons.hourglass_empty_rounded,
-              color: isReservation ? Colors.white : TeknoyTheme.citGold,
-              size: 24,
+              icon,
+              color: accentColor,
+              size: 22,
             ),
           ),
           const SizedBox(width: 16),
@@ -1016,22 +1594,21 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isReservation ? 'Automatic Reservation' : 'Instant Purchase',
-                  style: const TextStyle(
+                  title,
+                  style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  isReservation
-                      ? 'One or more items are out of stock. Proceeding as a reservation.'
-                      : 'All items are in stock. Proceeding as a regular purchase.',
+                  subtitle,
                   style: TextStyle(
                     fontFamily: 'Inter',
-                    fontSize: 11,
-                    color: isDark ? Colors.white54 : Colors.black54,
+                    fontSize: 11.5,
+                    color: isDark ? Colors.white60 : Colors.black54,
                   ),
                 ),
               ],
@@ -1045,52 +1622,59 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // FIX #6: The submit button is disabled while inventory or GCash info is still loading.
     final bool isPageLoading = _isLoadingInventory || _isLoadingSellerGcash;
 
     return Scaffold(
+      backgroundColor: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBg,
       appBar: AppBar(
-        title: Text(
-          widget.isPreorder ? 'Confirm Pre-Order' : 'Confirm P2P Deal',
-          style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+        backgroundColor: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBg,
+        elevation: 0,
+        title: Column(
+          children: [
+            Text(
+              widget.isPreorder ? 'Confirm Pre-Order' : 'Confirm P2P Deal',
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                fontSize: 19,
+              ),
+            ),
+            Text(
+              widget.isPreorder ? 'Batch Production Handoff' : 'CIT-U Campus Handshake',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 11,
+                color: isDark ? Colors.white54 : Colors.black45,
+              ),
+            ),
+          ],
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (widget.isPreorder) ...[
-                _buildPreorderNoticeBanner(isDark),
-                const SizedBox(height: 16),
+                _buildPreorderHeroBanner(isDark),
+                const SizedBox(height: 18),
               ],
               _buildProductSpotlightCard(isDark),
               const SizedBox(height: 28),
 
-              // Title header
-              Row(
-                children: [
-                  const Icon(Icons.location_on_rounded, color: TeknoyTheme.citGold, size: 22),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Pickup Landmark',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                ],
+              // Pickup Landmark Header & Horizontal List
+              _buildSectionHeader(
+                icon: Icons.location_on_rounded,
+                title: 'Pickup Landmark',
+                subtitle: 'Select an approved CIT-U campus meetup location',
+                isDark: isDark,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
-              // Horizontal scroll of Campus Landmark Cards
               SizedBox(
-                height: 155,
+                height: 160,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: _landmarks.length,
@@ -1103,102 +1687,108 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               ),
               const SizedBox(height: 28),
 
-              // Suggested schedule header
-              Row(
-                children: [
-                  const Icon(Icons.calendar_month_rounded, color: TeknoyTheme.citGold, size: 22),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Suggested Schedule',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                ],
+              // Availability / Schedule Header
+              _buildSectionHeader(
+                icon: widget.isPreorder ? Icons.access_time_filled_rounded : Icons.calendar_month_rounded,
+                title: widget.isPreorder ? 'Campus Availability Hours' : 'Suggested Schedule',
+                subtitle: widget.isPreorder
+                    ? 'Indicate when you are generally on campus between classes'
+                    : 'Choose your desired pickup day and meetup time window',
+                isDark: isDark,
               ),
-              const SizedBox(height: 12),
-
-              _buildDayChips(isDark),
               const SizedBox(height: 14),
+
+              if (widget.isPreorder) ...[
+                _buildPreorderScheduleClarification(isDark),
+                const SizedBox(height: 14),
+              ] else ...[
+                _buildDayChips(isDark),
+                const SizedBox(height: 14),
+              ],
               _buildTimeSlotGrid(isDark),
               const SizedBox(height: 28),
 
+              // Reservation status banner
               _buildReservationToggle(isDark),
               const SizedBox(height: 28),
 
-              // Payment Method header
-              Row(
-                children: [
-                  const Icon(Icons.account_balance_wallet_rounded, color: TeknoyTheme.citGold, size: 22),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Payment Method',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                ],
+              // Payment Method Header & Cards
+              _buildSectionHeader(
+                icon: Icons.account_balance_wallet_rounded,
+                title: 'Payment Method',
+                subtitle: 'Choose physical cash at meetup or direct GCash transfer',
+                isDark: isDark,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               _buildPaymentMethodSelector(isDark),
               const SizedBox(height: 28),
 
-              // Final Price header
-              Row(
-                children: [
-                  const Icon(Icons.payments_rounded, color: TeknoyTheme.citGold, size: 22),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Confirm Final Price',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                ],
+              // Price Summary Header & Finalizer Card
+              _buildSectionHeader(
+                icon: Icons.payments_rounded,
+                title: 'Order Summary',
+                subtitle: 'Review total price prior to deal logging',
+                isDark: isDark,
               ),
-              const SizedBox(height: 12),
-
+              const SizedBox(height: 14),
               _buildPriceFinalizer(isDark),
               const SizedBox(height: 36),
 
-              // FIX #6: Disable submit button while page data is still loading.
-              ElevatedButton(
-                onPressed: (_isSubmitting || isPageLoading) ? null : _submitCheckout,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: TeknoyTheme.citMaroon,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: TeknoyTheme.citMaroon.withValues(alpha: 0.4),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+              // Submit button with signature CIT-U Maroon gradient
+              Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  elevation: 2,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: TeknoyTheme.citMaroon.withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                child: (_isSubmitting || isPageLoading)
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : Text(
-                        widget.isPreorder ? 'Confirm Pre-Order' : 'Confirm Meetup Deal',
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
+                child: ElevatedButton.icon(
+                  onPressed: (_isSubmitting || isPageLoading) ? null : _submitCheckout,
+                  icon: (_isSubmitting || isPageLoading)
+                      ? const SizedBox.shrink()
+                      : Icon(
+                          widget.isPreorder ? Icons.assignment_turned_in_rounded : Icons.handshake_rounded,
+                          size: 20,
+                          color: TeknoyTheme.citGold,
                         ),
-                      ),
+                  label: (_isSubmitting || isPageLoading)
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : Text(
+                          widget.isPreorder ? 'Confirm Pre-Order Request' : 'Confirm Meetup Deal',
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.3,
+                            color: Colors.white,
+                          ),
+                        ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
               ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
