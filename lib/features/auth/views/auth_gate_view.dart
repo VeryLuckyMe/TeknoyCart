@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme.dart';
 import '../providers/auth_provider.dart';
+import 'widgets/email_verification_dialog.dart';
+import 'widgets/auth_password_sheets.dart';
+import 'widgets/auth_form_fields.dart';
 
 class AuthGateView extends ConsumerStatefulWidget {
   const AuthGateView({super.key});
@@ -220,7 +223,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
           await showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (ctx) => _EmailVerificationDialog(
+            builder: (ctx) => EmailVerificationDialog(
               email: _emailController.text.trim(),
             ),
           );
@@ -233,425 +236,27 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
   }
 
   void _showForgotPasswordSheet() {
-    final forgotEmailCtrl = TextEditingController(text: _emailController.text);
-    showModalBottomSheet(
+    AuthPasswordSheets.showForgotPasswordSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            padding: const EdgeInsets.all(28),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white24 : Colors.black12,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Reset Password',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Enter your email address and we will send you instructions to reset your password.',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 13,
-                    color: isDark ? Colors.white60 : Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: forgotEmailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: 'Email Address',
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () async {
-                    final email = forgotEmailCtrl.text.trim();
-                    if (email.isEmpty) return;
-                    Navigator.pop(ctx);
-                    try {
-                      await Supabase.instance.client.auth.resetPasswordForEmail(email);
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Password reset instructions sent to your email.')),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) _showErrorSnackBar(e.toString());
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: TeknoyTheme.citMaroon,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: const Text(
-                    'Send Reset Link',
-                    style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
+      initialEmail: _emailController.text,
+      onError: (msg) {
+        if (mounted) _showErrorSnackBar(msg);
       },
     );
   }
 
   void _showSetNewPasswordSheet() {
-    final newPasswordCtrl = TextEditingController();
-    final confirmPasswordCtrl = TextEditingController();
-    bool obscureNew = true;
-    bool obscureConfirm = true;
-
-    showModalBottomSheet(
+    AuthPasswordSheets.showSetNewPasswordSheet(
       context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final isDark = Theme.of(ctx).brightness == Brightness.dark;
-            return Padding(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-              child: Container(
-                padding: const EdgeInsets.all(28),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 36,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.white24 : Colors.black12,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        const Icon(Icons.lock_reset_rounded, color: TeknoyTheme.citMaroon, size: 28),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Set New Password',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Please enter and confirm your new account password.',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 13,
-                        color: isDark ? Colors.white60 : Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: newPasswordCtrl,
-                      obscureText: obscureNew,
-                      decoration: InputDecoration(
-                        labelText: 'New Password',
-                        prefixIcon: const Icon(Icons.lock_outline_rounded),
-                        suffixIcon: IconButton(
-                          icon: Icon(obscureNew ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                          onPressed: () => setModalState(() => obscureNew = !obscureNew),
-                        ),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: confirmPasswordCtrl,
-                      obscureText: obscureConfirm,
-                      decoration: InputDecoration(
-                        labelText: 'Confirm New Password',
-                        prefixIcon: const Icon(Icons.lock_outline_rounded),
-                        suffixIcon: IconButton(
-                          icon: Icon(obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                          onPressed: () => setModalState(() => obscureConfirm = !obscureConfirm),
-                        ),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final pass = newPasswordCtrl.text;
-                        final confirm = confirmPasswordCtrl.text;
-                        if (pass.length < 6) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Password must be at least 6 characters.'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                          return;
-                        }
-                        if (pass != confirm) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Passwords do not match.'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                          return;
-                        }
-
-                        Navigator.pop(ctx);
-                        try {
-                          await Supabase.instance.client.auth.updateUser(
-                            UserAttributes(password: pass),
-                          );
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('✅ Password updated successfully! Please log in with your new password.'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                            _switchTab(true);
-                          }
-                        } catch (e) {
-                          if (mounted) _showErrorSnackBar(e.toString());
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: TeknoyTheme.citMaroon,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: const Text(
-                        'Update Password',
-                        style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
+      onPasswordUpdated: () {
+        if (mounted) _switchTab(true);
+      },
+      onError: (msg) {
+        if (mounted) _showErrorSnackBar(msg);
       },
     );
   }
 
-  Widget _buildRoleCard({
-    required String role,
-    required String title,
-    required String desc,
-    required IconData icon,
-  }) {
-    final isSelected = _selectedRole == role;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return GestureDetector(
-      onTap: () => setState(() => _selectedRole = role),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.25 : 0.08)
-              : (isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF6F6F8)),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected
-                ? TeknoyTheme.citMaroon
-                : (isDark ? Colors.white.withOpacity(0.1) : const Color(0xFFE5E5EA)),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 26,
-              color: isSelected ? TeknoyTheme.citMaroon : (isDark ? Colors.white60 : Colors.black54),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: isSelected
-                    ? TeknoyTheme.citMaroon
-                    : (isDark ? Colors.white : Colors.black87),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              desc,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 11,
-                color: isDark ? Colors.white38 : Colors.black45,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSellerTypeCard({
-    required String type,
-    required String title,
-    required String desc,
-    required IconData icon,
-  }) {
-    final isSelected = _selectedSellerType == type;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final activeColor = type == 'ORG' ? const Color(0xFF1976D2) : TeknoyTheme.citGold;
-
-    return GestureDetector(
-      onTap: () => setState(() => _selectedSellerType = type),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? activeColor.withOpacity(isDark ? 0.25 : 0.08)
-              : (isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF6F6F8)),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected
-                ? activeColor
-                : (isDark ? Colors.white.withOpacity(0.1) : const Color(0xFFE5E5EA)),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: isSelected ? activeColor : (isDark ? Colors.white60 : Colors.black54),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              title,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: isSelected ? activeColor : (isDark ? Colors.white : Colors.black87),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              desc,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 10,
-                color: isDark ? Colors.white38 : Colors.black45,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    bool obscureText = false,
-    Widget? suffixIcon,
-    TextInputType? keyboardType,
-    String? Function(String?)? validator,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return TextFormField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      validator: validator,
-      style: TextStyle(
-        fontFamily: 'Inter',
-        fontSize: 14,
-        color: isDark ? Colors.white : Colors.black87,
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 13,
-          color: isDark ? Colors.white60 : Colors.black54,
-        ),
-        prefixIcon: Icon(icon, size: 20, color: isDark ? Colors.white60 : Colors.black54),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF8F9FA),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: isDark ? Colors.white12 : const Color(0xFFE9ECEF)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: isDark ? Colors.white12 : const Color(0xFFE9ECEF)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.redAccent),
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -815,7 +420,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
 
                                     // LOGIN FORM
                                     if (_isLoginTab) ...[
-                                      _buildInputField(
+                                      AuthInputField(
                                         controller: _emailController,
                                         label: 'Email Address',
                                         icon: Icons.email_outlined,
@@ -832,7 +437,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                         },
                                       ),
                                       const SizedBox(height: 16),
-                                      _buildInputField(
+                                      AuthInputField(
                                         controller: _passwordController,
                                         label: 'Password',
                                         icon: Icons.lock_outline_rounded,
@@ -937,13 +542,13 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                       // Step 0: Identity & Role
                                       if (_registerStep == 0) ...[
                                         if (!(_selectedRole == 'SELLER' && _selectedSellerType == 'ORG')) ...[
-                                          _buildInputField(
+                                          AuthInputField(
                                             controller: _firstNameController,
                                             label: 'First Name',
                                             icon: Icons.person_outline_rounded,
                                           ),
                                           const SizedBox(height: 16),
-                                          _buildInputField(
+                                          AuthInputField(
                                             controller: _lastNameController,
                                             label: 'Last Name',
                                             icon: Icons.person_outline_rounded,
@@ -963,20 +568,24 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                         Row(
                                           children: [
                                             Expanded(
-                                              child: _buildRoleCard(
+                                              child: RoleCard(
                                                 role: 'BUYER',
+                                                selectedRole: _selectedRole,
                                                 title: 'Buyer',
                                                 desc: 'Browse & purchase',
                                                 icon: Icons.shopping_bag_outlined,
+                                                onSelected: (val) => setState(() => _selectedRole = val),
                                               ),
                                             ),
                                             const SizedBox(width: 12),
                                             Expanded(
-                                              child: _buildRoleCard(
+                                              child: RoleCard(
                                                 role: 'SELLER',
+                                                selectedRole: _selectedRole,
                                                 title: 'Seller',
                                                 desc: 'List & trade products',
                                                 icon: Icons.storefront_outlined,
+                                                onSelected: (val) => setState(() => _selectedRole = val),
                                               ),
                                             ),
                                           ],
@@ -996,20 +605,24 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                           Row(
                                             children: [
                                               Expanded(
-                                                child: _buildSellerTypeCard(
+                                                child: SellerTypeCard(
                                                   type: 'STUDENT',
+                                                  selectedSellerType: _selectedSellerType,
                                                   title: 'Student / Personal',
                                                   desc: 'Individual student seller',
                                                   icon: Icons.school_outlined,
+                                                  onSelected: (val) => setState(() => _selectedSellerType = val),
                                                 ),
                                               ),
                                               const SizedBox(width: 12),
                                               Expanded(
-                                                child: _buildSellerTypeCard(
+                                                child: SellerTypeCard(
                                                   type: 'ORG',
+                                                  selectedSellerType: _selectedSellerType,
                                                   title: 'Org / Shop',
                                                   desc: 'Organization or big store',
                                                   icon: Icons.storefront_rounded,
+                                                  onSelected: (val) => setState(() => _selectedSellerType = val),
                                                 ),
                                               ),
                                             ],
@@ -1055,7 +668,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                             ),
                                           ),
                                           const SizedBox(height: 20),
-                                          _buildInputField(
+                                          AuthInputField(
                                             controller: _storeNameController,
                                             label: 'Store Name',
                                             icon: Icons.store_mall_directory_outlined,
@@ -1120,27 +733,27 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                             ),
                                           ),
                                           const SizedBox(height: 16),
-                                          _buildInputField(
+                                          AuthInputField(
                                             controller: _orgContactController,
                                             label: 'Contact Number (09XX-XXX-XXXX)',
                                             icon: Icons.phone_outlined,
                                             keyboardType: TextInputType.phone,
                                           ),
                                           const SizedBox(height: 16),
-                                          _buildInputField(
+                                          AuthInputField(
                                             controller: _departmentController,
                                             label: 'College / Dept. Affiliation (e.g. CCS)',
                                             icon: Icons.account_balance_outlined,
                                           ),
                                         ] else ...[
-                                          _buildInputField(
+                                          AuthInputField(
                                             controller: _studentIdController,
                                             label: 'Student ID (##-####-###)',
                                             icon: Icons.badge_outlined,
                                             keyboardType: TextInputType.phone,
                                           ),
                                           const SizedBox(height: 16),
-                                          _buildInputField(
+                                          AuthInputField(
                                             controller: _departmentController,
                                             label: 'Department Code (e.g. CCS)',
                                             icon: Icons.school_outlined,
@@ -1198,7 +811,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
 
                                       // Step 2: Account Credentials
                                       if (_registerStep == 2) ...[
-                                        _buildInputField(
+                                        AuthInputField(
                                           controller: _emailController,
                                           label: _selectedRole == 'SELLER'
                                               ? 'Store / Contact Email (e.g. Gmail)'
@@ -1224,7 +837,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                           },
                                         ),
                                         const SizedBox(height: 16),
-                                        _buildInputField(
+                                        AuthInputField(
                                           controller: _passwordController,
                                           label: 'Password',
                                           icon: Icons.lock_outline_rounded,
@@ -1354,391 +967,6 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Email Verification Dialog with countdown timer
-// ---------------------------------------------------------------------------
-class _EmailVerificationDialog extends StatefulWidget {
-  final String email;
-  const _EmailVerificationDialog({required this.email});
-
-  @override
-  State<_EmailVerificationDialog> createState() => _EmailVerificationDialogState();
-}
-
-class _EmailVerificationDialogState extends State<_EmailVerificationDialog> {
-  static const int _totalSeconds = 300; // 5 minutes
-  int _secondsLeft = _totalSeconds;
-  bool _expired = false;
-  bool _resending = false;
-  bool _resent = false;
-  bool _verifiedSuccess = false;
-  Timer? _timer;
-  Timer? _statusPollTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _startTimer();
-    _startStatusPoller();
-  }
-
-  void _startStatusPoller() {
-    _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (t) async {
-      if (!mounted) { t.cancel(); return; }
-      try {
-        final res = await Supabase.instance.client
-            .from('users')
-            .select('is_verified')
-            .eq('email', widget.email.trim())
-            .maybeSingle();
-
-        if (res != null && res['is_verified'] == true) {
-          t.cancel();
-          _timer?.cancel();
-          if (mounted) {
-            setState(() {
-              _verifiedSuccess = true;
-            });
-            await Future.delayed(const Duration(milliseconds: 1800));
-            if (mounted) {
-              Navigator.of(context).pop(true);
-            }
-          }
-        }
-      } catch (_) {}
-    });
-  }
-
-  void _startTimer() {
-    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) { t.cancel(); return; }
-      setState(() {
-        if (_secondsLeft > 0) {
-          _secondsLeft--;
-        } else {
-          _expired = true;
-          t.cancel();
-        }
-      });
-    });
-  }
-
-  Future<void> _resendEmail() async {
-    setState(() { _resending = true; _resent = false; });
-    try {
-      await Supabase.instance.client.auth.resend(
-        type: OtpType.signup,
-        email: widget.email,
-      );
-      if (mounted) {
-        setState(() {
-          _resending = false;
-          _resent = true;
-          _expired = false;
-          _secondsLeft = _totalSeconds;
-        });
-        _startTimer();
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() { _resending = false; });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to resend: ${e.toString()}',
-                style: const TextStyle(fontFamily: 'Inter')),
-            backgroundColor: Colors.red.shade700,
-          ),
-        );
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _statusPollTimer?.cancel();
-    super.dispose();
-  }
-
-  String get _formattedTime {
-    final m = (_secondsLeft ~/ 60).toString().padLeft(2, '0');
-    final s = (_secondsLeft % 60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
-  // Progress 1.0 → 0.0 as time runs out
-  double get _progress => _secondsLeft / _totalSeconds;
-
-  Color get _timerColor {
-    if (_secondsLeft > 120) return const Color(0xFF2E7D32);
-    if (_secondsLeft > 60) return const Color(0xFFF57F17);
-    return const Color(0xFFC62828);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    if (_verifiedSuccess) {
-      return Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2E7D32).withOpacity(0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check_circle_rounded,
-                  size: 54,
-                  color: Color(0xFF2E7D32),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Verification Successful!',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2E7D32),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Your institutional email has been verified.\nRedirecting to login...',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 13,
-                  color: isDark ? Colors.white70 : Colors.black54,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Icon
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: (_expired
-                    ? const Color(0xFFC62828)
-                    : const Color(0xFF2E7D32)).withOpacity(0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                _expired
-                    ? Icons.timer_off_rounded
-                    : Icons.mark_email_unread_rounded,
-                size: 42,
-                color: _expired ? const Color(0xFFC62828) : const Color(0xFF2E7D32),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Title
-            Text(
-              _expired ? 'Link Expired' : 'Verify Your Email',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: _expired
-                    ? const Color(0xFFC62828)
-                    : (isDark ? Colors.white : Colors.black87),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-
-            // Subtitle
-            Text(
-              _expired
-                  ? 'The verification link has expired. Tap below to resend a new one.'
-                  : 'A verification link has been sent to:',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 13,
-                height: 1.5,
-                color: isDark ? Colors.white60 : Colors.black54,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-
-            // Email pill
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: TeknoyTheme.citMaroon.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: TeknoyTheme.citMaroon.withOpacity(0.25)),
-              ),
-              child: Text(
-                widget.email,
-                style: const TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: TeknoyTheme.citMaroon,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Countdown or expired indicator
-            if (!_expired) ...[
-              // Circular progress + time
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 72,
-                    height: 72,
-                    child: CircularProgressIndicator(
-                      value: _progress,
-                      strokeWidth: 5,
-                      backgroundColor: (isDark ? Colors.white : Colors.black).withOpacity(0.08),
-                      valueColor: AlwaysStoppedAnimation<Color>(_timerColor),
-                    ),
-                  ),
-                  Text(
-                    _formattedTime,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: _timerColor,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Link expires in',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 11,
-                  color: isDark ? Colors.white38 : Colors.black38,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Please check your inbox and spam folder.',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 12,
-                  color: isDark ? Colors.white54 : Colors.black45,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-
-            // Resent success message
-            if (_resent)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF2E7D32)),
-                    const SizedBox(width: 6),
-                    Text(
-                      'New verification email sent!',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 12,
-                        color: isDark ? Colors.white60 : Colors.black54,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            const SizedBox(height: 24),
-
-            // Resend button (allows instant resend or when expired)
-            SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: _resending ? null : _resendEmail,
-                  icon: _resending
-                      ? const SizedBox(
-                          width: 16, height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.send_rounded, size: 18),
-                  label: Text(
-                    _resending ? 'Sending...' : 'Resend Verification Email',
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: TeknoyTheme.citMaroon,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                ),
-              ),
-
-            // Close button
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(
-                    color: isDark ? Colors.white24 : Colors.black26,
-                  ),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                child: Text(
-                  _expired ? 'Close' : 'Got it, I\'ll check my email',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white70 : Colors.black54,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
