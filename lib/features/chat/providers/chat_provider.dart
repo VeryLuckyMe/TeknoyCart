@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/features/chat/models/message.dart';
 import 'package:teknoycart/features/chat/services/chat_service.dart';
-import 'package:teknoycart/features/feed/models/product.dart';
+import 'package:teknoycart/core/models/product.dart';
 
 /// Provider exposing the single instance of ChatService.
 final chatServiceProvider = Provider<ChatService>((ref) {

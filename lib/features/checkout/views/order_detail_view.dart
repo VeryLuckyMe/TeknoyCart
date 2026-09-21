@@ -11,7 +11,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/chat/services/chat_service.dart';
-import 'package:teknoycart/features/feed/models/product.dart';
+import 'package:teknoycart/core/models/product.dart';
 
 const String backendUrl = 'https://teknoycart-backend.onrender.com/api/orders';
 

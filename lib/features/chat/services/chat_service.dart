@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/chat/models/message.dart';
-import 'package:teknoycart/features/feed/models/product.dart';
+import 'package:teknoycart/core/models/product.dart';
 
 /// Real-time chat service using Supabase Realtime channels.
 /// Listens to the `messages` table for INSERT events on the given chat room.

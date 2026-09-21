@@ -1,4 +1,4 @@
-import 'package:teknoycart/features/feed/models/product.dart';
+import 'package:teknoycart/core/models/product.dart';
 
 class CartItem {
   final Product product;

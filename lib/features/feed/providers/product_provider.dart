@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
-import 'package:teknoycart/features/feed/models/product.dart';
+import 'package:teknoycart/core/models/product.dart';
 
 // ── Static filter providers ──
 final categoriesProvider = Provider<List<String>>((ref) => [

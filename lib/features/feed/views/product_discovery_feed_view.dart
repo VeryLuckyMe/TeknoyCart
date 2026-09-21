@@ -15,7 +15,7 @@ import 'package:teknoycart/core/navigation_drawer.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
-import 'package:teknoycart/features/feed/models/product.dart';
+import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/feed/views/search_results_view.dart';

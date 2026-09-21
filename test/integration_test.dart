@@ -11,7 +11,7 @@ import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart'
 import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
-import 'package:teknoycart/features/feed/models/product.dart';
+import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/chat/models/message.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/services/auth_service.dart';
