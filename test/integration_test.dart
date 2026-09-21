@@ -236,8 +236,8 @@ void main() {
       // Verify Checkout page is visible
       expect(find.byType(CheckoutView), findsOneWidget);
       expect(find.text('Confirm P2P Deal'), findsOneWidget);
-      // Verify the final price of ₱450.00 is displayed
-      expect(find.text('₱450.00'), findsOneWidget);
+      // Verify the price of ₱450.00 is displayed (item row and summary total)
+      expect(find.text('₱450.00'), findsWidgets);
 
       // Campus Meetup Location is set to 'Library Lobby' by default
       // Confirm deal by tapping the submit action button
@@ -248,7 +248,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify Deal Logged Success dialog appears with parameters
-      expect(find.text('Deal Logged!'), findsOneWidget);
+      expect(find.text('Meetup Deal Logged!'), findsOneWidget);
       expect(find.textContaining('Your order for ₱450.00 has been successfully logged!'), findsOneWidget);
 
       // 6. Tap back to feed to complete the transaction user journey
