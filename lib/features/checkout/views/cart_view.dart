@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
+import 'package:teknoycart/features/checkout/models/checkout_item.dart';
 
 class CartView extends ConsumerStatefulWidget {
   const CartView({super.key});
