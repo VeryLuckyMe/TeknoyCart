@@ -11,7 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/core/theme.dart';
-import 'package:teknoycart/core/navigation_drawer.dart';
+import 'package:teknoycart/core/widgets/navigation_drawer.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
