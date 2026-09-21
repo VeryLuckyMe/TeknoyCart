@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
-import 'package:teknoycart/features/feed/models/product.dart';
+import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/checkout/models/order.dart';
 import 'package:teknoycart/features/chat/models/message.dart';
 

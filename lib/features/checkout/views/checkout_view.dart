@@ -1,39 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:teknoycart/features/feed/models/product.dart';
+import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
-
-class CheckoutItem {
-  final Product product;
-  final double price;
-  final int quantity;
-  final String? variantId;
-  final String? variantName;
-
-  const CheckoutItem({
-    required this.product,
-    required this.price,
-    required this.quantity,
-    this.variantId,
-    this.variantName,
-  });
-}
-
-class CampusLandmark {
-  final String name;
-  final String description;
-  final IconData icon;
-
-  const CampusLandmark({
-    required this.name,
-    required this.description,
-    required this.icon,
-  });
-}
+import 'package:teknoycart/features/checkout/models/checkout_item.dart';
+import 'package:teknoycart/features/checkout/models/campus_landmark.dart';
+import 'package:teknoycart/features/checkout/views/widgets/checkout_section_header.dart';
+import 'package:teknoycart/features/checkout/views/widgets/checkout_success_dialog.dart';
 
 /// Transactional Checkout and Verification page representing Phase 4.
 /// Confirms the agreed price and coordinates campus pickup locations.
@@ -402,173 +378,13 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   }
 
   void _showSuccessDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark ? TeknoyTheme.darkSurface : Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(
-            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
-            width: 1,
-          ),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.25 : 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.check_circle_rounded, color: TeknoyTheme.citGold, size: 24),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                widget.isPreorder ? 'Pre-Order Secured!' : 'Meetup Deal Logged!',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: isDark ? Colors.white : TeknoyTheme.citMaroonDark,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.isPreorder
-                  ? 'Your pre-order for ₱${_totalPrice.toStringAsFixed(2)} has been secured! The seller will prepare your item and coordinate via chat once the batch is ready.'
-                  : 'Your order for ₱${_totalPrice.toStringAsFixed(2)} has been successfully logged! 1 unit is held for your campus meetup within 24 hours.',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 13.5,
-                height: 1.5,
-                color: isDark ? Colors.white70 : const Color(0xFF374151),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF251C12) : TeknoyTheme.citGold.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: TeknoyTheme.citGold.withValues(alpha: 0.4),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.info_outline_rounded, color: TeknoyTheme.citGold, size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Coordinate with the seller via chat for meetup and payment verification updates.',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 12,
-                        height: 1.4,
-                        fontWeight: FontWeight.w500,
-                        color: isDark ? Colors.white.withValues(alpha: 0.9) : TeknoyTheme.citMaroonDark,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: TeknoyTheme.citMaroon,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-            ),
-            child: const Text(
-              'Back to Feed',
-              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
+    CheckoutSuccessDialog.show(
+      context,
+      isPreorder: widget.isPreorder,
+      totalPrice: _totalPrice,
     );
   }
 
-  Widget _buildSectionHeader({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    required bool isDark,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.25),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Icon(icon, color: TeknoyTheme.citGold, size: 16),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              title,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : TeknoyTheme.citMaroonDark,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ],
-        ),
-        if (subtitle != null) ...[
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.only(left: 33.0),
-            child: Text(
-              subtitle,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 12,
-                color: isDark ? Colors.white54 : Colors.black54,
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
 
   Widget _buildPreorderHeroBanner(bool isDark) {
     return Container(
@@ -1665,7 +1481,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               const SizedBox(height: 28),
 
               // Pickup Landmark Header & Horizontal List
-              _buildSectionHeader(
+              CheckoutSectionHeader(
                 icon: Icons.location_on_rounded,
                 title: 'Pickup Landmark',
                 subtitle: 'Select an approved CIT-U campus meetup location',
@@ -1688,7 +1504,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               const SizedBox(height: 28),
 
               // Availability / Schedule Header
-              _buildSectionHeader(
+              CheckoutSectionHeader(
                 icon: widget.isPreorder ? Icons.access_time_filled_rounded : Icons.calendar_month_rounded,
                 title: widget.isPreorder ? 'Campus Availability Hours' : 'Suggested Schedule',
                 subtitle: widget.isPreorder
@@ -1713,7 +1529,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               const SizedBox(height: 28),
 
               // Payment Method Header & Cards
-              _buildSectionHeader(
+              CheckoutSectionHeader(
                 icon: Icons.account_balance_wallet_rounded,
                 title: 'Payment Method',
                 subtitle: 'Choose physical cash at meetup or direct GCash transfer',
@@ -1724,7 +1540,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               const SizedBox(height: 28),
 
               // Price Summary Header & Finalizer Card
-              _buildSectionHeader(
+              CheckoutSectionHeader(
                 icon: Icons.payments_rounded,
                 title: 'Order Summary',
                 subtitle: 'Review total price prior to deal logging',

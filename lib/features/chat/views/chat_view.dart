@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
-import 'package:teknoycart/features/feed/models/product.dart';
+import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'widgets/chat_negotiation_banner.dart';
+import 'widgets/chat_input_bar.dart';
 
 /// Real-Time Chat screen representing Phase 4.
 /// Facilitates peer-to-peer price negotiations and pickup meetups.
@@ -374,128 +376,25 @@ class _ChatViewState extends ConsumerState<ChatView> {
       body: Column(
         children: [
           // Active Negotiation Offer & Handshake Bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: activeState == 'agreed' || activeState == 'completed'
-                  ? TeknoyTheme.success.withOpacity(0.08)
-                  : activeState == 'offered'
-                      ? TeknoyTheme.citGold.withOpacity(0.08)
-                      : TeknoyTheme.citMaroon.withOpacity(0.04),
-              border: Border(
-                bottom: BorderSide(
-                  color: activeState == 'agreed' || activeState == 'completed'
-                      ? TeknoyTheme.success.withOpacity(0.2)
-                      : activeState == 'offered'
-                          ? TeknoyTheme.citGold.withOpacity(0.2)
-                          : TeknoyTheme.citMaroon.withOpacity(0.08),
-                ),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Icon(
-                        activeState == 'agreed' || activeState == 'completed'
-                            ? Icons.check_circle_rounded
-                            : activeState == 'offered'
-                                ? Icons.hourglass_empty_rounded
-                                : Icons.info_outline_rounded,
-                        size: 20,
-                        color: activeState == 'agreed' || activeState == 'completed'
-                            ? TeknoyTheme.success
-                            : activeState == 'offered'
-                                ? TeknoyTheme.citGold
-                                : TeknoyTheme.citMaroon,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          activeState == 'agreed'
-                              ? 'Deal Agreed: ₱${activeOfferPrice.toStringAsFixed(2)}!'
-                              : activeState == 'completed'
-                                  ? 'Deal Finalized! Meetup Scheduled.'
-                                  : activeState == 'offered'
-                                      ? 'Offered Price: ₱${activeOfferPrice.toStringAsFixed(2)}...'
-                                      : 'Asking Price: ₱${widget.product.price.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: activeState == 'agreed' || activeState == 'completed'
-                                ? TeknoyTheme.success
-                                : const Color(0xFF191C1D),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+          ChatNegotiationBanner(
+            activeState: activeState,
+            activeOfferPrice: activeOfferPrice,
+            askingPrice: widget.product.price,
+            isBuyer: ref.read(authStateProvider).valueOrNull?.id != widget.product.sellerId,
+            onOfferPrice: _showOfferPriceDialog,
+            onCheckout: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CheckoutView(
+                    product: widget.product,
+                    agreedPrice: activeOfferPrice,
+                    isDirectBuy: false,
+                    roomId: widget.roomId,
                   ),
                 ),
-                if (activeState == 'completed') ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: TeknoyTheme.success.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      'COMPLETED',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: TeknoyTheme.success,
-                      ),
-                    ),
-                  ),
-                ] else if (activeState != 'agreed') ...[
-                  // Only show the "Offer Price" bargaining action button to the Buyer
-                  if (ref.read(authStateProvider).valueOrNull?.id != widget.product.sellerId)
-                    TextButton.icon(
-                      onPressed: _showOfferPriceDialog,
-                      icon: const Icon(Icons.handshake_outlined, size: 16, color: TeknoyTheme.citMaroon),
-                      label: const Text(
-                        'Offer Price',
-                        style: TextStyle(fontFamily: 'Outfit', fontSize: 13, color: TeknoyTheme.citMaroon, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                ] else ...[
-                  // Only show the Checkout button to the Buyer
-                  if (ref.read(authStateProvider).valueOrNull?.id != widget.product.sellerId)
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => CheckoutView(
-                              product: widget.product,
-                              agreedPrice: activeOfferPrice,
-                              isDirectBuy: false,
-                              roomId: widget.roomId,
-                            ),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: TeknoyTheme.success,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      icon: const Icon(Icons.shopping_cart_checkout_rounded, size: 16),
-                      label: const Text(
-                        'Checkout Deal',
-                        style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                ],
-              ],
-            ),
+              );
+            },
           ),
 
           // Message Bubbles Log
@@ -1052,119 +951,17 @@ class _ChatViewState extends ConsumerState<ChatView> {
             ),
           ),
 
-          // Pending image preview banner
-          if (_pendingImageFile != null || _isUploadingImage)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: TeknoyTheme.citMaroon.withOpacity(0.06),
-              child: Row(
-                children: [
-                  if (_pendingImageFile != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: kIsWeb
-                          ? Image.network(_pendingImageFile!.path, width: 48, height: 48, fit: BoxFit.cover)
-                          : Image.file(File(_pendingImageFile!.path), width: 48, height: 48, fit: BoxFit.cover),
-                    ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _isUploadingImage
-                        ? Row(
-                            children: [
-                              const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: TeknoyTheme.citMaroon),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text('Uploading image...', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey)),
-                            ],
-                          )
-                        : const Text('Image ready to send', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey)),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
-                    onPressed: () => setState(() { _pendingImageFile = null; _isUploadingImage = false; }),
-                  ),
-                ],
-              ),
-            ),
-
-          // Input Send Deck
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: _isOtherPartyDeleted
-                  ? Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: TeknoyTheme.citMaroon.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: TeknoyTheme.citMaroon.withOpacity(0.15),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.block_rounded, color: TeknoyTheme.citMaroon, size: 18),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'You cannot reply to this conversation because the other party has cleared the chat.',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: TeknoyTheme.citMaroon.withOpacity(0.8),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : Row(
-                      children: [
-                        // Attachment Icon — real image picker
-                        IconButton(
-                          icon: const Icon(Icons.add_circle_outline_rounded, color: TeknoyTheme.citMaroon, size: 26),
-                          onPressed: _isUploadingImage ? null : _showImageSourceSheet,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: TextField(
-                            controller: _textController,
-                            textInputAction: TextInputAction.send,
-                            onSubmitted: (_) => _sendMessage(),
-                            decoration: InputDecoration(
-                              hintText: 'Type your message...',
-                              filled: true,
-                              fillColor: Theme.of(context).cardColor,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(24),
-                                borderSide: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(24),
-                                borderSide: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.5),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        CircleAvatar(
-                          backgroundColor: TeknoyTheme.citMaroon,
-                          radius: 22,
-                          child: IconButton(
-                            icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-                            onPressed: () => _sendMessage(),
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
+          ChatInputBar(
+            controller: _textController,
+            pendingImageFile: _pendingImageFile,
+            isUploadingImage: _isUploadingImage,
+            isOtherPartyDeleted: _isOtherPartyDeleted,
+            onClearImage: () => setState(() {
+              _pendingImageFile = null;
+              _isUploadingImage = false;
+            }),
+            onShowImageSource: _showImageSourceSheet,
+            onSendMessage: _sendMessage,
           ),
         ],
       ),

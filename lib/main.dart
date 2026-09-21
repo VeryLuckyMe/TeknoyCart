@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
-import 'package:teknoycart/core/responsive_frame.dart';
+import 'package:teknoycart/core/widgets/responsive_frame.dart';
 import 'package:teknoycart/features/auth/views/auth_gate_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
