@@ -3950,31 +3950,28 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         )
-                      : null,
-                  color: isActive
-                      ? null
-                      : (isDark ? const Color(0xFF1E1E24) : const Color(0xFFF0F0F4)),
-                  borderRadius: BorderRadius.circular(14),
-                  border: isActive
-                      ? null
-                      : Border.all(
-                          color: isDark ? const Color(0xFF2E2E36) : const Color(0xFFD6D6DE),
-                          width: 1.2,
+                      : LinearGradient(
+                          colors: isDark
+                              ? [const Color(0xFF202026), const Color(0xFF141418)]
+                              : [const Color(0xFF2E2628), const Color(0xFF1A1416)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                  boxShadow: isActive
-                      ? [
-                          BoxShadow(
-                            color: TeknoyTheme.citMaroon.withOpacity(0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : null,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: isActive
+                          ? TeknoyTheme.citMaroon.withOpacity(0.4)
+                          : Colors.black.withOpacity(isDark ? 0.35 : 0.22),
+                      blurRadius: isActive ? 8 : 5,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.add_rounded,
-                  size: 19,
-                  color: isActive ? Colors.white : inactiveColor,
+                  size: 20,
+                  color: Colors.white,
                 ),
               ),
               const SizedBox(height: 3),
@@ -3983,8 +3980,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 style: TextStyle(
                   fontFamily: 'Inter',
                   fontSize: 10,
-                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                  color: isActive ? activeColor : inactiveColor,
+                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                  color: isActive
+                      ? activeColor
+                      : (isDark ? Colors.white70 : const Color(0xFF2E2628)),
                 ),
               ),
             ],
