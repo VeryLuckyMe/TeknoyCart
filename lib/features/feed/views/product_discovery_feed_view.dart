@@ -1121,7 +1121,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           _activeTab == 0
               ? 'TeknoyCart'
               : _activeTab == 1
-                  ? 'Categories'
+                  ? 'Messages'
                   : _activeTab == 2
                       ? 'Sell Items'
                       : _activeTab == 3
@@ -1191,40 +1191,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             },
           ),
 
-          // ── 2. Messages & Bargaining Action (Beside Cart & Notifications) ──
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                icon: Icon(
-                  Icons.forum_outlined,
-                  color: isDark ? Colors.white70 : const Color(0xFF5A413D),
-                  size: 22,
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const InboxView(),
-                    ),
-                  );
-                },
-                tooltip: 'Messages & Bargaining',
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFD90429),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ],
-          ),
 
           // ── 3. Notification Action ──
           Stack(
@@ -1287,9 +1253,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             ),
             _buildBottomNavItem(
               context,
-              icon: Icons.grid_view_rounded,
-              label: 'Categories',
+              icon: Icons.chat_bubble_rounded,
+              label: 'Messages',
               isActive: _activeTab == 1,
+              hasBadge: true,
               onTap: () => setState(() => _activeTab = 1),
             ),
             _buildBottomNavItem(
@@ -1326,7 +1293,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       case 0:
         return _buildHomeTabBody(context);
       case 1:
-        return _buildCategoriesTabBody(context);
+        return const InboxView(embedded: true);
       case 2:
         return _buildSellTabBody(context);
       case 3:
