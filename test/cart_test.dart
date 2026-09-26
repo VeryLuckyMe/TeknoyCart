@@ -106,5 +106,53 @@ void main() {
       expect(result.addedCount, 0);
       expect(cartNotifier.state, isEmpty);
     });
+
+    test('adding different variants of same product creates separate line items', () {
+      cartNotifier.addToCart(
+        testProduct,
+        quantity: 1,
+        variantName: 'M',
+        maxStock: 5,
+      );
+
+      cartNotifier.addToCart(
+        testProduct,
+        quantity: 2,
+        variantName: 'XL',
+        maxStock: 5,
+      );
+
+      expect(cartNotifier.state.length, 2);
+      expect(cartNotifier.state[0].variantName, 'M');
+      expect(cartNotifier.state[0].quantity, 1);
+      expect(cartNotifier.state[1].variantName, 'XL');
+      expect(cartNotifier.state[1].quantity, 2);
+
+      // Adding size XL again should only increment size XL
+      cartNotifier.addToCart(
+        testProduct,
+        quantity: 1,
+        variantName: 'XL',
+        maxStock: 5,
+      );
+
+      expect(cartNotifier.state.length, 2);
+      expect(cartNotifier.state[1].quantity, 3);
+      expect(cartNotifier.state[0].quantity, 1);
+    });
+
+    test('updateVariant allows switching variant of a cart item', () {
+      cartNotifier.addToCart(
+        testProduct,
+        quantity: 1,
+        variantName: 'M',
+        maxStock: 5,
+      );
+
+      cartNotifier.updateVariant(testProduct.id, 'M', 'L');
+
+      expect(cartNotifier.state.length, 1);
+      expect(cartNotifier.state.first.variantName, 'L');
+    });
   });
 }

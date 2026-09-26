@@ -14,4 +14,7 @@ class CartItem {
     this.variantName,
     this.maxStock,
   });
+
+  /// Unique key distinguishing different variants of the same product in the cart
+  String get cartKey => '${product.id}__${variantId ?? ''}__${variantName ?? ''}';
 }

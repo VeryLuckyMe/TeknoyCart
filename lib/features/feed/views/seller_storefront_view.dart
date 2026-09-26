@@ -8,6 +8,7 @@ import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
+import 'package:teknoycart/features/feed/providers/review_provider.dart';
 
 /// State-of-the-Art Seller Storefront View matching modern campus marketplace design (Figma Node 1:39 style).
 class SellerStorefrontView extends ConsumerStatefulWidget {
@@ -437,7 +438,13 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildHeaderStatItem(_mockRating, 'RATING'),
+                        Builder(
+                          builder: (context) {
+                            final summary = ref.watch(sellerRatingSummaryProvider(widget.sellerId));
+                            final ratingText = summary.total > 0 ? summary.average.toStringAsFixed(1) : _mockRating;
+                            return _buildHeaderStatItem(ratingText, 'RATING');
+                          },
+                        ),
                         _buildStatDivider(),
                         _buildHeaderStatItem(_mockFollowers, 'FOLLOWERS'),
                         _buildStatDivider(),
@@ -653,7 +660,7 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
-                      childAspectRatio: 0.72,
+                      childAspectRatio: 0.68,
                       crossAxisSpacing: 14,
                       mainAxisSpacing: 14,
                     ),
@@ -847,6 +854,41 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+              if (product.categoryAttributes.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Wrap(
+                    spacing: 4,
+                    runSpacing: 2,
+                    children: product.categoryAttributes
+                        .take(2)
+                        .map((attr) => Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.06)
+                                    : const Color(0xFFF0EDF5),
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.08)
+                                      : const Color(0xFFDDD8E6),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Text(
+                                '${attr.name}: ${attr.value}',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white54 : const Color(0xFF5A4978),
+                                ),
+                              ),
+                            ))
+                        .toList(),
+                  ),
+                ),
               const SizedBox(height: 4),
               Text(
                 '₱${product.price.toStringAsFixed(2)}',

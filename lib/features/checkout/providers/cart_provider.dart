@@ -21,6 +21,14 @@ class AddToCartResult {
 class CartNotifier extends StateNotifier<List<CartItem>> {
   CartNotifier() : super([]);
 
+  bool _matchesItem(CartItem item, String productId, String? variantId, String? variantName) {
+    if (item.product.id != productId) return false;
+    if (variantId != null && item.variantId != null) {
+      return item.variantId == variantId;
+    }
+    return (item.variantName?.trim().toLowerCase() ?? '') == (variantName?.trim().toLowerCase() ?? '');
+  }
+
   AddToCartResult addToCart(
     Product product, {
     int quantity = 1,
@@ -47,7 +55,7 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
       );
     }
 
-    final index = state.indexWhere((item) => item.product.id == product.id && item.variantId == variantId);
+    final index = state.indexWhere((item) => _matchesItem(item, product.id, variantId, variantName));
 
     if (index != -1) {
       final existingItem = state[index];
@@ -76,7 +84,7 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
         CartItem(
           product: product,
           quantity: newTotal,
-          variantId: variantId,
+          variantId: variantId ?? existingItem.variantId,
           variantName: variantName ?? existingItem.variantName,
           maxStock: currentStockLimit,
         ),
@@ -123,17 +131,17 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
     }
   }
 
-  void removeFromCart(String productId, String? variantId) {
-    state = state.where((item) => !(item.product.id == productId && item.variantId == variantId)).toList();
+  void removeFromCart(String productId, [String? variantId, String? variantName]) {
+    state = state.where((item) => !_matchesItem(item, productId, variantId, variantName)).toList();
   }
 
-  void updateQuantity(String productId, String? variantId, int newQuantity) {
+  void updateQuantity(String productId, String? variantId, int newQuantity, [String? variantName]) {
     if (newQuantity <= 0) {
-      removeFromCart(productId, variantId);
+      removeFromCart(productId, variantId, variantName);
       return;
     }
     state = state.map((item) {
-      if (item.product.id == productId && item.variantId == variantId) {
+      if (_matchesItem(item, productId, variantId, variantName)) {
         int finalQty = newQuantity;
         if (item.maxStock != null && finalQty > item.maxStock!) {
           finalQty = item.maxStock!;
@@ -148,6 +156,53 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
       }
       return item;
     }).toList();
+  }
+
+  void updateVariant(String productId, String? oldVariantName, String newVariantName) {
+    final oldIndex = state.indexWhere((item) =>
+        item.product.id == productId &&
+        (item.variantName?.trim().toLowerCase() ?? '') == (oldVariantName?.trim().toLowerCase() ?? ''));
+    if (oldIndex == -1) return;
+
+    final existingNewIndex = state.indexWhere((item) =>
+        item.product.id == productId &&
+        (item.variantName?.trim().toLowerCase() ?? '') == newVariantName.trim().toLowerCase());
+
+    if (existingNewIndex != -1 && existingNewIndex != oldIndex) {
+      // Merge with existing variant in cart
+      final existing = state[existingNewIndex];
+      final old = state[oldIndex];
+      final mergedQty = existing.quantity + old.quantity;
+      final stockLimit = existing.maxStock ?? old.maxStock;
+      final finalQty = (stockLimit != null && mergedQty > stockLimit) ? stockLimit : mergedQty;
+
+      state = [
+        for (int i = 0; i < state.length; i++)
+          if (i == existingNewIndex)
+            CartItem(
+              product: existing.product,
+              quantity: finalQty,
+              variantId: existing.variantId,
+              variantName: newVariantName,
+              maxStock: stockLimit,
+            )
+          else if (i != oldIndex)
+            state[i],
+      ];
+    } else {
+      final old = state[oldIndex];
+      state = [
+        ...state.sublist(0, oldIndex),
+        CartItem(
+          product: old.product,
+          quantity: old.quantity,
+          variantId: old.variantId,
+          variantName: newVariantName,
+          maxStock: old.maxStock,
+        ),
+        ...state.sublist(oldIndex + 1),
+      ];
+    }
   }
 
   void clearCart() {

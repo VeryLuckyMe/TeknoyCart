@@ -10,6 +10,8 @@ import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
 
 import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/features/feed/providers/review_provider.dart';
+import 'package:teknoycart/features/feed/views/widgets/product_reviews_section.dart';
 
 /// Relational Bottom Sheet displaying detailed information about a selected product.
 /// Implements standard P2P cash agreements and price negotiation features.
@@ -40,7 +42,19 @@ class ProductDetailsSheet extends ConsumerStatefulWidget {
 
 class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
   int _quantity = 1;
+  String? _selectedVariant;
   Product get product => widget.product;
+
+  @override
+  void initState() {
+    super.initState();
+    final variantAttr = widget.product.categoryAttributes
+        .where((a) => a.options.isNotEmpty && (a.options.length > 1 || a.name.toLowerCase() == 'size' || a.name.toLowerCase() == 'color'))
+        .firstOrNull;
+    if (variantAttr != null && variantAttr.options.isNotEmpty) {
+      _selectedVariant = variantAttr.options.first;
+    }
+  }
 
   /// Helper to fetch real seller name dynamically from the users table
   Future<String> _getSellerName(String sellerId) async {
@@ -104,6 +118,134 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
     }
     // Fallback: treat active products as in-stock when inventory lookup fails
     return {'stock': 1, 'reserved': 0, 'available': 1, 'is_preorder_enabled': widget.product.isPreorderEnabled};
+  }
+
+  /// Interactive Variant Selector (Size, Color, etc.) for multi-variant products.
+  Widget _buildVariantSelector(bool isDark) {
+    final variantAttrs = widget.product.categoryAttributes
+        .where((a) => a.options.length > 1 || a.name.toLowerCase() == 'size' || a.name.toLowerCase() == 'color')
+        .toList();
+
+    if (variantAttrs.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: variantAttrs.map((attr) {
+        final options = attr.options;
+        if (options.isEmpty) return const SizedBox.shrink();
+
+        final currentSelection = _selectedVariant ?? options.first;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF141418) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+            ),
+            boxShadow: TeknoyTheme.kElevationLow,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        attr.name.toLowerCase() == 'size' ? Icons.straighten_rounded : Icons.palette_outlined,
+                        size: 16,
+                        color: TeknoyTheme.citMaroon,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Select ${attr.name}',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Chosen: $currentSelection',
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: TeknoyTheme.citMaroon,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: options.map((opt) {
+                  final isSelected = opt.trim().toLowerCase() == currentSelection.trim().toLowerCase();
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () {
+                      setState(() {
+                        _selectedVariant = opt.trim();
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? TeknoyTheme.citMaroon
+                            : (isDark ? const Color(0xFF1E1E26) : const Color(0xFFF4F4F7)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? TeknoyTheme.citMaroon
+                              : (isDark ? Colors.white12 : Colors.black12),
+                          width: isSelected ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isSelected) ...[
+                            const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            opt,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 13,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: isSelected
+                                  ? Colors.white
+                                  : (isDark ? Colors.white : Colors.black87),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
   }
 
   @override
@@ -381,7 +523,84 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 10),
+
+                          // Rating Summary Badge
+                          Consumer(
+                            builder: (context, ref, _) {
+                              final summary = ref.watch(productRatingSummaryProvider(widget.product.id));
+                              if (summary.total == 0) {
+                                return Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.star_outline_rounded, size: 13, color: TeknoyTheme.citGold),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'New Listing • No reviews yet',
+                                            style: TextStyle(
+                                              fontFamily: 'Inter',
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: isDark ? Colors.white60 : Colors.black54,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }
+                              return Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: TeknoyTheme.citGold.withOpacity(isDark ? 0.2 : 0.12),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.star_rounded, size: 14, color: TeknoyTheme.citGold),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          summary.average.toStringAsFixed(1),
+                                          style: const TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: TeknoyTheme.citGold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${summary.total} ${summary.total == 1 ? 'verified review' : 'verified reviews'}',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? Colors.white70 : Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
                           const SizedBox(height: 16),
+
+                          // Interactive Multi-Variant Selector (Size / Color)
+                          _buildVariantSelector(isDark),
 
                           // Quantity Selector Counter Deck
                           FutureBuilder<Map<String, dynamic>>(
@@ -485,6 +704,98 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                               height: 1.5,
                             ),
                           ),
+                          const SizedBox(height: 16),
+
+                          // ── Category-Specific Attributes ──
+                          if (product.categoryAttributes.isNotEmpty) ...[
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF141418) : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                                ),
+                                boxShadow: TeknoyTheme.kElevationLow,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.15 : 0.08),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(
+                                          Icons.info_outline_rounded,
+                                          size: 14,
+                                          color: TeknoyTheme.citMaroon,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Text(
+                                        'Specifications',
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  // Attribute rows with alternating backgrounds
+                                  ...List.generate(product.categoryAttributes.length, (idx) {
+                                    final attr = product.categoryAttributes[idx];
+                                    final isEven = idx.isEven;
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: isEven
+                                            ? (isDark ? const Color(0xFF18181E) : const Color(0xFFF8F8FA))
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          SizedBox(
+                                            width: 110,
+                                            child: Text(
+                                              attr.name,
+                                              style: TextStyle(
+                                                fontFamily: 'Inter',
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: isDark ? Colors.white54 : Colors.black54,
+                                              ),
+                                            ),
+                                          ),
+                                          Expanded(
+                                            child: Text(
+                                              attr.value,
+                                              style: TextStyle(
+                                                fontFamily: 'Inter',
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: isDark ? Colors.white : Colors.black87,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+
+                          // ── Ratings & Customer Reviews Section ──
+                          ProductReviewsSection(product: widget.product),
                           const SizedBox(height: 16),
                         ],
                       ),
@@ -732,11 +1043,16 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                           final result = ref.read(cartProvider.notifier).addToCart(
                                                 widget.product,
                                                 quantity: _quantity,
+                                                variantName: _selectedVariant,
                                                 maxStock: available > 0 ? available : 1,
                                               );
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             SnackBar(
-                                              content: Text(result.message),
+                                              content: Text(
+                                                _selectedVariant != null
+                                                    ? '${result.message} (Variant: $_selectedVariant)'
+                                                    : result.message,
+                                              ),
                                               backgroundColor: result.success ? TeknoyTheme.success : TeknoyTheme.citMaroon,
                                               duration: const Duration(seconds: 2),
                                             ),
@@ -815,6 +1131,7 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                                   quantity: _quantity,
                                                   isReservation: false,
                                                   isPreorder: true,
+                                                  variantName: _selectedVariant,
                                                 ),
                                               ),
                                             );
@@ -859,6 +1176,7 @@ class _ProductDetailsSheetState extends ConsumerState<ProductDetailsSheet> {
                                                 quantity: _quantity,
                                                 isReservation: false,
                                                 isPreorder: false,
+                                                variantName: _selectedVariant,
                                               ),
                                             ),
                                           );

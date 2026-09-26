@@ -14,6 +14,9 @@ import 'package:teknoycart/features/chat/services/chat_service.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'widgets/order_status_stepper.dart';
 import 'widgets/qr_scanner_sheet.dart';
+import 'package:teknoycart/core/models/review.dart';
+import 'package:teknoycart/features/feed/providers/review_provider.dart';
+import 'package:teknoycart/features/feed/views/widgets/review_submission_sheet.dart';
 
 const String backendUrl = 'https://teknoycart-backend.onrender.com/api/orders';
 
@@ -361,6 +364,23 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _openReviewSheet(Product product, String orderId, String? variantName, Review? existing) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => ReviewSubmissionSheet(
+        productId: product.id,
+        productTitle: product.title,
+        productImageUrl: product.imageUrl,
+        orderId: orderId,
+        sellerId: product.sellerId,
+        variantName: variantName,
+        existingReview: existing,
       ),
     );
   }
@@ -1654,6 +1674,109 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       }
 
       if (_status == 'COMPLETED') {
+        final orderId = _order['order_id']?.toString() ?? '';
+        final existingReview = ref.watch(orderReviewProvider(orderId));
+        final product = _extractProductFromOrder();
+        final variant = _order['product_variants'] as Map<String, dynamic>?;
+        final variantValue = variant?['variant_value'] as String?;
+
+        if (existingReview == null) {
+          buttons.add(
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [TeknoyTheme.citMaroon, Color(0xFF9E1B1B)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: TeknoyTheme.citMaroon.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ElevatedButton.icon(
+                onPressed: () => _openReviewSheet(product, orderId, variantValue, null),
+                icon: const Icon(Icons.star_rounded, size: 22, color: TeknoyTheme.citGold),
+                label: const Text(
+                  'Rate & Review Order',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+          );
+        } else {
+          buttons.add(
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E28) : const Color(0xFFF7F7FA),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: TeknoyTheme.citGold.withOpacity(0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: TeknoyTheme.citGold, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'You rated this ',
+                              style: TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                            Row(
+                              children: List.generate(
+                                existingReview.rating,
+                                (_) => const Icon(Icons.star_rounded, size: 14, color: TeknoyTheme.citGold),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (existingReview.comment.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '"${existingReview.comment}"',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                              color: isDark ? Colors.white60 : Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => _openReviewSheet(product, orderId, variantValue, existingReview),
+                    child: const Text('Edit', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
         buttons.add(const SizedBox(height: 10));
         buttons.add(_actionBtn('Request Return / Refund', Colors.orange, Icons.assignment_return_rounded, _showReturnRequestDialog));
       }

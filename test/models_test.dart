@@ -89,6 +89,98 @@ void main() {
       expect(json['price'], 450.00);
       expect(json['condition'], 'Like New');
     });
+
+    test('should correctly parse and serialize category attributes (Clothes, Electronics, Food, School Supplies)', () {
+      final productJson = {
+        'id': 'prod-clothes-1',
+        'title': 'CIT-U PE Uniform Shirt',
+        'description': 'Official Maroon PE Shirt',
+        'price': 250.00,
+        'image_url': 'https://cit.edu/shirt.jpg',
+        'category': 'Uniforms',
+        'condition': 'New',
+        'seller_id': 'seller-pe-1',
+        'created_at': '2026-05-26T14:00:00.000Z',
+        'category_attributes': [
+          {'name': 'Size', 'value': 'Medium'},
+          {'name': 'Color', 'value': 'Maroon'},
+          {'name': 'Gender', 'value': 'Unisex'},
+          {'name': 'Uniform Type', 'value': 'PE Uniform'},
+        ],
+      };
+
+      final product = Product.fromJson(productJson);
+      expect(product.categoryAttributes.length, 4);
+      expect(product.categoryAttributes[0].name, 'Size');
+      expect(product.categoryAttributes[0].value, 'Medium');
+      expect(product.categoryAttributes[1].name, 'Color');
+      expect(product.categoryAttributes[1].value, 'Maroon');
+
+      // Test serialization
+      final serialized = product.toJson();
+      expect(serialized['category_attributes'], isA<List>());
+      final attrs = serialized['category_attributes'] as List;
+      expect(attrs.length, 4);
+      expect(attrs[0]['name'], 'Size');
+      expect(attrs[0]['value'], 'Medium');
+
+      // Test copyWith preserves or updates attributes
+      final updated = product.copyWith(
+        categoryAttributes: [
+          const ProductAttribute(name: 'Size', value: 'Large'),
+        ],
+      );
+      expect(updated.categoryAttributes.length, 1);
+      expect(updated.categoryAttributes.first.value, 'Large');
+    });
+  });
+
+  group('Category Attributes & Templates Model Tests', () {
+    test('ProductAttribute equality and serialization', () {
+      const attr1 = ProductAttribute(name: 'Size', value: 'XL');
+      const attr2 = ProductAttribute(name: 'Size', value: 'XL');
+      const attr3 = ProductAttribute(name: 'Color', value: 'Maroon');
+
+      expect(attr1, equals(attr2));
+      expect(attr1 == attr3, isFalse);
+
+      final json = attr1.toJson();
+      final fromJson = ProductAttribute.fromJson(json);
+      expect(fromJson.name, 'Size');
+      expect(fromJson.value, 'XL');
+      expect(fromJson, equals(attr1));
+    });
+
+    test('CategoryAttributeTemplate serialization for select and text types', () {
+      const selectTemplate = CategoryAttributeTemplate(
+        name: 'Size',
+        type: 'select',
+        placeholder: 'Select size',
+        options: ['S', 'M', 'L', 'XL'],
+      );
+
+      final json = selectTemplate.toJson();
+      expect(json['name'], 'Size');
+      expect(json['type'], 'select');
+      expect(json['options'], ['S', 'M', 'L', 'XL']);
+
+      final fromJson = CategoryAttributeTemplate.fromJson(json);
+      expect(fromJson.name, 'Size');
+      expect(fromJson.type, 'select');
+      expect(fromJson.options.length, 4);
+      expect(fromJson.options.contains('XL'), isTrue);
+
+      const textTemplate = CategoryAttributeTemplate(
+        name: 'Brand',
+        type: 'text',
+        placeholder: 'e.g. Casio, HP',
+      );
+      final textJson = textTemplate.toJson();
+      expect(textJson.containsKey('options'), isFalse);
+      final textFromJson = CategoryAttributeTemplate.fromJson(textJson);
+      expect(textFromJson.name, 'Brand');
+      expect(textFromJson.options.isEmpty, isTrue);
+    });
   });
 
   group('Order Model Tests', () {

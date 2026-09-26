@@ -284,7 +284,10 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                       p.title.toLowerCase().contains(queryLower) ||
                       p.description.toLowerCase().contains(queryLower) ||
                       p.category.toLowerCase().contains(queryLower) ||
-                      (p.sellerStoreName?.toLowerCase().contains(queryLower) ?? false);
+                      (p.sellerStoreName?.toLowerCase().contains(queryLower) ?? false) ||
+                      p.categoryAttributes.any((attr) =>
+                          attr.value.toLowerCase().contains(queryLower) ||
+                          attr.name.toLowerCase().contains(queryLower));
                 }).toList();
 
                 if (matchingProducts.isEmpty) {
@@ -314,7 +317,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                   physics: const NeverScrollableScrollPhysics(),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
-                    childAspectRatio: 0.72,
+                    childAspectRatio: 0.68,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
                   ),
@@ -362,30 +365,30 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                         decoration: BoxDecoration(
-                                          color: Colors.black.withOpacity(0.65),
+                                          color: Colors.black.withValues(alpha: 0.65),
                                           borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            const Icon(Icons.storefront_rounded, size: 10, color: Colors.amber),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              product.sellerStoreName!,
-                                              style: const TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
+                                              const Icon(Icons.storefront_rounded, size: 10, color: Colors.amber),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                product.sellerStoreName!,
+                                                style: const TextStyle(
+                                                  fontFamily: 'Inter',
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
                                               ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
                             Expanded(
                               flex: 2,
                               child: Padding(
@@ -394,16 +397,56 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      product.title,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: isDark ? Colors.white : Colors.black87,
-                                      ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          product.title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: isDark ? Colors.white : Colors.black87,
+                                          ),
+                                        ),
+                                        if (product.categoryAttributes.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 4.0),
+                                            child: Wrap(
+                                              spacing: 4,
+                                              runSpacing: 2,
+                                              children: product.categoryAttributes
+                                                  .take(2)
+                                                  .map((attr) => Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                        decoration: BoxDecoration(
+                                                          color: isDark
+                                                              ? Colors.white.withValues(alpha: 0.06)
+                                                              : const Color(0xFFF0EDF5),
+                                                          borderRadius: BorderRadius.circular(5),
+                                                          border: Border.all(
+                                                            color: isDark
+                                                                ? Colors.white.withValues(alpha: 0.08)
+                                                                : const Color(0xFFDDD8E6),
+                                                            width: 0.5,
+                                                          ),
+                                                        ),
+                                                        child: Text(
+                                                          '${attr.name}: ${attr.value}',
+                                                          style: TextStyle(
+                                                            fontFamily: 'Inter',
+                                                            fontSize: 8,
+                                                            fontWeight: FontWeight.w600,
+                                                            color: isDark ? Colors.white54 : const Color(0xFF5A4978),
+                                                          ),
+                                                        ),
+                                                      ))
+                                                  .toList(),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                     Text(
                                       '₱${product.price.toStringAsFixed(0)}',

@@ -25,6 +25,8 @@ import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/views/cart_view.dart';
 import 'package:teknoycart/features/feed/views/widgets/feed_product_card.dart';
 import 'package:teknoycart/features/feed/views/widgets/feed_trending_banner.dart';
+import 'package:teknoycart/features/feed/providers/review_provider.dart';
+import 'package:teknoycart/features/feed/views/widgets/buyer_reviews_sheet.dart';
 /// Product Discovery Feed representing Figma Node 1:39.
 /// Main marketplace landing hub for listing, browsing, and searching products.
 class ProductDiscoveryFeedView extends ConsumerStatefulWidget {
@@ -50,6 +52,12 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   XFile? _selectedImageFile;
   bool _isUploadingProductImage = false;
   final _imagePicker = ImagePicker();
+
+  // Category-specific attribute controllers (dynamic per category)
+  final Map<String, TextEditingController> _attributeTextControllers = {};
+  final Map<String, String> _attributeSelectValues = {};
+  final Map<String, Set<String>> _attributeMultiSelectValues = {};
+  final Map<String, List<String>> _customAttributeOptions = {};
 
   StreamSubscription<AuthState>? _recoverySub;
 
@@ -161,6 +169,12 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     _sellTitleController.dispose();
     _sellPriceController.dispose();
     _sellDescController.dispose();
+    for (final ctrl in _attributeTextControllers.values) {
+      ctrl.dispose();
+    }
+    _attributeTextControllers.clear();
+    _attributeMultiSelectValues.clear();
+    _customAttributeOptions.clear();
     super.dispose();
   }
 
@@ -224,13 +238,35 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       setState(() => _isUploadingProductImage = false);
     } else {
       // Dynamic mock visual based on category
-      imageUrl = 'https://picsum.photos/seed/books-cs/400/300';
-      if (_sellCategory == 'Apparel') {
-        imageUrl = 'https://picsum.photos/seed/uniforms/400/300';
-      } else if (_sellCategory == 'Electronics') {
-        imageUrl = 'https://picsum.photos/seed/electronics/400/300';
-      } else if (_sellCategory == 'Drawing Tools') {
-        imageUrl = 'https://picsum.photos/seed/drawing-tools/400/300';
+      const categoryImages = {
+        'Books': 'https://picsum.photos/seed/books-cs/400/300',
+        'Uniforms': 'https://picsum.photos/seed/uniforms/400/300',
+        'Clothes': 'https://picsum.photos/seed/clothes-apparel/400/300',
+        'Electronics': 'https://picsum.photos/seed/electronics/400/300',
+        'Drawing Tools': 'https://picsum.photos/seed/drawing-tools/400/300',
+        'Food & Beverages': 'https://picsum.photos/seed/food-snacks/400/300',
+        'School Supplies': 'https://picsum.photos/seed/school-supplies/400/300',
+        'Services': 'https://picsum.photos/seed/services/400/300',
+      };
+      imageUrl = categoryImages[_sellCategory] ?? 'https://picsum.photos/seed/others/400/300';
+    }
+
+    // Collect category-specific attributes from form controllers
+    final List<ProductAttribute> categoryAttributes = [];
+    for (final entry in _attributeTextControllers.entries) {
+      final val = entry.value.text.trim();
+      if (val.isNotEmpty) {
+        categoryAttributes.add(ProductAttribute(name: entry.key, value: val));
+      }
+    }
+    for (final entry in _attributeSelectValues.entries) {
+      if (entry.value.isNotEmpty) {
+        categoryAttributes.add(ProductAttribute(name: entry.key, value: entry.value));
+      }
+    }
+    for (final entry in _attributeMultiSelectValues.entries) {
+      if (entry.value.isNotEmpty) {
+        categoryAttributes.add(ProductAttribute(name: entry.key, value: entry.value.join(', ')));
       }
     }
 
@@ -244,6 +280,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       imageUrl: imageUrl,
       sellerId: ref.read(authStateProvider).valueOrNull?.id ?? 'usr-buyer',
       createdAt: DateTime.now(),
+      categoryAttributes: categoryAttributes,
     );
 
     ref.read(productsListNotifierProvider.notifier).addProduct(newProduct);
@@ -252,6 +289,13 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     _sellTitleController.clear();
     _sellPriceController.clear();
     _sellDescController.clear();
+    for (final ctrl in _attributeTextControllers.values) {
+      ctrl.dispose();
+    }
+    _attributeTextControllers.clear();
+    _attributeSelectValues.clear();
+    _attributeMultiSelectValues.clear();
+    _customAttributeOptions.clear();
     setState(() {
       _sellCategory = 'Books';
       _sellCondition = 'New';
@@ -286,6 +330,508 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           SnackBar(content: Text('Could not pick image: $e'), backgroundColor: TeknoyTheme.error),
         );
       }
+    }
+  }
+
+  /// Builds dynamic form fields based on the selected category's attribute templates.
+  /// Each category has its own set of attributes (e.g., Size/Color for Uniforms,
+  /// Brand/Model for Electronics). Templates are fetched from Supabase with
+  /// a hardcoded fallback for offline resilience.
+  Widget _buildCategoryAttributeFields(bool isDark) {
+    final templatesAsync = ref.watch(categoryAttributeTemplatesProvider);
+
+    return templatesAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (templatesMap) {
+        final templates = templatesMap[_sellCategory];
+        if (templates == null || templates.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Section header with animated category icon
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.06),
+                    Colors.transparent,
+                  ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: TeknoyTheme.citMaroon.withOpacity(0.15),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _getCategoryIcon(_sellCategory),
+                    size: 18,
+                    color: TeknoyTheme.citMaroon,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$_sellCategory Details',
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: TeknoyTheme.citMaroon,
+                          ),
+                        ),
+                        Text(
+                          'Fill in details specific to this category (optional)',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11,
+                            color: isDark ? Colors.white38 : Colors.black38,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Attribute fields grid
+            ...templates.map((template) {
+              if (template.type == 'select' && template.options.isNotEmpty) {
+                if (template.isMultiSelect) {
+                  // Multi-select chip selector for sizes or colors
+                  final selectedSet = _attributeMultiSelectValues.putIfAbsent(template.name, () => <String>{});
+                  final customOptions = _customAttributeOptions.putIfAbsent(template.name, () => <String>[]);
+                  final allOptions = [...template.options, ...customOptions];
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              template.name,
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'Optional',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark ? Colors.white54 : Colors.black45,
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                selectedSet.isEmpty
+                                    ? 'Tap in-stock options'
+                                    : '${selectedSet.length} selected',
+                                style: const TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: TeknoyTheme.citMaroon,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ...allOptions.map((opt) {
+                              final isSelected = selectedSet.contains(opt);
+                              return InkWell(
+                                borderRadius: BorderRadius.circular(10),
+                                onTap: () {
+                                  setState(() {
+                                    if (isSelected) {
+                                      selectedSet.remove(opt);
+                                    } else {
+                                      selectedSet.add(opt);
+                                    }
+                                  });
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 150),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? TeknoyTheme.citMaroon
+                                        : (isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC)),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? TeknoyTheme.citMaroon
+                                          : (isDark ? Colors.white12 : Colors.black12),
+                                      width: isSelected ? 1.5 : 1.0,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (isSelected) ...[
+                                        const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                                        const SizedBox(width: 4),
+                                      ],
+                                      Text(
+                                        opt,
+                                        style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 13,
+                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : (isDark ? Colors.white : Colors.black87),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }),
+                            // + Custom Option chip (e.g. custom size 33, 34, shoe size, or custom color)
+                            InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () => _showAddCustomOptionDialog(template.name),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.05),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: TeknoyTheme.citMaroon.withOpacity(0.4),
+                                    width: 1.2,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.add_rounded, size: 15, color: TeknoyTheme.citMaroon),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '+ Custom ${template.name}',
+                                      style: const TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: TeknoyTheme.citMaroon,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // Single-select dropdown field
+                final currentValue = _attributeSelectValues[template.name];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            template.name,
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'Optional',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? Colors.white54 : Colors.black45,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        value: (currentValue != null && template.options.contains(currentValue))
+                            ? currentValue
+                            : null,
+                        hint: Text(
+                          template.placeholder,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 13,
+                            color: isDark ? Colors.white30 : Colors.black38,
+                          ),
+                        ),
+                        items: template.options
+                            .map((opt) => DropdownMenuItem(
+                                  value: opt,
+                                  child: Text(opt, style: const TextStyle(fontFamily: 'Inter', fontSize: 13)),
+                                ))
+                            .toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            if (val != null) {
+                              _attributeSelectValues[template.name] = val;
+                            }
+                          });
+                        },
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC),
+                        ),
+                        isExpanded: true,
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 13,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              } else {
+                // Text input field
+                if (!_attributeTextControllers.containsKey(template.name)) {
+                  _attributeTextControllers[template.name] = TextEditingController();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            template.name,
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'Optional',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? Colors.white54 : Colors.black45,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _attributeTextControllers[template.name],
+                        decoration: InputDecoration(
+                          hintText: template.placeholder,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC),
+                        ),
+                        style: const TextStyle(fontFamily: 'Inter', fontSize: 13),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            }),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Opens an intuitive dialog allowing the seller to add a custom size (e.g. 33, 34, US 9.5) or custom variant
+  void _showAddCustomOptionDialog(String templateName) {
+    final controller = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isSize = templateName.toLowerCase() == 'size';
+    final isColor = templateName.toLowerCase() == 'color';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E1E28) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: TeknoyTheme.citMaroon.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.add_circle_outline_rounded, color: TeknoyTheme.citMaroon, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Add Custom $templateName',
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 17,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isSize
+                  ? 'Enter numeric waist size (e.g. 33, 34, 35) or custom dimension:'
+                  : isColor
+                      ? 'Enter custom color name (e.g. Olive Green, Beige):'
+                      : 'Enter custom $templateName:',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 13,
+                color: isDark ? Colors.white70 : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: const TextStyle(fontFamily: 'Inter', fontSize: 14),
+              decoration: InputDecoration(
+                hintText: isSize ? 'e.g. 33, 34, 32x30, US 9.5' : isColor ? 'e.g. Olive Green' : 'e.g. Custom',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(10)),
+                  borderSide: BorderSide(color: TeknoyTheme.citMaroon, width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+              onSubmitted: (val) {
+                _addCustomOption(templateName, val);
+                Navigator.pop(ctx);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(fontFamily: 'Inter', color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: TeknoyTheme.citMaroon,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              _addCustomOption(templateName, controller.text);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Add & Select', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addCustomOption(String templateName, String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+    setState(() {
+      final customList = _customAttributeOptions.putIfAbsent(templateName, () => <String>[]);
+      if (!customList.contains(trimmed)) {
+        customList.add(trimmed);
+      }
+      final selectedSet = _attributeMultiSelectValues.putIfAbsent(templateName, () => <String>{});
+      selectedSet.add(trimmed);
+    });
+  }
+
+  /// Returns an appropriate icon for each product category
+  static IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'Books':
+        return Icons.menu_book_rounded;
+      case 'Drawing Tools':
+        return Icons.architecture_rounded;
+      case 'Uniforms':
+        return Icons.badge_rounded;
+      case 'Clothes':
+        return Icons.checkroom_rounded;
+      case 'Electronics':
+        return Icons.devices_rounded;
+      case 'Food & Beverages':
+        return Icons.restaurant_rounded;
+      case 'School Supplies':
+        return Icons.edit_rounded;
+      case 'Services':
+        return Icons.handyman_rounded;
+      default:
+        return Icons.category_rounded;
     }
   }
 
@@ -575,7 +1121,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           _activeTab == 0
               ? 'TeknoyCart'
               : _activeTab == 1
-                  ? 'Bargaining Center'
+                  ? 'Categories'
                   : _activeTab == 2
                       ? 'Sell Items'
                       : _activeTab == 3
@@ -584,13 +1130,14 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           style: const TextStyle(
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w800,
-            fontSize: 24,
+            fontSize: 21,
             letterSpacing: -0.5,
             color: TeknoyTheme.citMaroon,
           ),
         ),
         centerTitle: true,
         actions: [
+          // ── 1. Shopping Cart Action ──
           Consumer(
             builder: (context, ref, child) {
               final cart = ref.watch(cartProvider);
@@ -602,6 +1149,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                     icon: Icon(
                       Icons.shopping_cart_outlined,
                       color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                      size: 22,
                     ),
                     onPressed: () {
                       Navigator.push(
@@ -642,19 +1190,26 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               );
             },
           ),
+
+          // ── 2. Messages & Bargaining Action (Beside Cart & Notifications) ──
           Stack(
             clipBehavior: Clip.none,
             children: [
               IconButton(
                 icon: Icon(
-                  Icons.notifications_none_rounded,
+                  Icons.forum_outlined,
                   color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                  size: 22,
                 ),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('System checks: verified connection with local Supabase live client.')),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const InboxView(),
+                    ),
                   );
                 },
+                tooltip: 'Messages & Bargaining',
               ),
               Positioned(
                 top: 8,
@@ -670,22 +1225,37 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               ),
             ],
           ),
-          IconButton(
-            icon: Icon(
-              Icons.sync_rounded,
-              color: isDark ? Colors.white70 : const Color(0xFF5A413D),
-            ),
-            onPressed: () async {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Syncing campus catalog...'),
-                  duration: Duration(milliseconds: 500),
-                  behavior: SnackBarBehavior.floating,
+
+          // ── 3. Notification Action ──
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.notifications_none_rounded,
+                  color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                  size: 22,
                 ),
-              );
-              await ref.read(productsListNotifierProvider.notifier).refresh();
-            },
-            tooltip: 'Sync Feed',
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('System checks: verified connection with local Supabase live client.')),
+                  );
+                },
+                tooltip: 'Notifications',
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFD90429),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -717,8 +1287,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             ),
             _buildBottomNavItem(
               context,
-              icon: Icons.message_rounded,
-              label: 'Messages',
+              icon: Icons.grid_view_rounded,
+              label: 'Categories',
               isActive: _activeTab == 1,
               onTap: () => setState(() => _activeTab = 1),
             ),
@@ -756,7 +1326,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       case 0:
         return _buildHomeTabBody(context);
       case 1:
-        return const InboxView(embedded: true);
+        return _buildCategoriesTabBody(context);
       case 2:
         return _buildSellTabBody(context);
       case 3:
@@ -1091,6 +1661,338 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     }
   }
 
+  // ── Index 1: Categories & Campus Catalog Explorer
+  Widget _buildCategoriesTabBody(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final productsAsync = ref.watch(productsListProvider);
+    final allProducts = productsAsync.valueOrNull ?? [];
+
+    final categoryMeta = [
+      {
+        'name': 'Uniforms',
+        'icon': Icons.checkroom_rounded,
+        'color': const Color(0xFF800000), // CIT Maroon
+        'subtitle': 'PE, Polo, Nursing scrubs, Dept shirts',
+        'tag': 'Accurate Sizing',
+      },
+      {
+        'name': 'Books',
+        'icon': Icons.menu_book_rounded,
+        'color': const Color(0xFF1E3A8A), // Navy blue
+        'subtitle': 'Calculus, Engineering, Midterm reviewers',
+        'tag': 'Verified Edition',
+      },
+      {
+        'name': 'Clothes',
+        'icon': Icons.dry_cleaning_rounded,
+        'color': const Color(0xFF7C3AED), // Violet
+        'subtitle': 'T-Shirts, Shorts, Jorts, Hoodies',
+        'tag': 'Campus Style',
+      },
+      {
+        'name': 'Food & Beverages',
+        'icon': Icons.fastfood_rounded,
+        'color': const Color(0xFFD97706), // Amber
+        'subtitle': 'Campus snacks, lunch packs, drinks',
+        'tag': 'Freshly Prepared',
+      },
+      {
+        'name': 'Electronics',
+        'icon': Icons.devices_rounded,
+        'color': const Color(0xFF0284C7), // Sky blue
+        'subtitle': 'Scientific calculators, flash drives, cables',
+        'tag': 'Tech & Gadgets',
+      },
+      {
+        'name': 'Drawing Tools',
+        'icon': Icons.architecture_rounded,
+        'color': const Color(0xFF0D9488), // Teal
+        'subtitle': 'Staedtler sets, drawing boards, T-squares',
+        'tag': 'Engineering Tools',
+      },
+      {
+        'name': 'School Supplies',
+        'icon': Icons.backpack_rounded,
+        'color': const Color(0xFFEA580C), // Orange
+        'subtitle': 'Notebooks, binders, index cards, stationery',
+        'tag': 'Class Essentials',
+      },
+      {
+        'name': 'Services',
+        'icon': Icons.handyman_rounded,
+        'color': const Color(0xFF059669), // Emerald
+        'subtitle': 'Document printing, peer tutoring, thesis help',
+        'tag': 'Peer Services',
+      },
+      {
+        'name': 'Others',
+        'icon': Icons.widgets_rounded,
+        'color': const Color(0xFF64748B), // Slate
+        'subtitle': 'Dorm gear, accessories, miscellaneous',
+        'tag': 'Wildcat Deals',
+      },
+    ];
+
+    final cardBg = isDark ? const Color(0xFF1A1A1E) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF2A2A32) : const Color(0xFFE5E5EA);
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header Deck ──
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: TeknoyTheme.citMaroon.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.grid_view_rounded,
+                  color: TeknoyTheme.citMaroon,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Campus Categories',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF191C1D),
+                      ),
+                    ),
+                    Text(
+                      'Browse verified items by department',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        color: isDark ? Colors.white54 : Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          // ── Search & Filter Shortcut ──
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SearchResultsView(initialQuery: ''),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF18181C) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: cardBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.search_rounded, color: Color(0xFF5A413D), size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Search uniforms, books, tools...',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 13,
+                      color: isDark ? Colors.white38 : Colors.grey.shade500,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'Search',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: TeknoyTheme.citMaroon,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Category Bento Grid ──
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: categoryMeta.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 1.15,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            itemBuilder: (context, index) {
+              final cat = categoryMeta[index];
+              final catName = cat['name'] as String;
+              final catIcon = cat['icon'] as IconData;
+              final catColor = cat['color'] as Color;
+              final catSubtitle = cat['subtitle'] as String;
+              final catTag = cat['tag'] as String;
+
+              final itemCount = allProducts.where((p) => p.category == catName).length;
+
+              return InkWell(
+                onTap: () {
+                  // Filter main feed and switch to Tab 0
+                  ref.read(selectedCategoryProvider.notifier).state = catName;
+                  setState(() => _activeTab = 0);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Showing "$catName" in campus feed'),
+                      duration: const Duration(seconds: 1),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: cardBorder),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: catColor.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(catIcon, color: catColor, size: 22),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white10 : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$itemCount',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white70 : Colors.black87,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            catName,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            catSubtitle,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 10,
+                              color: isDark ? Colors.white54 : Colors.grey.shade600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: catColor.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              catTag,
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: catColor,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 10,
+                            color: isDark ? Colors.white38 : Colors.grey.shade400,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Index 2: Sell Form Body (Fully Usable Post form)
   Widget _buildSellTabBody(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1315,15 +2217,31 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _sellCategory,
-            items: ['Books', 'Drawing Tools', 'Uniforms', 'Electronics', 'Others']
+            items: ref.watch(sellCategoriesProvider)
                 .map((val) => DropdownMenuItem(value: val, child: Text(val)))
                 .toList(),
-            onChanged: (val) => setState(() => _sellCategory = val!),
+            onChanged: (val) {
+              if (val != null && val != _sellCategory) {
+                // Clear previous attribute controllers when category changes
+                for (final ctrl in _attributeTextControllers.values) {
+                  ctrl.dispose();
+                }
+                _attributeTextControllers.clear();
+                _attributeSelectValues.clear();
+                _attributeMultiSelectValues.clear();
+                _customAttributeOptions.clear();
+                setState(() => _sellCategory = val);
+              }
+            },
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
           ),
+          const SizedBox(height: 20),
+
+          // ── Dynamic Category Attributes Section ──
+          _buildCategoryAttributeFields(isDark),
           const SizedBox(height: 20),
 
           // Description
@@ -2618,7 +3536,83 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                           _buildStatDivider(cardBorder),
                           _buildStatItem('Deals', '48', isDark),
                           _buildStatDivider(cardBorder),
-                          _buildStatItem('Trust Score', '98%', isDark, isHighlight: true),
+                          Consumer(
+                            builder: (context, ref, _) {
+                              final targetSellerId = rawId.isNotEmpty ? rawId : 'usr-seller';
+                              final summary = ref.watch(sellerRatingSummaryProvider(targetSellerId));
+                              final hasReviews = summary.total > 0;
+                              final ratingScore = hasReviews ? summary.average.toStringAsFixed(1) : '5.0';
+                              final ratingLabel = hasReviews
+                                  ? '${summary.total} ${summary.total == 1 ? 'Review' : 'Reviews'}'
+                                  : 'Buyer Reviews';
+
+                              return Tooltip(
+                                message: 'View Buyer Reviews',
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => BuyerReviewsSheet(
+                                        sellerId: targetSellerId,
+                                        sellerName: name,
+                                      ),
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              ratingScore,
+                                              style: const TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFFB22222),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 3),
+                                            const Icon(
+                                              Icons.star_rounded,
+                                              size: 16,
+                                              color: Color(0xFFF59E0B),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              ratingLabel,
+                                              style: TextStyle(
+                                                fontFamily: 'Inter',
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                                color: isDark ? Colors.white54 : Colors.grey.shade600,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 2),
+                                            Icon(
+                                              Icons.chevron_right_rounded,
+                                              size: 12,
+                                              color: isDark ? Colors.white38 : Colors.grey.shade400,
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ],
@@ -2957,10 +3951,67 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     const activeColor = TeknoyTheme.citMaroon;
     const inactiveColor = Color(0xFF5A413D);
 
+    if (isActionFocus) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 28,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isActive
+                        ? [TeknoyTheme.citMaroon, const Color(0xFFA51D24)]
+                        : [
+                            isDark ? const Color(0xFF2E2E36) : const Color(0xFF6B4E47),
+                            isDark ? const Color(0xFF1E1E24) : const Color(0xFF4E3732),
+                          ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: isActive
+                      ? [
+                          BoxShadow(
+                            color: TeknoyTheme.citMaroon.withOpacity(0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: const Icon(
+                  Icons.add_rounded,
+                  size: 20,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 10,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                  color: isActive ? activeColor : (isDark ? Colors.white60 : inactiveColor),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+        padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 14.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2969,7 +4020,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               children: [
                 Icon(
                   icon,
-                  size: isActionFocus ? 26 : 22,
+                  size: 22,
                   color: isActive ? activeColor : (isDark ? Colors.white60 : inactiveColor),
                 ),
                 if (hasBadge)
@@ -2993,7 +4044,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               style: TextStyle(
                 fontFamily: 'Inter',
                 fontSize: 10,
-                fontWeight: FontWeight.w500,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 color: isActive ? activeColor : (isDark ? Colors.white60 : inactiveColor),
               ),
             ),

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
@@ -9,7 +10,24 @@ final categoriesProvider = Provider<List<String>>((ref) => [
       'Books',
       'Drawing Tools',
       'Uniforms',
+      'Clothes',
       'Electronics',
+      'Food & Beverages',
+      'School Supplies',
+      'Services',
+      'Others',
+    ]);
+
+/// Seller category list (excludes 'All' filter option)
+final sellCategoriesProvider = Provider<List<String>>((ref) => [
+      'Books',
+      'Drawing Tools',
+      'Uniforms',
+      'Clothes',
+      'Electronics',
+      'Food & Beverages',
+      'School Supplies',
+      'Services',
       'Others',
     ]);
 
@@ -26,6 +44,222 @@ const _categoryIdToName = {
   3: 'Uniforms',
   4: 'Electronics',
   5: 'Others',
+  6: 'Food & Beverages',
+  7: 'School Supplies',
+  8: 'Services',
+  9: 'Clothes',
+};
+
+const _categoryNameToId = {
+  'Books': 1,
+  'Drawing Tools': 2,
+  'Uniforms': 3,
+  'Electronics': 4,
+  'Others': 5,
+  'Food & Beverages': 6,
+  'School Supplies': 7,
+  'Services': 8,
+  'Clothes': 9,
+};
+
+/// Provides the category name→ID map for use in the sell form
+final categoryNameToIdProvider = Provider<Map<String, int>>((ref) => _categoryNameToId);
+
+// ── Category Attribute Templates Provider ──
+// Fetches attribute templates from the categories table in Supabase.
+// Fallback hardcoded templates used when Supabase is unreachable.
+final categoryAttributeTemplatesProvider =
+    FutureProvider<Map<String, List<CategoryAttributeTemplate>>>((ref) async {
+  try {
+    final response = await SupabaseConfig.client
+        .from('categories')
+        .select('category_id, category_name, attribute_templates');
+    final rows = response as List<dynamic>;
+
+    final Map<String, List<CategoryAttributeTemplate>> result = {};
+    for (final row in rows) {
+      final categoryName = row['category_name'] as String? ?? row['name'] as String? ?? '';
+      final rawTemplates = row['attribute_templates'];
+      if (categoryName.isNotEmpty && rawTemplates != null) {
+        List<dynamic> templateList;
+        if (rawTemplates is String) {
+          templateList = jsonDecode(rawTemplates) as List<dynamic>;
+        } else if (rawTemplates is List) {
+          templateList = rawTemplates;
+        } else {
+          continue;
+        }
+        result[categoryName] = templateList
+            .whereType<Map<String, dynamic>>()
+            .map((t) => CategoryAttributeTemplate.fromJson(t))
+            .toList();
+      }
+    }
+    if (result.isEmpty) {
+      return _fallbackTemplates;
+    }
+    // Merge any missing categories from fallback templates for maximum resilience
+    for (final entry in _fallbackTemplates.entries) {
+      result.putIfAbsent(entry.key, () => entry.value);
+    }
+    return result;
+  } catch (e) {
+    // Fallback hardcoded templates when Supabase is unavailable
+    return _fallbackTemplates;
+  }
+});
+
+/// Hardcoded fallback templates matching the SQL migration
+const Map<String, List<CategoryAttributeTemplate>> _fallbackTemplates = {
+  'Books': [
+    CategoryAttributeTemplate(name: 'Subject', type: 'text', placeholder: 'e.g. Calculus, Physics'),
+    CategoryAttributeTemplate(name: 'Author', type: 'text', placeholder: 'e.g. James Stewart'),
+    CategoryAttributeTemplate(name: 'Edition', type: 'text', placeholder: 'e.g. 9th Edition'),
+    CategoryAttributeTemplate(name: 'ISBN', type: 'text', placeholder: 'e.g. 978-1-285-74062-1'),
+  ],
+  'Drawing Tools': [
+    CategoryAttributeTemplate(name: 'Brand', type: 'text', placeholder: 'e.g. Staedtler, Faber-Castell'),
+    CategoryAttributeTemplate(name: 'Set Size', type: 'text', placeholder: 'e.g. 12-piece, 24-piece'),
+    CategoryAttributeTemplate(
+      name: 'Type',
+      type: 'select',
+      placeholder: 'Select type',
+      options: ['Pencil Set', 'Drawing Board', 'T-Square', 'Compass Set', 'Triangle Set', 'Eraser Set', 'Marker Set', 'Complete Kit'],
+    ),
+  ],
+  'Uniforms': [
+    CategoryAttributeTemplate(
+      name: 'Size',
+      type: 'select',
+      placeholder: 'Select size(s)',
+      options: [
+        'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL',
+        '26', '28', '30', '32', '34', '36',
+      ],
+      isMultiSelect: true,
+    ),
+    CategoryAttributeTemplate(
+      name: 'Uniform Type',
+      type: 'select',
+      placeholder: 'Select type',
+      options: ['PE Uniform', 'School Uniform', 'Department Shirt', 'Lab Gown', 'OJT Attire', 'Event Shirt'],
+    ),
+    CategoryAttributeTemplate(
+      name: 'Gender',
+      type: 'select',
+      placeholder: 'Select fit',
+      options: ['Unisex', 'Male', 'Female'],
+    ),
+  ],
+  'Clothes': [
+    CategoryAttributeTemplate(
+      name: 'Clothing Type',
+      type: 'select',
+      placeholder: 'Select type (T-Shirt, Shorts, Jorts, etc.)',
+      options: [
+        'T-Shirt',
+        'Shorts',
+        'Jorts',
+        'Pants / Jeans',
+        'Hoodie / Jacket',
+        'Polo / Collared Shirt',
+        'Skirt / Dress',
+        'Joggers / Sweatpants',
+        'Tank Top / Sando',
+        'Other',
+      ],
+    ),
+    CategoryAttributeTemplate(
+      name: 'Size',
+      type: 'select',
+      placeholder: 'Select size(s)',
+      options: [
+        'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL',
+        '28', '29', '30', '31', '32', '33', '34', '36', '38',
+        'Free Size',
+      ],
+      isMultiSelect: true,
+    ),
+    CategoryAttributeTemplate(
+      name: 'Color',
+      type: 'select',
+      placeholder: 'Select color(s)',
+      options: [
+        'Black',
+        'White',
+        'Gray',
+        'Denim Blue',
+        'Navy Blue',
+        'Maroon',
+        'Beige / Khaki',
+        'Brown',
+        'Green',
+        'Red',
+        'Other',
+      ],
+      isMultiSelect: true,
+    ),
+    CategoryAttributeTemplate(
+      name: 'Gender / Fit',
+      type: 'select',
+      placeholder: 'Select fit',
+      options: ['Unisex', 'Men', 'Women'],
+    ),
+    CategoryAttributeTemplate(
+      name: 'Brand',
+      type: 'text',
+      placeholder: 'e.g. Uniqlo, H&M, Cotton On, Thrifted',
+    ),
+  ],
+  'Electronics': [
+    CategoryAttributeTemplate(name: 'Brand', type: 'text', placeholder: 'e.g. Casio, HP, Logitech'),
+    CategoryAttributeTemplate(name: 'Model', type: 'text', placeholder: 'e.g. fx-991ES Plus'),
+    CategoryAttributeTemplate(name: 'Specs', type: 'text', placeholder: 'e.g. 16GB RAM, 512GB SSD'),
+    CategoryAttributeTemplate(
+      name: 'Warranty',
+      type: 'select',
+      placeholder: 'Select warranty',
+      options: ['No Warranty', '1 Month', '3 Months', '6 Months', '1 Year'],
+    ),
+    CategoryAttributeTemplate(name: 'Accessories Included', type: 'text', placeholder: 'e.g. Charger, Case, Cable'),
+  ],
+  'Food & Beverages': [
+    CategoryAttributeTemplate(
+      name: 'Type',
+      type: 'select',
+      placeholder: 'Select type',
+      options: ['Snack', 'Beverage', 'Meal Prep', 'Baked Goods', 'Homemade', 'Instant Food', 'Condiments'],
+    ),
+    CategoryAttributeTemplate(name: 'Flavor/Variant', type: 'text', placeholder: 'e.g. Chocolate, Vanilla, Spicy'),
+    CategoryAttributeTemplate(name: 'Allergens', type: 'text', placeholder: 'e.g. Contains nuts, dairy-free'),
+    CategoryAttributeTemplate(name: 'Expiry Date', type: 'text', placeholder: 'e.g. 2026-12-31'),
+    CategoryAttributeTemplate(name: 'Serving Size', type: 'text', placeholder: 'e.g. 250ml, 6 pieces'),
+  ],
+  'School Supplies': [
+    CategoryAttributeTemplate(
+      name: 'Type',
+      type: 'select',
+      placeholder: 'Select type',
+      options: ['Notebook', 'Folder', 'Binder', 'Index Cards', 'Sticky Notes', 'Paper', 'Art Materials', 'Lab Equipment', 'Stationery Set'],
+    ),
+    CategoryAttributeTemplate(name: 'Brand', type: 'text', placeholder: 'e.g. Pilot, Muji, Cattleya'),
+    CategoryAttributeTemplate(name: 'Size/Specification', type: 'text', placeholder: 'e.g. A4, Legal, 200 pages'),
+    CategoryAttributeTemplate(name: 'Pack Quantity', type: 'text', placeholder: 'e.g. 3-pack, 12 pieces'),
+  ],
+  'Services': [
+    CategoryAttributeTemplate(
+      name: 'Service Type',
+      type: 'select',
+      placeholder: 'Select service type',
+      options: ['Tutoring', 'Printing', 'Design', 'Programming Help', 'Thesis Binding', 'Photo/Video', 'Delivery', 'Other'],
+    ),
+    CategoryAttributeTemplate(name: 'Duration', type: 'text', placeholder: 'e.g. 1 hour, per session'),
+    CategoryAttributeTemplate(name: 'Availability', type: 'text', placeholder: 'e.g. Mon-Fri 3PM-6PM'),
+  ],
+  'Others': [
+    CategoryAttributeTemplate(name: 'Type', type: 'text', placeholder: 'e.g. Snack, Beverage, Meal Prep'),
+    CategoryAttributeTemplate(name: 'Quantity/Weight', type: 'text', placeholder: 'e.g. 500g, 6 pieces, 1 liter'),
+  ],
 };
 
 // ── Local cache (fallback for offline resilience) ──
@@ -58,6 +292,10 @@ final List<Product> _fallbackProducts = [
     sellerId: 'demo-1',
     sellerStoreName: 'CEA Drawing Board Shop',
     createdAt: DateTime.now().subtract(const Duration(days: 1)),
+    categoryAttributes: [
+      const ProductAttribute(name: 'Brand', value: 'Staedtler'),
+      const ProductAttribute(name: 'Type', value: 'Drawing Board'),
+    ],
   ),
   Product(
     id: 'prod-2',
@@ -72,6 +310,11 @@ final List<Product> _fallbackProducts = [
     sellerId: 'demo-2',
     sellerStoreName: 'Wildcat Threads',
     createdAt: DateTime.now().subtract(const Duration(hours: 5)),
+    categoryAttributes: [
+      const ProductAttribute(name: 'Size', value: 'M'),
+      const ProductAttribute(name: 'Uniform Type', value: 'PE Uniform'),
+      const ProductAttribute(name: 'Gender', value: 'Unisex'),
+    ],
   ),
   Product(
     id: 'prod-3',
@@ -86,6 +329,11 @@ final List<Product> _fallbackProducts = [
     sellerId: 'demo-3',
     sellerStoreName: 'CS Book Depot',
     createdAt: DateTime.now().subtract(const Duration(days: 3)),
+    categoryAttributes: [
+      const ProductAttribute(name: 'Subject', value: 'Computer Science'),
+      const ProductAttribute(name: 'Author', value: 'Michael T. Goodrich'),
+      const ProductAttribute(name: 'Edition', value: '6th Edition'),
+    ],
   ),
   Product(
     id: 'prod-4',
@@ -100,6 +348,71 @@ final List<Product> _fallbackProducts = [
     sellerId: 'demo-1',
     sellerStoreName: 'CEA Drawing Board Shop',
     createdAt: DateTime.now().subtract(const Duration(days: 2)),
+    categoryAttributes: [
+      const ProductAttribute(name: 'Brand', value: 'Casio'),
+      const ProductAttribute(name: 'Model', value: 'fx-991ES Plus'),
+      const ProductAttribute(name: 'Warranty', value: 'No Warranty'),
+    ],
+  ),
+  Product(
+    id: 'prod-5',
+    title: 'Fresh Baked Choco Chip Cookies (Box of 6)',
+    description:
+        'Freshly baked artisan chocolate chip cookies made by CIT-U Hospitality students. Warm and soft-baked.',
+    price: 120.00,
+    imageUrl:
+        'https://picsum.photos/seed/food-snacks/400/300',
+    category: 'Food & Beverages',
+    condition: 'New',
+    sellerId: 'demo-4',
+    sellerStoreName: 'Teknoy Sweet Bites',
+    createdAt: DateTime.now().subtract(const Duration(hours: 2)),
+    categoryAttributes: [
+      const ProductAttribute(name: 'Type', value: 'Baked Goods'),
+      const ProductAttribute(name: 'Flavor/Variant', value: 'Chocolate Chip'),
+      const ProductAttribute(name: 'Allergens', value: 'Contains dairy, wheat'),
+      const ProductAttribute(name: 'Serving Size', value: '6 pieces'),
+    ],
+  ),
+  Product(
+    id: 'prod-6',
+    title: 'Pilot G-Tec-C3 Gel Pen Set (Black/Blue)',
+    description:
+        'Original Pilot G-Tec-C 0.3mm ultra-fine point gel ink pens. Perfect for technical sketching and clean notes.',
+    price: 165.00,
+    imageUrl:
+        'https://picsum.photos/seed/school-supplies/400/300',
+    category: 'School Supplies',
+    condition: 'New',
+    sellerId: 'demo-5',
+    sellerStoreName: 'Wildcat Stationery Hub',
+    createdAt: DateTime.now().subtract(const Duration(hours: 8)),
+    categoryAttributes: [
+      const ProductAttribute(name: 'Type', value: 'Stationery Set'),
+      const ProductAttribute(name: 'Brand', value: 'Pilot'),
+      const ProductAttribute(name: 'Size/Specification', value: '0.3mm Ultra Fine'),
+      const ProductAttribute(name: 'Pack Quantity', value: '3-pack'),
+    ],
+  ),
+  Product(
+    id: 'prod-7',
+    title: 'Baggy Denim Jorts (Vintage Wash)',
+    description:
+        'Trendy streetwear wide-leg denim jorts. High-quality denim with deep pockets, perfect campus casual style.',
+    price: 320.00,
+    imageUrl:
+        'https://picsum.photos/seed/clothes-apparel/400/300',
+    category: 'Clothes',
+    condition: 'Like New',
+    sellerId: 'demo-2',
+    sellerStoreName: 'Wildcat Threads',
+    createdAt: DateTime.now().subtract(const Duration(hours: 4)),
+    categoryAttributes: [
+      const ProductAttribute(name: 'Clothing Type', value: 'Jorts'),
+      const ProductAttribute(name: 'Size', value: 'L'),
+      const ProductAttribute(name: 'Color', value: 'Denim Blue'),
+      const ProductAttribute(name: 'Gender / Fit', value: 'Unisex'),
+    ],
   ),
 ];
 
@@ -133,6 +446,7 @@ class ProductListNotifier
             status,
             is_preorder_enabled,
             category_id,
+            category_attributes,
             seller_id,
             created_at,
             users (
@@ -203,6 +517,29 @@ class ProductListNotifier
           }
         }
 
+        // Parse category_attributes from JSONB
+        List<ProductAttribute> categoryAttributes = [];
+        final rawAttrs = row['category_attributes'];
+        if (rawAttrs != null) {
+          List<dynamic> attrList;
+          if (rawAttrs is String) {
+            try {
+              attrList = jsonDecode(rawAttrs) as List<dynamic>;
+            } catch (_) {
+              attrList = [];
+            }
+          } else if (rawAttrs is List) {
+            attrList = rawAttrs;
+          } else {
+            attrList = [];
+          }
+          categoryAttributes = attrList
+              .whereType<Map<String, dynamic>>()
+              .map((a) => ProductAttribute.fromJson(a))
+              .where((a) => a.name.isNotEmpty && a.value.isNotEmpty)
+              .toList();
+        }
+
         return Product(
           id: row['product_id'] as String,
           title: row['name'] as String? ?? 'Untitled Product',
@@ -218,6 +555,7 @@ class ProductListNotifier
           isPreorderEnabled: row['is_preorder_enabled'] as bool? ?? false,
           createdAt: DateTime.tryParse(row['created_at'] as String? ?? '') ??
               DateTime.now(),
+          categoryAttributes: categoryAttributes,
         );
       }).toList();
 
@@ -243,24 +581,44 @@ class ProductListNotifier
     });
 
     try {
-      const categoryNameToId = {
-        'Books': 1,
-        'Drawing Tools': 2,
-        'Uniforms': 3,
-        'Electronics': 4,
-        'Others': 5,
-      };
-      final categoryId = categoryNameToId[product.category] ?? 5;
+      int categoryId = _categoryNameToId[product.category] ?? 5;
+      try {
+        final catRow = await _supabase
+            .from('categories')
+            .select('category_id')
+            .eq('category_name', product.category)
+            .maybeSingle();
+        if (catRow != null && catRow['category_id'] != null) {
+          categoryId = (catRow['category_id'] as num).toInt();
+        }
+      } catch (_) {}
 
-      // 1. Insert product
-      final inserted = await _supabase.from('products').insert({
+      // 1. Insert product (including category_attributes with graceful fallback)
+      final insertPayload = <String, dynamic>{
         'name': product.title,
         'description': product.description,
         'base_price': product.price,
         'category_id': categoryId,
         'seller_id': product.sellerId,
         'status': 'ACTIVE',
-      }).select().single();
+        if (product.categoryAttributes.isNotEmpty)
+          'category_attributes': product.categoryAttributes
+              .map((a) => a.toJson())
+              .toList(),
+      };
+
+      Map<String, dynamic> inserted;
+      try {
+        inserted = await _supabase.from('products').insert(insertPayload).select().single();
+      } catch (err) {
+        // Fallback for backward compatibility if the database column does not exist yet
+        if (err.toString().contains('category_attributes')) {
+          insertPayload.remove('category_attributes');
+          inserted = await _supabase.from('products').insert(insertPayload).select().single();
+        } else {
+          rethrow;
+        }
+      }
 
       final String dbProductId = inserted['product_id'] as String;
 
@@ -273,24 +631,42 @@ class ProductListNotifier
         });
       }
 
-      // 2. Create product variant
-      final insertedVariant = await _supabase.from('product_variants').insert({
-        'product_id': dbProductId,
-        'variant_name': 'Condition',
-        'variant_value': product.condition,
-        'additional_price': 0,
-        'sku': 'SKU-${product.category.substring(0, 3).toUpperCase()}-${dbProductId.substring(0, 6).toUpperCase()}',
-      }).select().single();
+      // 2. Create product variants
+      // Check if product has specific multi-variants (e.g. Size or Color)
+      final sizeAttr = product.categoryAttributes
+          .where((a) => a.name.toLowerCase() == 'size')
+          .firstOrNull;
+      final variantOptions = (sizeAttr != null && sizeAttr.options.isNotEmpty)
+          ? sizeAttr.options
+          : [product.condition];
 
-      final String dbVariantId = insertedVariant['variant_id'] as String;
+      for (int i = 0; i < variantOptions.length; i++) {
+        final opt = variantOptions[i];
+        final cleanOpt = opt.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
+        final sku = 'SKU-${product.category.substring(0, product.category.length < 3 ? product.category.length : 3).toUpperCase()}-${dbProductId.substring(0, 6).toUpperCase()}-$cleanOpt';
 
-      // 3. Create inventory record so it shows up in Web Admin!
-      await _supabase.from('inventory').insert({
-        'variant_id': dbVariantId,
-        'stock_qty': 1,
-        'reserved_qty': 0,
-        'low_stock_threshold': 1,
-      });
+        try {
+          final insertedVariant = await _supabase.from('product_variants').insert({
+            'product_id': dbProductId,
+            'variant_name': sizeAttr != null ? 'Size' : 'Condition',
+            'variant_value': opt,
+            'additional_price': 0,
+            'sku': sku,
+          }).select().single();
+
+          final String dbVariantId = insertedVariant['variant_id'] as String;
+
+          // 3. Create inventory record so it shows up in Web Admin!
+          await _supabase.from('inventory').insert({
+            'variant_id': dbVariantId,
+            'stock_qty': 1,
+            'reserved_qty': 0,
+            'low_stock_threshold': 1,
+          });
+        } catch (_) {
+          // If inserting individual variant fails, continue with next
+        }
+      }
 
       // Reload fresh list to sync generated database UUIDs
       await _load();
@@ -313,8 +689,16 @@ class ProductListNotifier
         return 'https://picsum.photos/seed/drawing-tools/400/300';
       case 'Uniforms':
         return 'https://picsum.photos/seed/uniforms/400/300';
+      case 'Clothes':
+        return 'https://picsum.photos/seed/clothes-apparel/400/300';
       case 'Electronics':
         return 'https://picsum.photos/seed/electronics/400/300';
+      case 'Food & Beverages':
+        return 'https://picsum.photos/seed/food-snacks/400/300';
+      case 'School Supplies':
+        return 'https://picsum.photos/seed/school-supplies/400/300';
+      case 'Services':
+        return 'https://picsum.photos/seed/services/400/300';
       default:
         return 'https://picsum.photos/seed/others/400/300';
     }
@@ -351,9 +735,14 @@ final filteredProductsProvider = Provider<List<Product>>((ref) {
   return productsAsync.maybeWhen(
     data: (products) {
       return products.where((product) {
-        final matchesSearch = product.title.toLowerCase().contains(search) ||
+        // Search across title, description, store name, AND category attributes
+        final matchesSearch = search.isEmpty ||
+            product.title.toLowerCase().contains(search) ||
             product.description.toLowerCase().contains(search) ||
-            (product.sellerStoreName?.toLowerCase().contains(search) ?? false);
+            (product.sellerStoreName?.toLowerCase().contains(search) ?? false) ||
+            product.categoryAttributes.any((attr) =>
+                attr.name.toLowerCase().contains(search) ||
+                attr.value.toLowerCase().contains(search));
         final matchesCategory =
             category == 'All' || product.category == category;
         final matchesCondition =
@@ -421,4 +810,3 @@ final matchingStoresProvider = FutureProvider.family<List<StoreResult>, String>(
     return [];
   }
 });
-

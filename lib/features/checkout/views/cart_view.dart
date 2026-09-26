@@ -4,6 +4,7 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:teknoycart/features/checkout/models/checkout_item.dart';
+import 'package:teknoycart/features/checkout/models/cart_item.dart';
 
 class CartView extends ConsumerStatefulWidget {
   const CartView({super.key});
@@ -13,7 +14,134 @@ class CartView extends ConsumerStatefulWidget {
 }
 
 class _CartViewState extends ConsumerState<CartView> {
-  final Set<String> _selectedProductIds = {};
+  final Set<String> _selectedItemKeys = {};
+
+  void _showChangeVariantSheet(BuildContext context, CartItem item) {
+    final variantAttr = item.product.categoryAttributes
+        .where((a) => a.options.isNotEmpty && (a.options.length > 1 || a.name.toLowerCase() == 'size' || a.name.toLowerCase() == 'color'))
+        .firstOrNull;
+    if (variantAttr == null || variantAttr.options.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1C1C22) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const Text(
+                'Change Variation',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                item.product.title,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 13,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Select ${variantAttr.name}:',
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: variantAttr.options.map((opt) {
+                  final isCurrent = (item.variantName?.trim().toLowerCase() ?? '') == opt.trim().toLowerCase();
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      if (!isCurrent) {
+                        ref.read(cartProvider.notifier).updateVariant(
+                              item.product.id,
+                              item.variantName,
+                              opt.trim(),
+                            );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Switched to ${variantAttr.name}: ${opt.trim()}'),
+                            backgroundColor: TeknoyTheme.citMaroon,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isCurrent
+                            ? TeknoyTheme.citMaroon
+                            : (isDark ? const Color(0xFF262630) : const Color(0xFFF1F1F6)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isCurrent ? TeknoyTheme.citMaroon : (isDark ? Colors.white12 : Colors.black12),
+                          width: isCurrent ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isCurrent) ...[
+                            const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            opt,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 13,
+                              fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                              color: isCurrent ? Colors.white : (isDark ? Colors.white : Colors.black87),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +158,7 @@ class _CartViewState extends ConsumerState<CartView> {
     // Calculate total price of selected items
     double selectedTotal = 0.0;
     for (final item in cartItems) {
-      if (_selectedProductIds.contains(item.product.id)) {
+      if (_selectedItemKeys.contains(item.cartKey)) {
         selectedTotal += item.product.price * item.quantity;
       }
     }
@@ -52,7 +180,7 @@ class _CartViewState extends ConsumerState<CartView> {
             TextButton(
               onPressed: () {
                 ref.read(cartProvider.notifier).clearCart();
-                setState(() => _selectedProductIds.clear());
+                setState(() => _selectedItemKeys.clear());
               },
               child: const Text(
                 'Clear All',
@@ -105,7 +233,7 @@ class _CartViewState extends ConsumerState<CartView> {
                     itemCount: cartItems.length,
                     itemBuilder: (context, index) {
                       final item = cartItems[index];
-                      final isSelected = _selectedProductIds.contains(item.product.id);
+                      final isSelected = _selectedItemKeys.contains(item.cartKey);
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -123,9 +251,9 @@ class _CartViewState extends ConsumerState<CartView> {
                               onChanged: (val) {
                                 setState(() {
                                   if (val == true) {
-                                    _selectedProductIds.add(item.product.id);
+                                    _selectedItemKeys.add(item.cartKey);
                                   } else {
-                                    _selectedProductIds.remove(item.product.id);
+                                    _selectedItemKeys.remove(item.cartKey);
                                   }
                                 });
                               },
@@ -193,14 +321,50 @@ class _CartViewState extends ConsumerState<CartView> {
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  if (item.variantName != null) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Variant: ${item.variantName}',
-                                      style: TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 11,
-                                        color: isDark ? Colors.white60 : Colors.black54,
+                                  if (item.variantName != null && item.variantName!.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    InkWell(
+                                      onTap: () => _showChangeVariantSheet(context, item),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: isDark ? const Color(0xFF23232B) : const Color(0xFFF4F4F7),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: TeknoyTheme.citMaroon.withOpacity(0.2),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(2),
+                                              decoration: BoxDecoration(
+                                                color: TeknoyTheme.citMaroon.withOpacity(0.12),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: const Icon(Icons.straighten_rounded, size: 10, color: TeknoyTheme.citMaroon),
+                                            ),
+                                            const SizedBox(width: 5),
+                                            Text(
+                                              'Size: ${item.variantName}',
+                                              style: TextStyle(
+                                                fontFamily: 'Inter',
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 3),
+                                            Icon(
+                                              Icons.keyboard_arrow_down_rounded,
+                                              size: 13,
+                                              color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -229,8 +393,8 @@ class _CartViewState extends ConsumerState<CartView> {
                                 IconButton(
                                   icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
                                   onPressed: () {
-                                    ref.read(cartProvider.notifier).removeFromCart(item.product.id, item.variantId);
-                                    setState(() => _selectedProductIds.remove(item.product.id));
+                                    ref.read(cartProvider.notifier).removeFromCart(item.product.id, item.variantId, item.variantName);
+                                    setState(() => _selectedItemKeys.remove(item.cartKey));
                                   },
                                 ),
                                 Row(
@@ -241,6 +405,7 @@ class _CartViewState extends ConsumerState<CartView> {
                                               item.product.id,
                                               item.variantId,
                                               item.quantity - 1,
+                                              item.variantName,
                                             );
                                       },
                                       child: Container(
@@ -279,6 +444,7 @@ class _CartViewState extends ConsumerState<CartView> {
                                               item.product.id,
                                               item.variantId,
                                               item.quantity + 1,
+                                              item.variantName,
                                             );
                                       },
                                       child: Container(
@@ -345,11 +511,11 @@ class _CartViewState extends ConsumerState<CartView> {
                           ],
                         ),
                         ElevatedButton(
-                          onPressed: _selectedProductIds.isEmpty
+                          onPressed: _selectedItemKeys.isEmpty
                               ? null
                               : () {
                                   final checkoutItems = cartItems
-                                      .where((item) => _selectedProductIds.contains(item.product.id))
+                                      .where((item) => _selectedItemKeys.contains(item.cartKey))
                                       .map((item) => CheckoutItem(
                                             product: item.product,
                                             price: item.product.price,

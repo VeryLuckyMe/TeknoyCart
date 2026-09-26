@@ -22,6 +22,7 @@ class CheckoutView extends ConsumerStatefulWidget {
   final List<CheckoutItem>? items;
   final bool isReservation;
   final bool isPreorder;
+  final String? variantName;
 
   const CheckoutView({
     super.key,
@@ -33,6 +34,7 @@ class CheckoutView extends ConsumerStatefulWidget {
     this.items,
     this.isReservation = false,
     this.isPreorder = false,
+    this.variantName,
   });
 
   @override
@@ -66,6 +68,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           price: widget.agreedPrice!,
           quantity: widget.quantity,
           variantId: _resolvedVariantIds[widget.product!.id],
+          variantName: widget.variantName,
         )
       ];
     }
@@ -158,11 +161,14 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           // Resolve variant ID if not already provided.
           String variantId = item.variantId ?? '00000000-0000-0000-0000-000000000000';
           if (item.variantId == null) {
-            final variants = await client
+            var query = client
                 .from('product_variants')
                 .select('variant_id')
-                .eq('product_id', item.product.id)
-                .limit(1);
+                .eq('product_id', item.product.id);
+            if (item.variantName != null && item.variantName!.isNotEmpty) {
+              query = query.eq('variant_value', item.variantName!);
+            }
+            final variants = await query.limit(1);
             if ((variants as List).isNotEmpty) {
               variantId = variants[0]['variant_id'] as String;
             }
@@ -239,11 +245,14 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           // If still unresolved (edge-case), fetch it now.
           if (!_resolvedVariantIds.containsKey(item.product.id) && item.variantId == null) {
             try {
-              final variants = await client
+              var query = client
                   .from('product_variants')
                   .select('variant_id')
-                  .eq('product_id', item.product.id)
-                  .limit(1);
+                  .eq('product_id', item.product.id);
+              if (item.variantName != null && item.variantName!.isNotEmpty) {
+                query = query.eq('variant_value', item.variantName!);
+              }
+              final variants = await query.limit(1);
               if ((variants as List).isNotEmpty) {
                 itemVariantId = variants[0]['variant_id'] as String;
               }
@@ -641,13 +650,36 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 4),
-                              Text(
-                                'Qty: ${item.quantity} | ₱${item.price.toStringAsFixed(2)} each',
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 11.5,
-                                  color: isDark ? Colors.white60 : Colors.black54,
-                                ),
+                              Row(
+                                children: [
+                                  Text(
+                                    'Qty: ${item.quantity} | ₱${item.price.toStringAsFixed(2)} each',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 11.5,
+                                      color: isDark ? Colors.white60 : Colors.black54,
+                                    ),
+                                  ),
+                                  if (item.variantName != null && item.variantName!.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        'Size: ${item.variantName}',
+                                        style: const TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: TeknoyTheme.citMaroon,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                           ),

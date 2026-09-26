@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/product.dart';
 import '../../../../core/theme.dart';
+import '../../providers/review_provider.dart';
 
 class FeedProductCard extends StatelessWidget {
   final Product product;
@@ -180,20 +182,30 @@ class FeedProductCard extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.star_rounded, size: 13, color: TeknoyTheme.citGold),
-                            const SizedBox(width: 3),
-                            Text(
-                              '4.8',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11,
-                                color: isDark ? Colors.white70 : const Color(0xFF5A413D),
-                              ),
-                            ),
-                          ],
+                        Consumer(
+                          builder: (context, ref, _) {
+                            final summary = ref.watch(productRatingSummaryProvider(product.id));
+                            final ratingText = summary.total > 0 ? summary.average.toStringAsFixed(1) : 'New';
+                            return Row(
+                              children: [
+                                Icon(
+                                  summary.total > 0 ? Icons.star_rounded : Icons.star_outline_rounded,
+                                  size: 13,
+                                  color: TeknoyTheme.citGold,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  ratingText,
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                    color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
@@ -217,47 +229,88 @@ class FeedProductCard extends StatelessWidget {
                     // Store Name & Title
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (product.sellerStoreName != null && product.sellerStoreName!.trim().isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 2.0),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.storefront_rounded, size: 12, color: TeknoyTheme.citMaroon),
-                                    const SizedBox(width: 3),
-                                    Expanded(
-                                      child: Text(
-                                        product.sellerStoreName!,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontFamily: 'Inter',
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: TeknoyTheme.citMaroon,
+                        padding: const EdgeInsets.symmetric(vertical: 2.0),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final showChips = product.categoryAttributes.isNotEmpty && constraints.maxHeight >= 40;
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (product.sellerStoreName != null && product.sellerStoreName!.trim().isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 2.0),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.storefront_rounded, size: 12, color: TeknoyTheme.citMaroon),
+                                        const SizedBox(width: 3),
+                                        Expanded(
+                                          child: Text(
+                                            product.sellerStoreName!,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontFamily: 'Inter',
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: TeknoyTheme.citMaroon,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
+                                Text(
+                                  product.title,
+                                  maxLines: showChips ? 1 : 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                    height: 1.2,
+                                    color: isDark ? Colors.white : const Color(0xFF191C1D),
+                                  ),
                                 ),
-                              ),
-                            Text(
-                              product.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                height: 1.2,
-                                color: isDark ? Colors.white : const Color(0xFF191C1D),
-                              ),
-                            ),
-                          ],
+                                // Quick attribute chips (show top 2 key attributes)
+                                if (showChips)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4.0),
+                                    child: Wrap(
+                                      spacing: 4,
+                                      runSpacing: 2,
+                                      children: product.categoryAttributes
+                                          .take(2)
+                                          .map((attr) => Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                decoration: BoxDecoration(
+                                                  color: isDark
+                                                      ? Colors.white.withValues(alpha: 0.06)
+                                                      : const Color(0xFFF0EDF5),
+                                                  borderRadius: BorderRadius.circular(5),
+                                                  border: Border.all(
+                                                    color: isDark
+                                                        ? Colors.white.withValues(alpha: 0.08)
+                                                        : const Color(0xFFDDD8E6),
+                                                    width: 0.5,
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  '${attr.name}: ${attr.value}',
+                                                  style: TextStyle(
+                                                    fontFamily: 'Inter',
+                                                    fontSize: 8,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: isDark ? Colors.white54 : const Color(0xFF5A4978),
+                                                  ),
+                                                ),
+                                              ))
+                                          .toList(),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ),
