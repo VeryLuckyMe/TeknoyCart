@@ -1167,9 +1167,13 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                       right: 4,
                       child: Container(
                         padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD90429),
                           shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF0F0F12) : Colors.white,
+                            width: 1.5,
+                          ),
                         ),
                         constraints: const BoxConstraints(
                           minWidth: 16,
@@ -1191,14 +1195,13 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             },
           ),
 
-
-          // ── 3. Notification Action ──
+          // ── 2. Notification Action ──
           Stack(
             clipBehavior: Clip.none,
             children: [
               IconButton(
                 icon: Icon(
-                  Icons.notifications_none_rounded,
+                  Icons.notifications_outlined,
                   color: isDark ? Colors.white70 : const Color(0xFF5A413D),
                   size: 22,
                 ),
@@ -1215,9 +1218,13 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 child: Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFD90429),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD90429),
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF0F0F12) : Colors.white,
+                      width: 1.5,
+                    ),
                   ),
                 ),
               ),
@@ -1243,7 +1250,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           children: [
             _buildBottomNavItem(
               context,
-              icon: Icons.home_rounded,
+              icon: Icons.home_outlined,
+              activeIcon: Icons.home_rounded,
               label: 'Home',
               isActive: _activeTab == 0,
               onTap: () {
@@ -1253,15 +1261,17 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             ),
             _buildBottomNavItem(
               context,
-              icon: Icons.chat_bubble_rounded,
+              icon: Icons.forum_outlined,
+              activeIcon: Icons.forum_rounded,
               label: 'Messages',
               isActive: _activeTab == 1,
-              hasBadge: true,
+              hasBadge: false,
               onTap: () => setState(() => _activeTab = 1),
             ),
             _buildBottomNavItem(
               context,
-              icon: Icons.add_circle_rounded,
+              icon: Icons.add_circle_outline_rounded,
+              activeIcon: Icons.add_circle_rounded,
               label: 'Sell',
               isActive: _activeTab == 2,
               isActionFocus: true,
@@ -1269,15 +1279,17 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             ),
             _buildBottomNavItem(
               context,
-              icon: Icons.receipt_long_rounded,
+              icon: Icons.receipt_long_outlined,
+              activeIcon: Icons.receipt_long_rounded,
               label: 'Orders',
               isActive: _activeTab == 3,
-              hasBadge: true,
+              hasBadge: false,
               onTap: () => setState(() => _activeTab = 3),
             ),
             _buildBottomNavItem(
               context,
-              icon: Icons.person_rounded,
+              icon: Icons.person_outline_rounded,
+              activeIcon: Icons.person_rounded,
               label: 'Profile',
               isActive: _activeTab == 4,
               onTap: () => setState(() => _activeTab = 4),
@@ -3908,6 +3920,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   Widget _buildBottomNavItem(
     BuildContext context, {
     required IconData icon,
+    IconData? activeIcon,
     required String label,
     required bool isActive,
     bool isActionFocus = false,
@@ -3916,46 +3929,52 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const activeColor = TeknoyTheme.citMaroon;
-    const inactiveColor = Color(0xFF5A413D);
+    final inactiveColor = isDark ? Colors.white54 : const Color(0xFF757575);
 
     if (isActionFocus) {
       return InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12.0),
+          padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 10.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 40,
+                width: 44,
                 height: 28,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isActive
-                        ? [TeknoyTheme.citMaroon, const Color(0xFFA51D24)]
-                        : [
-                            isDark ? const Color(0xFF2E2E36) : const Color(0xFF6B4E47),
-                            isDark ? const Color(0xFF1E1E24) : const Color(0xFF4E3732),
-                          ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  gradient: isActive
+                      ? const LinearGradient(
+                          colors: [TeknoyTheme.citMaroon, Color(0xFF8B0000)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  color: isActive
+                      ? null
+                      : (isDark ? const Color(0xFF1E1E24) : const Color(0xFFF0F0F4)),
                   borderRadius: BorderRadius.circular(14),
+                  border: isActive
+                      ? null
+                      : Border.all(
+                          color: isDark ? const Color(0xFF2E2E36) : const Color(0xFFD6D6DE),
+                          width: 1.2,
+                        ),
                   boxShadow: isActive
                       ? [
                           BoxShadow(
-                            color: TeknoyTheme.citMaroon.withOpacity(0.4),
+                            color: TeknoyTheme.citMaroon.withOpacity(0.35),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
                         ]
                       : null,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.add_rounded,
-                  size: 20,
-                  color: Colors.white,
+                  size: 19,
+                  color: isActive ? Colors.white : inactiveColor,
                 ),
               ),
               const SizedBox(height: 3),
@@ -3965,7 +3984,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   fontFamily: 'Inter',
                   fontSize: 10,
                   fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                  color: isActive ? activeColor : (isDark ? Colors.white60 : inactiveColor),
+                  color: isActive ? activeColor : inactiveColor,
                 ),
               ),
             ],
@@ -3974,11 +3993,13 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       );
     }
 
+    final currentIcon = (isActive && activeIcon != null) ? activeIcon : icon;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 14.0),
+        padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 12.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -3986,9 +4007,9 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               clipBehavior: Clip.none,
               children: [
                 Icon(
-                  icon,
-                  size: 22,
-                  color: isActive ? activeColor : (isDark ? Colors.white60 : inactiveColor),
+                  currentIcon,
+                  size: 23,
+                  color: isActive ? activeColor : inactiveColor,
                 ),
                 if (hasBadge)
                   Positioned(
@@ -3997,9 +4018,13 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                     child: Container(
                       width: 8,
                       height: 8,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFD90429),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD90429),
                         shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF0F0F12) : Colors.white,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
@@ -4012,7 +4037,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 fontFamily: 'Inter',
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                color: isActive ? activeColor : (isDark ? Colors.white60 : inactiveColor),
+                color: isActive ? activeColor : inactiveColor,
               ),
             ),
           ],

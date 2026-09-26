@@ -113,7 +113,25 @@ class ResponsiveMobileFrame extends StatelessWidget {
                     child: Stack(
                       children: [
                         // The main App Viewport
-                        Positioned.fill(child: child),
+                        Positioned.fill(
+                          child: MediaQuery(
+                            data: MediaQuery.of(context).copyWith(
+                              padding: EdgeInsets.only(
+                                top: 28,
+                                bottom: MediaQuery.of(context).padding.bottom,
+                                left: MediaQuery.of(context).padding.left,
+                                right: MediaQuery.of(context).padding.right,
+                              ),
+                              viewPadding: EdgeInsets.only(
+                                top: 28,
+                                bottom: MediaQuery.of(context).viewPadding.bottom,
+                                left: MediaQuery.of(context).viewPadding.left,
+                                right: MediaQuery.of(context).viewPadding.right,
+                              ),
+                            ),
+                            child: child,
+                          ),
+                        ),
 
                         // Dynamic Notch mockup for beautiful presentation realism
                         Positioned(

@@ -4,7 +4,7 @@ import '../../../../core/models/product.dart';
 import '../../../../core/theme.dart';
 import '../../providers/review_provider.dart';
 
-class FeedProductCard extends StatelessWidget {
+class FeedProductCard extends StatefulWidget {
   final Product product;
 
   const FeedProductCard({
@@ -13,7 +13,15 @@ class FeedProductCard extends StatelessWidget {
   });
 
   @override
+  State<FeedProductCard> createState() => _FeedProductCardState();
+}
+
+class _FeedProductCardState extends State<FeedProductCard> {
+  bool _isFavorite = false;
+
+  @override
   Widget build(BuildContext context) {
+    final product = widget.product;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Choose badge color based on product condition
@@ -101,29 +109,48 @@ class FeedProductCard extends StatelessWidget {
                     ),
                   ),
 
-                  // Wishlist / Favorite Button (top-right) - premium glassmorphism
+                  // Wishlist / Favorite Button (top-right) - interactive glassmorphic button
                   Positioned(
                     top: 10,
                     right: 10,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 8,
-                            spreadRadius: 1,
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() => _isFavorite = !_isFavorite);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              _isFavorite
+                                  ? 'Added "${product.title}" to saved items'
+                                  : 'Removed from saved items',
+                              style: const TextStyle(fontFamily: 'Inter', fontSize: 13),
+                            ),
+                            duration: const Duration(seconds: 1),
+                            behavior: SnackBarBehavior.floating,
                           ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.favorite_rounded,
-                          size: 16,
-                          color: TeknoyTheme.citMaroon,
+                        );
+                      },
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Icon(
+                            _isFavorite
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
+                            size: 16,
+                            color: TeknoyTheme.citMaroon,
+                          ),
                         ),
                       ),
                     ),
