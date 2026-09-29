@@ -643,10 +643,27 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                           Text(
                             _searchQuery.isNotEmpty
                                 ? 'No products matching "$_searchQuery"'
-                                : 'No products found listed under this store catalog.',
+                                : (_selectedCategory != null
+                                    ? 'No products found under "$_selectedCategory".'
+                                    : 'No products found listed under this store catalog.'),
                             style: const TextStyle(color: Colors.grey, fontFamily: 'Inter'),
                             textAlign: TextAlign.center,
                           ),
+                          if (_searchQuery.isNotEmpty || _selectedCategory != null) ...[
+                            const SizedBox(height: 16),
+                            TextButton.icon(
+                              onPressed: () => setState(() {
+                                _searchQuery = '';
+                                _selectedCategory = null;
+                              }),
+                              icon: const Icon(Icons.refresh_rounded, size: 16),
+                              label: const Text(
+                                'Reset Filters',
+                                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+                              ),
+                              style: TextButton.styleFrom(foregroundColor: TeknoyTheme.citMaroon),
+                            ),
+                          ],
                         ],
                       ),
                     ),

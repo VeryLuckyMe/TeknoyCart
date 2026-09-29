@@ -136,21 +136,33 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                 if (stores.isEmpty) {
                   return Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                     decoration: BoxDecoration(
                       color: cardBg,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: cardBorder),
                     ),
-                    child: Text(
-                      _activeQuery.isEmpty
-                          ? 'Type a keyword above to find stores.'
-                          : 'No matching campus stores found for "$_activeQuery".',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 13,
-                        color: isDark ? Colors.white60 : Colors.black54,
-                      ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.storefront_outlined,
+                          size: 32,
+                          color: isDark ? Colors.white30 : Colors.black26,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            _activeQuery.isEmpty
+                                ? 'Type a keyword above to find stores.'
+                                : 'No matching campus stores found for "$_activeQuery".',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 13,
+                              color: isDark ? Colors.white60 : Colors.black54,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 }
@@ -293,21 +305,68 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                 if (matchingProducts.isEmpty) {
                   return Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
                     decoration: BoxDecoration(
                       color: cardBg,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: cardBorder),
                     ),
-                    child: Center(
-                      child: Text(
-                        'No products match "$_activeQuery".',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 14,
-                          color: isDark ? Colors.white60 : Colors.black54,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.search_off_rounded,
+                          size: 56,
+                          color: isDark ? Colors.white30 : Colors.black26,
                         ),
-                      ),
+                        const SizedBox(height: 14),
+                        Text(
+                          _activeQuery.isEmpty
+                              ? 'No products available'
+                              : 'No products match "$_activeQuery"',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Try searching for uniforms, calculus books, or engineering tools.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 12,
+                            color: isDark ? Colors.white54 : Colors.black45,
+                          ),
+                        ),
+                        if (_activeQuery.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              _searchController.clear();
+                              _submitSearch('');
+                            },
+                            icon: const Icon(Icons.clear_rounded, size: 16),
+                            label: const Text(
+                              'Clear Search',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: TeknoyTheme.citMaroon,
+                              side: const BorderSide(color: TeknoyTheme.citMaroon),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   );
                 }
