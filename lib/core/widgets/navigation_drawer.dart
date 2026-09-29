@@ -240,30 +240,32 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                           }
                         },
                       ),
-                      _buildNavTile(
-                        context,
-                        icon: Icons.insights_rounded,
-                        title: 'Sales Analytics',
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const FinancialReportsView()),
-                          );
-                        },
-                      ),
-                      _buildNavTile(
-                        context,
-                        icon: Icons.store_mall_directory_rounded,
-                        title: 'Manage My Listings',
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const ManageListingsView()),
-                          );
-                        },
-                      ),
+                      if (user.isSeller) ...[
+                        _buildNavTile(
+                          context,
+                          icon: Icons.insights_rounded,
+                          title: 'Sales Analytics',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const FinancialReportsView()),
+                            );
+                          },
+                        ),
+                        _buildNavTile(
+                          context,
+                          icon: Icons.store_mall_directory_rounded,
+                          title: 'Manage My Listings',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const ManageListingsView()),
+                            );
+                          },
+                        ),
+                      ],
 
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

@@ -7,6 +7,8 @@ import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/checkout/views/order_history_view.dart';
+import 'package:teknoycart/core/widgets/navigation_drawer.dart';
+import 'package:teknoycart/features/feed/views/manage_listings_view.dart';
 import 'mock_http_client.dart';
 
 void main() {
@@ -177,6 +179,125 @@ void main() {
       // Verified: Both tabs exist for verified seller
       expect(find.text('My Purchases'), findsOneWidget);
       expect(find.text('Incoming Orders'), findsOneWidget);
+    });
+
+    testWidgets('TeknoyNavigationDrawer hides seller tools for BUYER and UNVERIFIED SELLER', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final buyerUser = Profile(
+        id: 'usr-buyer-drawer',
+        username: 'Student Buyer',
+        email: 'buyer@cit.edu',
+        role: 'BUYER',
+        isSellerVerified: false,
+        createdAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream.value(buyerUser)),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              drawer: TeknoyNavigationDrawer(),
+              body: Center(child: Text('Home')),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final scaffoldState = tester.state<ScaffoldState>(find.byType(Scaffold));
+      scaffoldState.openDrawer();
+      await tester.pumpAndSettle();
+
+      // For Buyer: Sales Analytics and Manage My Listings must be hidden (Ponytail Audit)
+      expect(find.text('Sales Analytics'), findsNothing);
+      expect(find.text('Manage My Listings'), findsNothing);
+    });
+
+    testWidgets('TeknoyNavigationDrawer shows Sales Analytics and Manage My Listings for VERIFIED SELLER', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final verifiedSeller = Profile(
+        id: 'usr-seller-drawer',
+        username: 'Campus Merchant',
+        email: 'merchant@cit.edu',
+        role: 'SELLER',
+        isSellerVerified: true,
+        createdAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream.value(verifiedSeller)),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              drawer: TeknoyNavigationDrawer(),
+              body: Center(child: Text('Home')),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final scaffoldState = tester.state<ScaffoldState>(find.byType(Scaffold));
+      scaffoldState.openDrawer();
+      await tester.pumpAndSettle();
+
+      // For Verified Seller: Sales Analytics and Manage My Listings must be visible
+      expect(find.text('Sales Analytics'), findsOneWidget);
+      expect(find.text('Manage My Listings'), findsOneWidget);
+    });
+
+    testWidgets('ManageListingsView embedded mode suppresses duplicate AppBar and FloatingActionButton', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final verifiedSeller = Profile(
+        id: 'usr-seller-listings',
+        username: 'Campus Merchant',
+        email: 'merchant@cit.edu',
+        role: 'SELLER',
+        isSellerVerified: true,
+        createdAt: DateTime.now(),
+      );
+
+      // Embedded mode inside Sell tab
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream.value(verifiedSeller)),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: ManageListingsView(embedded: true),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // In embedded mode, zero nested AppBar and zero FAB
+      expect(find.byType(AppBar), findsNothing);
+      expect(find.byType(FloatingActionButton), findsNothing);
     });
   });
 }

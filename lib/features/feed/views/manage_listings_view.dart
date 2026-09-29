@@ -9,7 +9,8 @@ import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart'
 import 'widgets/reserved_orders_sheet.dart';
 
 class ManageListingsView extends ConsumerStatefulWidget {
-  const ManageListingsView({super.key});
+  final bool embedded;
+  const ManageListingsView({super.key, this.embedded = false});
 
   @override
   ConsumerState<ManageListingsView> createState() => _ManageListingsViewState();
@@ -171,17 +172,35 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage My Listings', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-        backgroundColor: isDark ? const Color(0xFF0F0A0A) : Colors.white,
-        centerTitle: true,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
-          : _listings.isEmpty
-              ? const Center(child: Text('You have no listings yet.', style: TextStyle(fontFamily: 'Inter')))
-              : ListView.builder(
+    final content = _isLoading
+        ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
+        : _listings.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey.withOpacity(0.5)),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'You have no listings yet.',
+                        style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'List items to see them here and manage your campus inventory.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : RefreshIndicator(
+                color: TeknoyTheme.citMaroon,
+                onRefresh: () => _fetchListings(silent: true),
+                child: ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: _listings.length,
                   itemBuilder: (context, index) {
@@ -521,6 +540,19 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                   );
                   },
                 ),
+              );
+
+    if (widget.embedded) {
+      return content;
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Manage My Listings', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+        backgroundColor: isDark ? const Color(0xFF0F0A0A) : Colors.white,
+        centerTitle: true,
+      ),
+      body: content,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.pushAndRemoveUntil(

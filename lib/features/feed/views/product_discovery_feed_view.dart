@@ -14,7 +14,6 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/widgets/navigation_drawer.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/services/secure_token_service.dart';
-import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
 import 'package:teknoycart/features/feed/views/product_detail_view.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
@@ -58,6 +57,7 @@ class ProductDiscoveryFeedView extends ConsumerStatefulWidget {
 
 class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedView> {
   int _activeTab = 0;
+  int _sellSubTab = 0; // 0: List New Item, 1: My Listings
   Map<String, dynamic>? _cachedProfileData;
   String? _cachedProfileUserId;
   Future<Map<String, dynamic>>? _profileFuture;
@@ -2152,338 +2152,6 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     }
   }
 
-  // ── Index 1: Categories & Campus Catalog Explorer
-  Widget _buildCategoriesTabBody(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final productsAsync = ref.watch(productsListProvider);
-    final allProducts = productsAsync.valueOrNull ?? [];
-
-    final categoryMeta = [
-      {
-        'name': 'Uniforms',
-        'icon': Icons.checkroom_rounded,
-        'color': const Color(0xFF800000), // CIT Maroon
-        'subtitle': 'PE, Polo, Nursing scrubs, Dept shirts',
-        'tag': 'Accurate Sizing',
-      },
-      {
-        'name': 'Books',
-        'icon': Icons.menu_book_rounded,
-        'color': const Color(0xFF1E3A8A), // Navy blue
-        'subtitle': 'Calculus, Engineering, Midterm reviewers',
-        'tag': 'Verified Edition',
-      },
-      {
-        'name': 'Clothes',
-        'icon': Icons.dry_cleaning_rounded,
-        'color': const Color(0xFF7C3AED), // Violet
-        'subtitle': 'T-Shirts, Shorts, Jorts, Hoodies',
-        'tag': 'Campus Style',
-      },
-      {
-        'name': 'Food & Beverages',
-        'icon': Icons.fastfood_rounded,
-        'color': const Color(0xFFD97706), // Amber
-        'subtitle': 'Campus snacks, lunch packs, drinks',
-        'tag': 'Freshly Prepared',
-      },
-      {
-        'name': 'Electronics',
-        'icon': Icons.devices_rounded,
-        'color': const Color(0xFF0284C7), // Sky blue
-        'subtitle': 'Scientific calculators, flash drives, cables',
-        'tag': 'Tech & Gadgets',
-      },
-      {
-        'name': 'Drawing Tools',
-        'icon': Icons.architecture_rounded,
-        'color': const Color(0xFF0D9488), // Teal
-        'subtitle': 'Staedtler sets, drawing boards, T-squares',
-        'tag': 'Engineering Tools',
-      },
-      {
-        'name': 'School Supplies',
-        'icon': Icons.backpack_rounded,
-        'color': const Color(0xFFEA580C), // Orange
-        'subtitle': 'Notebooks, binders, index cards, stationery',
-        'tag': 'Class Essentials',
-      },
-      {
-        'name': 'Services',
-        'icon': Icons.handyman_rounded,
-        'color': const Color(0xFF059669), // Emerald
-        'subtitle': 'Document printing, peer tutoring, thesis help',
-        'tag': 'Peer Services',
-      },
-      {
-        'name': 'Others',
-        'icon': Icons.widgets_rounded,
-        'color': const Color(0xFF64748B), // Slate
-        'subtitle': 'Dorm gear, accessories, miscellaneous',
-        'tag': 'Wildcat Deals',
-      },
-    ];
-
-    final cardBg = isDark ? const Color(0xFF1A1A1E) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF2A2A32) : const Color(0xFFE5E5EA);
-
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header Deck ──
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: TeknoyTheme.citMaroon.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.grid_view_rounded,
-                  color: TeknoyTheme.citMaroon,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Campus Categories',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : const Color(0xFF191C1D),
-                      ),
-                    ),
-                    Text(
-                      'Browse verified items by department',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 12,
-                        color: isDark ? Colors.white54 : Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 18),
-
-          // ── Search & Filter Shortcut ──
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const SearchResultsView(initialQuery: ''),
-                ),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF18181C) : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: cardBorder),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.search_rounded, color: Color(0xFF5A413D), size: 20),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Search uniforms, books, tools...',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 13,
-                      color: isDark ? Colors.white38 : Colors.grey.shade500,
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: TeknoyTheme.citMaroon.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      'Search',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: TeknoyTheme.citMaroon,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // ── Category Bento Grid ──
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: categoryMeta.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 1.15,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-            ),
-            itemBuilder: (context, index) {
-              final cat = categoryMeta[index];
-              final catName = cat['name'] as String;
-              final catIcon = cat['icon'] as IconData;
-              final catColor = cat['color'] as Color;
-              final catSubtitle = cat['subtitle'] as String;
-              final catTag = cat['tag'] as String;
-
-              final itemCount = allProducts.where((p) => p.category == catName).length;
-
-              return InkWell(
-                onTap: () {
-                  // Filter main feed and switch to Tab 0
-                  ref.read(selectedCategoryProvider.notifier).state = catName;
-                  setState(() => _activeTab = 0);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Showing "$catName" in campus feed'),
-                      duration: const Duration(seconds: 1),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: cardBg,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: cardBorder),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: catColor.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(catIcon, color: catColor, size: 22),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.white10 : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '$itemCount',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white70 : Colors.black87,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            catName,
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : Colors.black87,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            catSubtitle,
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 10,
-                              color: isDark ? Colors.white54 : Colors.grey.shade600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: catColor.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              catTag,
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                                color: catColor,
-                              ),
-                            ),
-                          ),
-                          const Spacer(),
-                          Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            size: 10,
-                            color: isDark ? Colors.white38 : Colors.grey.shade400,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── Index 2: Sell Form Body (Fully Usable Post form)
   Widget _buildSellTabBody(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -2625,9 +2293,112 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             ),
           );
         }
-
-        // Verified seller or admin: List Pre-Loved Item Form
-        return SingleChildScrollView(
+        // Verified seller or admin: Tab selector between List New Item and My Listings
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF0F0F4),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _sellSubTab = 0),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: _sellSubTab == 0 ? TeknoyTheme.citMaroon : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: _sellSubTab == 0
+                                ? [
+                                    BoxShadow(
+                                      color: TeknoyTheme.citMaroon.withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    )
+                                  ]
+                                : null,
+                          ),
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.add_circle_outline_rounded,
+                                size: 16,
+                                color: _sellSubTab == 0 ? Colors.white : (isDark ? Colors.white60 : Colors.black54),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'List New Item',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: _sellSubTab == 0 ? Colors.white : (isDark ? Colors.white60 : Colors.black54),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _sellSubTab = 1),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: _sellSubTab == 1 ? TeknoyTheme.citMaroon : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: _sellSubTab == 1
+                                ? [
+                                    BoxShadow(
+                                      color: TeknoyTheme.citMaroon.withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    )
+                                  ]
+                                : null,
+                          ),
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.inventory_2_outlined,
+                                size: 16,
+                                color: _sellSubTab == 1 ? Colors.white : (isDark ? Colors.white60 : Colors.black54),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'My Listings',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: _sellSubTab == 1 ? Colors.white : (isDark ? Colors.white60 : Colors.black54),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: _sellSubTab == 0
+                  ? SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -3156,776 +2927,15 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           ),
         ],
       ),
-    );
+    )
+                  : const ManageListingsView(embedded: true),
+            ),
+          ],
+        );
       },
     );
   }
 
-  Future<Map<String, List<Map<String, dynamic>>>> _getUserOrdersAndSales(String userId) async {
-    const selectQuery = '''
-      order_id,
-      total_amount,
-      pickup_location,
-      status,
-      created_at,
-      buyer_id,
-      seller_id,
-      payment_reference,
-      payment_proof_url,
-      product_variants (
-        products (
-          name,
-          base_price
-        )
-      )
-    ''';
-    try {
-      // Buyer orders
-      final buyRes = await SupabaseConfig.client
-          .from('orders')
-          .select(selectQuery)
-          .eq('buyer_id', userId)
-          .order('created_at', ascending: false);
-      final buyOrders = List<Map<String, dynamic>>.from(buyRes as List);
-
-      // Seller (incoming) orders
-      final sellRes = await SupabaseConfig.client
-          .from('orders')
-          .select(selectQuery)
-          .eq('seller_id', userId)
-          .order('created_at', ascending: false);
-      final sellOrders = List<Map<String, dynamic>>.from(sellRes as List);
-
-      for (var o in buyOrders) {
-        try {
-          final sellerRes = await SupabaseConfig.client
-              .from('users')
-              .select('full_name, contact')
-              .eq('user_id', o['seller_id'])
-              .maybeSingle();
-          o['seller_name'] = sellerRes?['full_name'] ?? 'Seller';
-          o['seller_contact'] = sellerRes?['contact'];
-        } catch (_) {}
-      }
-
-      for (var o in sellOrders) {
-        try {
-          final buyerRes = await SupabaseConfig.client
-              .from('users')
-              .select('full_name, contact')
-              .eq('user_id', o['buyer_id'])
-              .maybeSingle();
-          o['buyer_name'] = buyerRes?['full_name'] ?? 'Buyer';
-          o['buyer_contact'] = buyerRes?['contact'];
-        } catch (_) {}
-      }
-
-      return {'buy': buyOrders, 'sell': sellOrders};
-    } catch (e) {
-      return {'buy': [], 'sell': []};
-    }
-  }
-
-  Widget _buildOrdersList(BuildContext context, List<Map<String, dynamic>> orders, {required bool isBuyer}) {
-    if (orders.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isBuyer ? Icons.shopping_bag_rounded : Icons.storefront_rounded,
-              size: 80,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              isBuyer ? 'No Active Purchases' : 'No Incoming Orders',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              isBuyer
-                  ? 'Explore the marketplace, chat with campus sellers, and confirm a deal to see your orders tracked here!'
-                  : 'When buyers send you purchase inquiries via chat, confirmed deals will appear here for tracking.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey, height: 1.5),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Text(
-          isBuyer ? 'Purchase Trackers' : 'Incoming Deal Requests',
-          style: const TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          isBuyer
-              ? 'Track your campus meetup handoffs and payment verifications.'
-              : 'Buyers who have confirmed a deal with you. Complete meetup to mark as done.',
-          style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey),
-        ),
-        const SizedBox(height: 20),
-        // Seller Out-of-Stock Reservation Alert Banner
-        if (!isBuyer && orders.any((o) => _isItemOutOfStock(o)))
-          Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.orange.shade100, Colors.amber.shade50],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.orange.shade300),
-              boxShadow: [
-                BoxShadow(color: Colors.orange.withOpacity(0.12), blurRadius: 8, offset: const Offset(0, 3)),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade800,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Out-of-Stock Reservation Alert',
-                        style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14, color: Colors.orange.shade900),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'A buyer reserved an item currently out of stock. Restock the item or message the buyer to suggest an alternative.',
-                        style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.orange.shade900),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-        ...orders.map((o) {
-          final String status = o['status'] as String? ?? 'INQUIRY_SENT';
-          final double price = double.tryParse(o['total_amount']?.toString() ?? '0') ?? 0;
-          final bool isOos = !isBuyer && _isItemOutOfStock(o);
-
-          // product_variants can be null if variant_id FK is null (e.g. locally-added product)
-          String productTitle = 'Campus Merchandise';
-          final variantRaw = o['product_variants'];
-          if (variantRaw is Map) {
-            final productRaw = variantRaw['products'];
-            if (productRaw is Map) {
-              productTitle = productRaw['name'] as String? ?? 'Campus Merchandise';
-            }
-          }
-
-          final String rawId = o['order_id'] as String? ?? '';
-          final String displayId = rawId.length >= 8
-              ? 'ORD-${rawId.substring(0, 8).toUpperCase()}'
-              : 'ORD-${rawId.toUpperCase()}';
-
-          double progress = 0.2;
-          String statusDisplay = 'Inquiry Sent';
-          switch (status) {
-            case 'INQUIRY_SENT': progress = 0.2; statusDisplay = 'Inquiry Sent — Awaiting Seller'; break;
-            case 'APPROVED':     progress = 0.4; statusDisplay = isOos ? 'Out of Stock Reservation' : 'Reserved — Awaiting Meetup'; break;
-            case 'REJECTED':     progress = 0.1; statusDisplay = 'Offer Declined'; break;
-            case 'PAYMENT_SUBMITTED': progress = 0.6; statusDisplay = 'GCash Proof Submitted'; break;
-            case 'PAYMENT_VERIFIED':  progress = 0.8; statusDisplay = 'Payment Verified — Ready'; break;
-            case 'READY_FOR_PICKUP':  progress = 0.9; statusDisplay = 'Ready for Campus Meetup'; break;
-            case 'COMPLETED':    progress = 1.0; statusDisplay = 'Meetup Completed'; break;
-            case 'CANCELLED':    progress = 0.0; statusDisplay = 'Deal Cancelled'; break;
-          }
-
-          final isGcash = o['pickup_location']?.toString().contains('Payment: GCash') ?? false;
-          final orderId = o['order_id'] as String;
-
-          Widget? cardActionButton;
-
-          if (isBuyer) {
-            if ((status == 'APPROVED' || status == 'INQUIRY_SENT' || status == 'PENDING_SELLER_ACCEPT') && isGcash) {
-              cardActionButton = Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showUploadReceiptDialog(context, orderId),
-                    icon: const Icon(Icons.upload_file_rounded, size: 16, color: Colors.white),
-                    label: const Text('Upload GCash Receipt', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
-                    style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.citMaroon),
-                  ),
-                ),
-              );
-            }
-          } else {
-            if (isOos) {
-              cardActionButton = Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Column(
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.orange.shade300),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.info_outline_rounded, size: 16, color: Colors.orange.shade900),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Reserved item is out of stock. Restock or contact buyer.',
-                              style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.orange.shade900, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => _showQuickRestockDialog(context, orderId, productTitle),
-                            icon: const Icon(Icons.add_circle_outline_rounded, size: 16, color: Colors.white),
-                            label: const Text('Restock Product', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
-                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32)),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _showBuyerMessageOptionsSheet(context, orderId, o['buyer_name'] as String? ?? 'Student', productTitle),
-                            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: TeknoyTheme.citMaroon),
-                            label: const Text('Message Buyer', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 12, color: TeknoyTheme.citMaroon)),
-                            style: OutlinedButton.styleFrom(side: const BorderSide(color: TeknoyTheme.citMaroon)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            } else if (status == 'INQUIRY_SENT' || status == 'PENDING_SELLER_ACCEPT') {
-              cardActionButton = Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => _updateOrderStatus(orderId, 'APPROVED'),
-                    style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.success, foregroundColor: Colors.white),
-                    child: const Text('Accept Deal', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              );
-            } else if (status == 'PAYMENT_SUBMITTED') {
-              cardActionButton = Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showVerifyReceiptDialog(
-                      context, 
-                      orderId: orderId,
-                      amount: price,
-                      refNum: o['payment_reference']?.toString() ?? '',
-                      proofUrl: o['payment_proof_url']?.toString() ?? '',
-                    ),
-                    icon: const Icon(Icons.rate_review_rounded, size: 16, color: Colors.white),
-                    label: const Text('Verify GCash Receipt', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
-                    style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.success),
-                  ),
-                ),
-              );
-            } else if (status == 'PAYMENT_VERIFIED' || (status == 'APPROVED' && !isGcash)) {
-              cardActionButton = Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _updateOrderStatus(orderId, 'COMPLETED'),
-                    icon: const Icon(Icons.done_all_rounded, size: 16, color: Colors.white),
-                    label: const Text('Complete Meetup', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
-                    style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.citMaroon),
-                  ),
-                ),
-              );
-            }
-          }
-
-          final String partyName = isBuyer
-              ? 'Seller: ${o['seller_name'] ?? 'Wildcat Seller'}'
-              : 'Buyer: ${o['buyer_name'] ?? 'Wildcat Student'}';
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
-            child: _buildActiveOrderTimelineCard(
-              context,
-              orderId: displayId,
-              productTitle: productTitle,
-              amount: '₱${price.toStringAsFixed(2)}',
-              partyName: partyName,
-              landmark: o['pickup_location'] as String? ?? 'Library Lobby',
-              time: 'Confirm meetup at agreed campus landmark',
-              status: statusDisplay,
-              progress: progress,
-              actionButton: cardActionButton,
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildActiveOrderTimelineCard(
-    BuildContext context, {
-    required String orderId,
-    required String productTitle,
-    required String amount,
-    required String partyName,
-    required String landmark,
-    required String time,
-    required String status,
-    required double progress,
-    Widget? actionButton,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  orderId,
-                  style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16, color: TeknoyTheme.citMaroon),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: progress == 0.75 ? Colors.orange.shade50 : Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    status,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: progress == 0.75 ? Colors.orange.shade800 : Colors.blue.shade800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              partyName,
-              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13, color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              productTitle,
-              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Total Price: $amount',
-              style: const TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey),
-            ),
-            const SizedBox(height: 12),
-            
-            // Meetup Landmark details
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF25252A) : Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.location_on_rounded, color: TeknoyTheme.citMaroon, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Pickup Landmark: $landmark', style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 12)),
-                        const SizedBox(height: 2),
-                        Text(time, style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Progress Bar
-            Row(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 8,
-                      color: TeknoyTheme.citMaroon,
-                      backgroundColor: Colors.grey.shade200,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '${(progress * 100).toInt()}%',
-                  style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13, color: TeknoyTheme.citMaroon),
-                ),
-              ],
-            ),
-            if (actionButton != null) actionButton,
-          ],
-        ),
-      ),
-    );
-  }
-
-  bool _isItemOutOfStock(Map<String, dynamic> order) {
-    if (order['is_out_of_stock'] == true) return true;
-    final variantRaw = order['product_variants'];
-    if (variantRaw is Map) {
-      final productRaw = variantRaw['products'];
-      if (productRaw is Map) {
-        final int stock = int.tryParse(productRaw['stock_qty']?.toString() ?? '0') ?? 0;
-        final String name = (productRaw['name'] as String? ?? '').toLowerCase();
-        if (stock <= 0 || name.contains('msi')) return true;
-      }
-    }
-    return false;
-  }
-
-  void _showQuickRestockDialog(BuildContext context, String orderId, String productTitle) {
-    final qtyController = TextEditingController(text: '5');
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: const [
-            Icon(Icons.add_circle_outline_rounded, color: Color(0xFF2E7D32)),
-            SizedBox(width: 8),
-            Text('Quick Restock Item', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Item: $productTitle', style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
-            const SizedBox(height: 4),
-            const Text('Enter quantity to add to stock. This will allocate 1 unit to this reservation and mark it READY FOR PICKUP.',
-                style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.black54)),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: qtyController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Quantity to Add',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.inventory_2_outlined),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(fontFamily: 'Inter')),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32), foregroundColor: Colors.white),
-            onPressed: () async {
-              final int added = int.tryParse(qtyController.text) ?? 5;
-              Navigator.pop(ctx);
-              try {
-                // Update Supabase DB inventory
-                final orderRes = await SupabaseConfig.client
-                    .from('orders')
-                    .select('variant_id')
-                    .eq('order_id', orderId)
-                    .maybeSingle();
-
-                final variantId = orderRes?['variant_id'];
-                if (variantId != null) {
-                  final invRes = await SupabaseConfig.client
-                      .from('inventory')
-                      .select('stock_qty')
-                      .eq('variant_id', variantId)
-                      .maybeSingle();
-                  final int currentStock = invRes?['stock_qty'] as int? ?? 0;
-                  await SupabaseConfig.client
-                      .from('inventory')
-                      .update({
-                        'stock_qty': currentStock + added,
-                        'last_updated': DateTime.now().toIso8601String(),
-                      })
-                      .eq('variant_id', variantId);
-                }
-              } catch (_) {}
-
-              await _updateOrderStatus(orderId, 'READY_FOR_PICKUP');
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('✅ Restocked +$added units! Stock updated in inventory and automated chat message sent to buyer.'),
-                    backgroundColor: const Color(0xFF2E7D32),
-                  ),
-                );
-              }
-            },
-            child: const Text('Restock & Fulfill', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showBuyerMessageOptionsSheet(BuildContext context, String orderId, String buyerName, String productTitle) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.chat_bubble_outline_rounded, color: TeknoyTheme.citMaroon),
-                const SizedBox(width: 8),
-                Text('Message $buyerName', style: const TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text('Select a quick template or notify $buyerName regarding "$productTitle":', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 16),
-            ListTile(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
-              leading: const Icon(Icons.schedule_rounded, color: Colors.orange),
-              title: const Text('Restock Schedule', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
-              subtitle: Text('"Hi $buyerName! "$productTitle" is restocking on Friday. Would you like to keep your reservation?"', style: const TextStyle(fontFamily: 'Inter', fontSize: 11)),
-              onTap: () {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('💬 Restock schedule notification sent to $buyerName!'), backgroundColor: TeknoyTheme.citMaroon),
-                );
-              },
-            ),
-            const SizedBox(height: 10),
-            ListTile(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
-              leading: const Icon(Icons.swap_horiz_rounded, color: Colors.blue),
-              title: const Text('Propose Alternative Item', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
-              subtitle: Text('"Hi $buyerName! "$productTitle" is out of stock, but we have a similar item available. Check chat for details!"', style: const TextStyle(fontFamily: 'Inter', fontSize: 11)),
-              onTap: () {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('💬 Alternative product suggestion sent to $buyerName!'), backgroundColor: TeknoyTheme.citMaroon),
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _updateOrderStatus(String orderId, String newStatus) async {
-    try {
-      await SupabaseConfig.client
-          .from('orders')
-          .update({'status': newStatus})
-          .eq('order_id', orderId);
-      if (mounted) {
-        setState(() {}); // Trigger reload
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Order status updated to $newStatus!'), backgroundColor: TeknoyTheme.success),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update status: $e'), backgroundColor: TeknoyTheme.error),
-        );
-      }
-    }
-  }
-
-  void _showUploadReceiptDialog(BuildContext context, String orderId) {
-    final refController = TextEditingController();
-    final proofController = TextEditingController(text: 'https://picsum.photos/seed/receipt/400/300');
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Upload GCash Proof', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Please type the reference number and provide a receipt screenshot url to verify.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: refController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'GCash Reference Number (13 digits)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: proofController,
-              decoration: const InputDecoration(
-                labelText: 'Receipt Image URL',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(fontFamily: 'Outfit')),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final refText = refController.text.trim();
-              if (refText.length != 13 || double.tryParse(refText) == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please enter a valid 13-digit reference number.'), backgroundColor: TeknoyTheme.error),
-                );
-                return;
-              }
-              Navigator.pop(context);
-              try {
-                await SupabaseConfig.client
-                    .from('orders')
-                    .update({
-                      'status': 'PAYMENT_SUBMITTED',
-                      'payment_reference': refText,
-                      'payment_proof_url': proofController.text.trim(),
-                    })
-                    .eq('order_id', orderId);
-                if (mounted) {
-                  setState(() {});
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Receipt uploaded successfully!'), backgroundColor: TeknoyTheme.success),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Upload failed: $e'), backgroundColor: TeknoyTheme.error),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.citMaroon),
-            child: const Text('Submit Proof', style: TextStyle(fontFamily: 'Outfit', color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showVerifyReceiptDialog(
-    BuildContext context, {
-    required String orderId,
-    required double amount,
-    required String refNum,
-    required String proofUrl,
-  }) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Verify GCash Receipt', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Expected Amount: ₱${amount.toStringAsFixed(2)}', style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
-            Text('Reference Number: $refNum', style: const TextStyle(fontFamily: 'Inter', fontSize: 14)),
-            const SizedBox(height: 12),
-            const Text('Uploaded Receipt:', style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Container(
-              height: 180,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
-                image: DecorationImage(
-                  image: NetworkImage(proofUrl),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 8),
-            const Text('Verification Checklist (FR-18.1):', style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
-            const SizedBox(height: 6),
-            const Text('• Recipient account name matches your GCash account\n• Amount matches the expected order total\n• Transaction timestamp is within the last 2 hours\n• Screenshot shows the official GCash interface', style: TextStyle(fontFamily: 'Inter', fontSize: 11, height: 1.4, color: Colors.grey)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _updateOrderStatus(orderId, 'APPROVED'); // return to approved (awaiting payment) state
-            },
-            child: const Text('Decline Receipt', style: TextStyle(fontFamily: 'Outfit', color: Colors.red)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _updateOrderStatus(orderId, 'PAYMENT_VERIFIED');
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.success),
-            child: const Text('Verify & Complete', style: TextStyle(fontFamily: 'Outfit', color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
   Future<void> _updateProfileMetadata(String dept, String contact, String gcashNumber, {String? storeName}) async {
     try {
       final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
