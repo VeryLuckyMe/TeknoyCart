@@ -27,17 +27,38 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
     state = AsyncValue.data(existingUser);
     if (existingUser != null) {
       PresenceService.instance.startHeartbeat(existingUser.id);
+      _authService.getEnrichedProfile(existingUser).then((enriched) {
+        if (mounted) {
+          state = AsyncValue.data(enriched);
+        }
+      });
     }
 
     // Auto-sync state and manage heartbeat for all auth changes (including auto-login / session restore)
-    _authSubscription = _authService.authStateChanges.listen((user) {
-      state = AsyncValue.data(user);
+    _authSubscription = _authService.authStateChanges.listen((user) async {
       if (user != null) {
+        state = AsyncValue.data(user);
         PresenceService.instance.startHeartbeat(user.id);
+        final enriched = await _authService.getEnrichedProfile(user);
+        if (mounted) {
+          state = AsyncValue.data(enriched);
+        }
       } else {
+        state = const AsyncValue.data(null);
         PresenceService.instance.stopHeartbeat();
       }
     });
+  }
+
+  /// Refreshes the user's role and verification status from the database.
+  Future<void> refreshProfile() async {
+    final current = state.valueOrNull ?? _authService.currentUser;
+    if (current != null) {
+      final enriched = await _authService.getEnrichedProfile(current);
+      if (mounted) {
+        state = AsyncValue.data(enriched);
+      }
+    }
   }
 
   /// Sign in user with error handling and loading indicators.
@@ -45,7 +66,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
     state = const AsyncValue.loading();
     try {
       final user = await _authService.signIn(email: email, password: password);
-      state = AsyncValue.data(user);
+      final enriched = await _authService.getEnrichedProfile(user);
+      state = AsyncValue.data(enriched);
     } catch (e, stackTrace) {
       state = AsyncValue.error(e, stackTrace);
       rethrow;

@@ -2608,9 +2608,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 ),
                 const SizedBox(height: 24),
                 OutlinedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     _profileFuture = null; // Clear cached future to refetch role status
-                    setState(() {});
+                    await ref.read(authNotifierProvider.notifier).refreshProfile();
+                    if (mounted) setState(() {});
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: TeknoyTheme.citMaroon,

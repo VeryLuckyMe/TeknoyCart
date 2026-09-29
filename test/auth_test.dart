@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/services/auth_service.dart';
 import 'package:teknoycart/features/auth/views/widgets/auth_form_fields.dart';
 
@@ -174,4 +175,69 @@ void main() {
       expect(shs.fullTitle, 'SHS — Senior High School');
     });
   });
+
+  group('Ponytail Audit & Profile Enrichment Tests', () {
+    late AuthService authService;
+
+    setUp(() {
+      authService = AuthService();
+    });
+
+    test('strict seller verification role predicates (Ponytail Audit)', () {
+      // 1. Unverified seller application (pending seller)
+      final pendingSeller = Profile(
+        id: 'user-1',
+        username: 'pending_vendor',
+        email: 'seller@cit.edu',
+        role: 'SELLER',
+        isSellerVerified: false,
+        createdAt: DateTime.now(),
+      );
+      expect(pendingSeller.isSeller, isFalse, reason: 'Pending seller must not have active seller privileges');
+      expect(pendingSeller.isPendingSeller, isTrue);
+      expect(pendingSeller.isBuyer, isTrue, reason: 'Pending seller must operate in buyer mode');
+
+      // 2. Verified vendor
+      final verifiedSeller = Profile(
+        id: 'user-2',
+        username: 'approved_vendor',
+        email: 'vendor@cit.edu',
+        role: 'SELLER',
+        isSellerVerified: true,
+        createdAt: DateTime.now(),
+      );
+      expect(verifiedSeller.isSeller, isTrue);
+      expect(verifiedSeller.isPendingSeller, isFalse);
+      expect(verifiedSeller.isBuyer, isFalse);
+
+      // 3. Regular student buyer
+      final studentBuyer = Profile(
+        id: 'user-3',
+        username: 'regular_buyer',
+        email: 'student@cit.edu',
+        role: 'BUYER',
+        isSellerVerified: false,
+        createdAt: DateTime.now(),
+      );
+      expect(studentBuyer.isSeller, isFalse);
+      expect(studentBuyer.isPendingSeller, isFalse);
+      expect(studentBuyer.isBuyer, isTrue);
+    });
+
+    test('getEnrichedProfile falls back gracefully when DB call errors', () async {
+      final baseProfile = Profile(
+        id: 'non-existent-user-id',
+        username: 'fallback_user',
+        email: 'fallback@cit.edu',
+        role: 'BUYER',
+        isSellerVerified: false,
+        createdAt: DateTime.now(),
+      );
+      final enriched = await authService.getEnrichedProfile(baseProfile);
+      expect(enriched.id, baseProfile.id);
+      expect(enriched.username, baseProfile.username);
+      expect(enriched.role, baseProfile.role);
+    });
+  });
 }
+

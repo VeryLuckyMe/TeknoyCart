@@ -48,6 +48,31 @@ class AuthService {
     );
   }
 
+  /// Enriches a profile with authoritative RBAC and profile data directly from the public.users database table.
+  /// Prevents stale role/verification states when auth.users.raw_user_meta_data is out of sync.
+  Future<Profile> getEnrichedProfile(Profile profile) async {
+    try {
+      final res = await _client
+          .from('users')
+          .select('full_name, role, is_seller_verified, department, student_id, contact, gcash_number, avatar_url')
+          .eq('user_id', profile.id)
+          .maybeSingle();
+      if (res != null) {
+        return profile.copyWith(
+          username: res['full_name'] as String? ?? profile.username,
+          role: res['role'] as String? ?? profile.role,
+          isSellerVerified: (res['is_seller_verified'] as bool?) ?? profile.isSellerVerified,
+          department: res['department'] as String? ?? profile.department,
+          studentId: res['student_id'] as String? ?? profile.studentId,
+          contact: res['contact'] as String? ?? profile.contact,
+          gcashNumber: res['gcash_number'] as String? ?? profile.gcashNumber,
+          avatarUrl: res['avatar_url'] as String? ?? profile.avatarUrl,
+        );
+      }
+    } catch (_) {}
+    return profile;
+  }
+
   bool isValidCituEmail(String email) {
     final lower = email.toLowerCase().trim();
     return lower.endsWith('@cit.edu');
@@ -111,13 +136,23 @@ class AuthService {
         await _client.auth.setSession(refreshToken);
       }
 
+      final userData = body['user'] as Map<String, dynamic>?;
       final profile = currentUser;
       if (profile != null) {
+        if (userData != null) {
+          final backendRole = userData['role'] as String?;
+          final backendVerified = (userData['isSellerVerified'] as bool?) ?? (userData['is_seller_verified'] as bool?);
+          final backendName = userData['fullName'] as String?;
+          return profile.copyWith(
+            username: backendName ?? profile.username,
+            role: backendRole ?? profile.role,
+            isSellerVerified: backendVerified ?? profile.isSellerVerified,
+          );
+        }
         return profile;
       }
 
       // Fallback profile from backend response if auth state stream hasn't settled yet
-      final userData = body['user'] as Map<String, dynamic>?;
       return Profile(
         id: userData?['userId'] as String? ?? '',
         username: userData?['fullName'] as String? ?? emailTrimmed.split('@').first,
