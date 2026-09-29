@@ -12,7 +12,7 @@ final chatServiceProvider = Provider<ChatService>((ref) {
 
 final chatMessagesStreamProvider = StreamProvider.autoDispose.family<List<Message>, String>((ref, roomId) async* {
   final service = ref.watch(chatServiceProvider);
-  yield service.activeMessages;
+  yield service.getMessagesForRoom(roomId);
   yield* service.watchMessages(roomId);
 });
 

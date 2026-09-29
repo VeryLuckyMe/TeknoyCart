@@ -7,11 +7,16 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/reports/views/financial_reports_view.dart';
 import 'package:teknoycart/features/chat/views/inbox_view.dart';
 import 'package:teknoycart/features/feed/views/manage_listings_view.dart';
-
+import 'package:teknoycart/features/checkout/views/order_history_view.dart';
 
 /// Upgraded sliding Navigation Drawer reflecting a multi-billion-dollar brand layout.
 class TeknoyNavigationDrawer extends ConsumerWidget {
-  const TeknoyNavigationDrawer({super.key});
+  final void Function(int tabIndex)? onSelectTab;
+
+  const TeknoyNavigationDrawer({
+    super.key,
+    this.onSelectTab,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -198,7 +203,10 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                         icon: Icons.storefront_rounded,
                         title: 'Marketplace Feed',
                         isActive: true,
-                        onTap: () => Navigator.pop(context),
+                        onTap: () {
+                          Navigator.pop(context);
+                          onSelectTab?.call(0);
+                        },
                       ),
                       _buildNavTile(
                         context,
@@ -206,16 +214,36 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                         title: 'Negotiation Chats',
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const InboxView()),
-                          );
+                          if (onSelectTab != null) {
+                            onSelectTab!(1);
+                          } else {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const InboxView()),
+                            );
+                          }
                         },
                       ),
                       _buildNavTile(
                         context,
-                        icon: Icons.analytics_outlined,
-                        title: 'Financial Reports',
+                        icon: Icons.receipt_long_rounded,
+                        title: 'My Orders / Purchases',
+                        onTap: () {
+                          Navigator.pop(context);
+                          if (onSelectTab != null) {
+                            onSelectTab!(3);
+                          } else {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const OrderHistoryView()),
+                            );
+                          }
+                        },
+                      ),
+                      _buildNavTile(
+                        context,
+                        icon: Icons.insights_rounded,
+                        title: 'Sales Analytics',
                         onTap: () {
                           Navigator.pop(context);
                           Navigator.push(
@@ -226,7 +254,7 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                       ),
                       _buildNavTile(
                         context,
-                        icon: Icons.loyalty_rounded,
+                        icon: Icons.store_mall_directory_rounded,
                         title: 'Manage My Listings',
                         onTap: () {
                           Navigator.pop(context);
@@ -243,9 +271,14 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                       ),
                       _buildNavTile(
                         context,
-                        icon: Icons.settings_outlined,
-                        title: 'Settings',
-                        onTap: () => Navigator.pop(context),
+                        icon: Icons.manage_accounts_rounded,
+                        title: 'Settings & Profile',
+                        onTap: () {
+                          Navigator.pop(context);
+                          if (onSelectTab != null) {
+                            onSelectTab!(4);
+                          }
+                        },
                       ),
                       _buildNavTile(
                         context,
@@ -295,17 +328,6 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                               ),
                             ),
                           ],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'CIT-U LEAD ENGINEERING GUILD',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white.withOpacity(0.25) : Colors.black.withOpacity(0.25),
-                          letterSpacing: 1.0,
                         ),
                       ),
                     ],

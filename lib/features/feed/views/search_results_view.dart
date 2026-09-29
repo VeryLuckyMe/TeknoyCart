@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
+import 'package:teknoycart/features/feed/views/product_detail_view.dart';
 import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
 
 class SearchResultsView extends ConsumerStatefulWidget {
@@ -326,11 +327,11 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                     final product = matchingProducts[index];
                     return GestureDetector(
                       onTap: () {
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => ProductDetailsSheet(product: product),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ProductDetailView(product: product),
+                          ),
                         );
                       },
                       child: Container(

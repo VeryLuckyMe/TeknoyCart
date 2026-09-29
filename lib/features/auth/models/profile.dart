@@ -5,6 +5,8 @@ class Profile {
   final String id;
   final String username;
   final String email;
+  final String role; // 'BUYER' or 'SELLER'
+  final bool isSellerVerified;
   final String? avatarUrl;
   final String? department;
   final String? contact;
@@ -16,6 +18,8 @@ class Profile {
     required this.id,
     required this.username,
     required this.email,
+    this.role = 'BUYER',
+    this.isSellerVerified = false,
     this.avatarUrl,
     this.department,
     this.contact,
@@ -24,12 +28,18 @@ class Profile {
     required this.createdAt,
   });
 
+  bool get isSeller => role.toUpperCase() == 'SELLER' && isSellerVerified;
+  bool get isPendingSeller => role.toUpperCase() == 'SELLER' && !isSellerVerified;
+  bool get isBuyer => !isSeller;
+
   /// Factory constructor to create a Profile from a Supabase/PostgreSQL JSON object.
   factory Profile.fromJson(Map<String, dynamic> json) {
     return Profile(
       id: json['id'] as String,
       username: json['username'] as String,
       email: json['email'] as String,
+      role: (json['role'] as String?) ?? 'BUYER',
+      isSellerVerified: json['is_seller_verified'] as bool? ?? false,
       avatarUrl: json['avatar_url'] as String?,
       department: json['department'] as String?,
       contact: json['contact'] as String?,
@@ -45,6 +55,8 @@ class Profile {
       'id': id,
       'username': username,
       'email': email,
+      'role': role,
+      'is_seller_verified': isSellerVerified,
       'avatar_url': avatarUrl,
       'department': department,
       'contact': contact,
@@ -59,6 +71,8 @@ class Profile {
     String? id,
     String? username,
     String? email,
+    String? role,
+    bool? isSellerVerified,
     String? avatarUrl,
     String? department,
     String? contact,
@@ -70,6 +84,8 @@ class Profile {
       id: id ?? this.id,
       username: username ?? this.username,
       email: email ?? this.email,
+      role: role ?? this.role,
+      isSellerVerified: isSellerVerified ?? this.isSellerVerified,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       department: department ?? this.department,
       contact: contact ?? this.contact,

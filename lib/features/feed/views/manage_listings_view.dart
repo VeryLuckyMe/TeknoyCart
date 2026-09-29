@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
+import 'package:teknoycart/features/feed/providers/product_provider.dart';
+import 'package:teknoycart/features/feed/views/edit_product_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 import 'widgets/reserved_orders_sheet.dart';
 
@@ -39,13 +41,17 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
           .select('''
             product_id,
             name,
+            description,
             base_price,
             status,
             is_preorder_enabled,
             category_id,
+            category_attributes,
             product_images (image_url, is_primary),
             product_variants (
               variant_id,
+              variant_name,
+              variant_value,
               inventory (
                 stock_qty,
                 reserved_qty
@@ -79,35 +85,11 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
           .update({'status': newStatus})
           .eq('product_id', productId);
       _fetchListings(silent: true);
+      ref.read(productsListNotifierProvider.notifier).refresh();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text('Failed to update status: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _togglePreorder(String productId, bool currentPreorder) async {
-    try {
-      await SupabaseConfig.client
-          .from('products')
-          .update({'is_preorder_enabled': !currentPreorder})
-          .eq('product_id', productId);
-      _fetchListings(silent: true);
-      if (mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            content: Text(!currentPreorder ? 'Pre-orders enabled for this listing' : 'Pre-orders disabled'),
-            backgroundColor: TeknoyTheme.citMaroon,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(content: Text('Failed to update pre-order settings: $e')),
         );
       }
     }
@@ -138,6 +120,7 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
           .delete()
           .eq('product_id', productId);
       _fetchListings();
+      ref.read(productsListNotifierProvider.notifier).refresh();
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           const SnackBar(content: Text('Product deleted successfully'), behavior: SnackBarBehavior.floating),
@@ -152,395 +135,16 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
     }
   }
 
-  Future<void> _adjustStock({
-    required String? variantId,
-    required String productName,
-    required int currentStock,
-    required int reservedStock,
-  }) async {
-    if (variantId == null || variantId.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          const SnackBar(content: Text('Product variant not found. Cannot adjust stock.')),
-        );
-      }
-      return;
+  Future<void> _showEditProductSheet(Map<String, dynamic> item) async {
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditProductView(productItem: item),
+      ),
+    );
+    if (updated == true) {
+      _fetchListings(silent: true);
     }
-
-    final availableStock = (currentStock - reservedStock).clamp(0, 999999);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    await showDialog<void>(
-      context: context,
-      builder: (dCtx) {
-        bool isAddMode = true;
-        final controller = TextEditingController();
-        String selectedReason = 'Sold in person / outside app';
-        String? errorMessage;
-        int? parsedQty;
-
-        final reasons = [
-          'Sold in person / outside app',
-          'Damaged / Expired / Lost',
-          'Inventory recount / Correction',
-          'Personal use / Withdrawn',
-          'Other',
-        ];
-
-        return StatefulBuilder(
-          builder: (dialogCtx, setDialogState) {
-            void onInputChanged(String text) {
-              setDialogState(() {
-                final val = int.tryParse(text.trim());
-                parsedQty = val;
-                if (val == null || val <= 0) {
-                  errorMessage = text.trim().isEmpty ? null : 'Please enter a valid positive number';
-                } else if (!isAddMode && val > availableStock) {
-                  errorMessage = 'Cannot remove $val. Only $availableStock unit${availableStock == 1 ? '' : 's'} available ($reservedStock held by orders).';
-                } else {
-                  errorMessage = null;
-                }
-              });
-            }
-
-            final isValid = parsedQty != null && parsedQty! > 0 && errorMessage == null;
-            final newTotal = parsedQty != null && parsedQty! > 0
-                ? (isAddMode ? currentStock + parsedQty! : currentStock - parsedQty!)
-                : currentStock;
-            final newAvailable = (newTotal - reservedStock).clamp(0, 999999);
-
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              backgroundColor: isDark ? const Color(0xFF1B1B22) : Colors.white,
-              titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-              actionsPadding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-              title: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: TeknoyTheme.citMaroon.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.tune_rounded, color: TeknoyTheme.citMaroon, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Adjust Stock',
-                          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18),
-                        ),
-                        Text(
-                          productName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 12,
-                            color: isDark ? Colors.white60 : Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 10),
-                    // Current breakdown pill
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF22222B) : const Color(0xFFF4F4F8),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: isDark ? const Color(0xFF33333E) : const Color(0xFFE5E5EB)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _buildStockMiniCol('Total', '$currentStock', isDark ? Colors.white70 : Colors.black87),
-                          Container(width: 1, height: 22, color: isDark ? Colors.white12 : Colors.black12),
-                          _buildStockMiniCol('Reserved', '$reservedStock', Colors.amber.shade800),
-                          Container(width: 1, height: 22, color: isDark ? Colors.white12 : Colors.black12),
-                          _buildStockMiniCol('Available', '$availableStock', const Color(0xFF2E7D32)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Segmented Toggle Add / Deduct
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF141419) : const Color(0xFFEEEEF2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () {
-                                setDialogState(() {
-                                  isAddMode = true;
-                                  onInputChanged(controller.text);
-                                });
-                              },
-                              borderRadius: BorderRadius.circular(9),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: isAddMode ? (isDark ? const Color(0xFF2B2B38) : Colors.white) : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(9),
-                                  boxShadow: isAddMode
-                                      ? [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.08),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          )
-                                        ]
-                                      : null,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.add_circle_outline_rounded,
-                                      size: 16,
-                                      color: isAddMode ? TeknoyTheme.citMaroon : (isDark ? Colors.white54 : Colors.black54),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Add Stock',
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: 13,
-                                        fontWeight: isAddMode ? FontWeight.bold : FontWeight.w500,
-                                        color: isAddMode ? TeknoyTheme.citMaroon : (isDark ? Colors.white54 : Colors.black54),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: InkWell(
-                              onTap: () {
-                                setDialogState(() {
-                                  isAddMode = false;
-                                  onInputChanged(controller.text);
-                                });
-                              },
-                              borderRadius: BorderRadius.circular(9),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: !isAddMode ? (isDark ? const Color(0xFF2B2B38) : Colors.white) : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(9),
-                                  boxShadow: !isAddMode
-                                      ? [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.08),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          )
-                                        ]
-                                      : null,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.remove_circle_outline_rounded,
-                                      size: 16,
-                                      color: !isAddMode ? Colors.red.shade700 : (isDark ? Colors.white54 : Colors.black54),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Remove Stock',
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: 13,
-                                        fontWeight: !isAddMode ? FontWeight.bold : FontWeight.w500,
-                                        color: !isAddMode ? Colors.red.shade700 : (isDark ? Colors.white54 : Colors.black54),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Quantity input field
-                    TextField(
-                      controller: controller,
-                      keyboardType: TextInputType.number,
-                      onChanged: onInputChanged,
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        labelText: isAddMode ? 'Units to Add' : 'Units to Remove',
-                        hintText: isAddMode ? 'e.g. 5' : 'Max: $availableStock',
-                        prefixIcon: Icon(
-                          isAddMode ? Icons.add : Icons.remove,
-                          color: isAddMode ? TeknoyTheme.citMaroon : Colors.red,
-                        ),
-                        errorText: errorMessage,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                    if (!isAddMode) ...[
-                      const SizedBox(height: 14),
-                      DropdownButtonFormField<String>(
-                        initialValue: selectedReason,
-                        decoration: InputDecoration(
-                          labelText: 'Reason for removal',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        ),
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 13,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                        items: reasons.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setDialogState(() => selectedReason = val);
-                          }
-                        },
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    // Live calculation summary box
-                    if (isValid)
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: isAddMode
-                              ? Colors.green.withValues(alpha: isDark ? 0.12 : 0.08)
-                              : Colors.orange.withValues(alpha: isDark ? 0.12 : 0.08),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isAddMode
-                                ? Colors.green.withValues(alpha: 0.3)
-                                : Colors.orange.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            Text(
-                              'New Total: $newTotal',
-                              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
-                            ),
-                            Container(width: 1, height: 16, color: Colors.grey.withValues(alpha: 0.3)),
-                            Text(
-                              'New Available: $newAvailable',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: newAvailable > 0 ? const Color(0xFF2E7D32) : Colors.red,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogCtx),
-                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-                ),
-                ElevatedButton(
-                  onPressed: isValid
-                      ? () async {
-                          Navigator.pop(dialogCtx);
-                          final qty = parsedQty!;
-                          final finalNewStock = isAddMode ? currentStock + qty : currentStock - qty;
-
-                          try {
-                            await SupabaseConfig.client
-                                .from('inventory')
-                                .update({
-                                  'stock_qty': finalNewStock,
-                                  'last_updated': DateTime.now().toIso8601String(),
-                                })
-                                .eq('variant_id', variantId);
-
-                            _fetchListings(silent: true);
-
-                            if (mounted) {
-                              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    isAddMode
-                                        ? 'Added $qty unit(s). Total physical stock is now $finalNewStock.'
-                                        : 'Removed $qty unit(s) ($selectedReason). Total stock is now $finalNewStock.',
-                                  ),
-                                  backgroundColor: TeknoyTheme.success,
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                                SnackBar(
-                                  content: Text('Failed to update stock: $e'),
-                                  backgroundColor: TeknoyTheme.error,
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                          }
-                        }
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isAddMode ? TeknoyTheme.citMaroon : Colors.red.shade700,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: Text(
-                    isAddMode ? 'Add Stock' : 'Remove Stock',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  static Widget _buildStockMiniCol(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: color),
-        ),
-        const SizedBox(height: 1),
-        Text(
-          label,
-          style: const TextStyle(fontFamily: 'Inter', fontSize: 10, color: Colors.grey),
-        ),
-      ],
-    );
   }
 
   void _showReservedOrdersSheet({
@@ -594,25 +198,29 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                       imageUrl = '';
                     }
 
-                    // Extract variant & inventory safely
+                    // Extract variants & aggregate inventory
                     final variants = item['product_variants'] as List<dynamic>? ?? [];
-                    int stockQty = 0;
-                    int reservedQty = 0;
-                    String? variantId;
+                    int totalStockQty = 0;
+                    int totalReservedQty = 0;
+                    String? primaryVariantId;
                     if (variants.isNotEmpty && variants[0] is Map) {
-                      final firstVar = variants[0] as Map<String, dynamic>;
-                      variantId = firstVar['variant_id']?.toString();
-                      final inv = firstVar['inventory'];
-                      if (inv is List && inv.isNotEmpty && inv[0] is Map) {
-                        stockQty = (inv[0]['stock_qty'] as num?)?.toInt() ?? 0;
-                        reservedQty = (inv[0]['reserved_qty'] as num?)?.toInt() ?? 0;
-                      } else if (inv is Map) {
-                        stockQty = (inv['stock_qty'] as num?)?.toInt() ?? 0;
-                        reservedQty = (inv['reserved_qty'] as num?)?.toInt() ?? 0;
+                      primaryVariantId = (variants[0] as Map<String, dynamic>)['variant_id']?.toString();
+                    }
+                    for (final v in variants) {
+                      if (v is Map) {
+                        final inv = v['inventory'];
+                        if (inv is List && inv.isNotEmpty && inv[0] is Map) {
+                          totalStockQty += (inv[0]['stock_qty'] as num?)?.toInt() ?? 0;
+                          totalReservedQty += (inv[0]['reserved_qty'] as num?)?.toInt() ?? 0;
+                        } else if (inv is Map) {
+                          totalStockQty += (inv['stock_qty'] as num?)?.toInt() ?? 0;
+                          totalReservedQty += (inv['reserved_qty'] as num?)?.toInt() ?? 0;
+                        }
                       }
                     }
-                    final int available = (stockQty - reservedQty).clamp(0, 999999);
+                    final int available = (totalStockQty - totalReservedQty).clamp(0, 999999);
                     final bool isPreorder = item['is_preorder_enabled'] == true;
+                    final bool hasMultipleVariants = variants.length > 1;
                         
                     return TweenAnimationBuilder<double>(
                       duration: Duration(milliseconds: 300 + (index * 50).clamp(0, 500)),
@@ -644,8 +252,13 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                             width: 1,
                           ),
                         ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        child: Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          clipBehavior: Clip.antiAlias,
+                          child: ListTile(
+                            onTap: () => _showEditProductSheet(item),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           leading: imageUrl.isNotEmpty
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(10),
@@ -731,15 +344,69 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                     ),
                                   ),
 
-                                  // 3. Interactive Reserved Pill (Clickable to inspect holds & reconcile)
-                                  if (reservedQty > 0)
+                                  // 3. Total Physical Stock Pill
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.grey.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isDark ? Colors.white12 : Colors.black12,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '$totalStockQty Total',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        fontFamily: 'Inter',
+                                        color: isDark ? Colors.white60 : Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+
+                                  // 4. Multiple Variants Pill (Clickable to inspect / adjust variants)
+                                  if (hasMultipleVariants)
                                     InkWell(
-                                      onTap: (variantId != null && variantId.isNotEmpty)
+                                      onTap: () => _showEditProductSheet(item),
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: isDark ? const Color(0xFF1F2937) : const Color(0xFFEEF2F6),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: isDark ? Colors.blueGrey.shade700 : Colors.blueGrey.shade200,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.tune_rounded, size: 11, color: isDark ? Colors.lightBlueAccent : Colors.blueGrey.shade800),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '${variants.length} Variants',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                fontFamily: 'Inter',
+                                                color: isDark ? Colors.lightBlueAccent : Colors.blueGrey.shade800,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+
+                                  // 5. Interactive Reserved Pill (Clickable to inspect holds & reconcile)
+                                  if (totalReservedQty > 0)
+                                    InkWell(
+                                      onTap: (primaryVariantId != null && primaryVariantId.isNotEmpty)
                                           ? () => _showReservedOrdersSheet(
-                                                variantId: variantId!,
+                                                variantId: primaryVariantId!,
                                                 productName: item['name']?.toString() ?? 'Product',
-                                                initialReservedQty: reservedQty,
-                                                stockQty: stockQty,
+                                                initialReservedQty: totalReservedQty,
+                                                stockQty: totalStockQty,
                                               )
                                           : null,
                                       borderRadius: BorderRadius.circular(12),
@@ -756,7 +423,7 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                             Icon(Icons.hourglass_top_rounded, size: 11, color: Colors.amber.shade900),
                                             const SizedBox(width: 4),
                                             Text(
-                                              '$reservedQty Reserved',
+                                              '$totalReservedQty Reserved',
                                               style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.bold,
@@ -771,28 +438,7 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                       ),
                                     ),
 
-                                  // 4. Total Physical Stock Pill
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.grey.withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: isDark ? Colors.white12 : Colors.black12,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      '$stockQty Total',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        fontFamily: 'Inter',
-                                        color: isDark ? Colors.white60 : Colors.black87,
-                                      ),
-                                    ),
-                                  ),
-
-                                  // 5. Pre-Order Tag
+                                  // 6. Pre-Order Tag
                                   if (isPreorder)
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -824,84 +470,46 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                           ),
                           trailing: PopupMenuButton<String>(
                             icon: Icon(Icons.more_vert, color: isDark ? Colors.white70 : Colors.black54),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             onSelected: (value) {
-                              if (value == 'toggle') {
+                              if (value == 'edit') {
+                                _showEditProductSheet(item);
+                              } else if (value == 'toggle') {
                                 _toggleStatus(item['product_id']?.toString() ?? '', item['status']?.toString() ?? '');
-                              } else if (value == 'preorder') {
-                                _togglePreorder(item['product_id']?.toString() ?? '', item['is_preorder_enabled'] == true);
-                              } else if (value == 'stock') {
-                                _adjustStock(
-                                  variantId: variantId,
-                                  productName: item['name']?.toString() ?? 'Product',
-                                  currentStock: stockQty,
-                                  reservedStock: reservedQty,
-                                );
-                              } else if (value == 'inspect') {
-                                if (variantId != null && variantId.isNotEmpty) {
-                                  _showReservedOrdersSheet(
-                                    variantId: variantId,
-                                    productName: item['name']?.toString() ?? 'Product',
-                                    initialReservedQty: reservedQty,
-                                    stockQty: stockQty,
-                                  );
-                                }
                               } else if (value == 'delete') {
                                 final pId = item['product_id']?.toString() ?? '';
                                 if (pId.isNotEmpty) _deleteProduct(pId);
                               }
                             },
                             itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.edit_note_rounded, color: TeknoyTheme.citMaroon, size: 20),
+                                    SizedBox(width: 8),
+                                    Text('Edit Product Details', style: TextStyle(fontWeight: FontWeight.w600)),
+                                  ],
+                                ),
+                              ),
                               PopupMenuItem(
                                 value: 'toggle',
                                 child: Row(
                                   children: [
-                                    Icon(item['status'] == 'ACTIVE' ? Icons.visibility_off : Icons.visibility, size: 20),
+                                    Icon(item['status'] == 'ACTIVE' ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 20),
                                     const SizedBox(width: 8),
                                     Text(item['status'] == 'ACTIVE' ? 'Hide Listing' : 'Make Active'),
                                   ],
                                 ),
                               ),
-                              PopupMenuItem(
-                                value: 'preorder',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      item['is_preorder_enabled'] == true ? Icons.layers_clear_outlined : Icons.layers_outlined, 
-                                      size: 20, 
-                                      color: Colors.deepPurple
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(item['is_preorder_enabled'] == true ? 'Disable Pre-Orders' : 'Enable Pre-Orders'),
-                                  ],
-                                ),
-                              ),
-                              const PopupMenuItem(
-                                value: 'stock',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.tune_rounded, size: 20),
-                                    SizedBox(width: 8),
-                                    Text('Adjust Stock'),
-                                  ],
-                                ),
-                              ),
-                              const PopupMenuItem(
-                                value: 'inspect',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.manage_search_rounded, size: 20, color: Colors.amber),
-                                    SizedBox(width: 8),
-                                    Text('Inspect Reservations'),
-                                  ],
-                                ),
-                              ),
+                              const PopupMenuDivider(),
                               const PopupMenuItem(
                                 value: 'delete',
                                 child: Row(
                                   children: [
                                     Icon(Icons.delete_outline, color: Colors.red, size: 20),
                                     SizedBox(width: 8),
-                                    Text('Delete Listing', style: TextStyle(color: Colors.red)),
+                                    Text('Delete Listing', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
                                   ],
                                 ),
                               ),
@@ -909,7 +517,8 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                           ),
                         ),
                       ),
-                    );
+                    ),
+                  );
                   },
                 ),
       floatingActionButton: FloatingActionButton.extended(

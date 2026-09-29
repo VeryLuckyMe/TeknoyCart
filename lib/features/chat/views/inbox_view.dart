@@ -387,31 +387,57 @@ class _InboxViewState extends ConsumerState<InboxView> {
                                             ),
                                           ),
                                           const SizedBox(height: 8),
-                                          Row(
-                                            children: [
-                                              if (isGcashProof) ...[
-                                                const Icon(Icons.receipt_long_rounded, size: 14, color: Colors.blue),
-                                                const SizedBox(width: 6),
-                                              ] else ...[
-                                                Icon(Icons.chat_bubble_outline_rounded, size: 13, color: isDark ? Colors.white30 : Colors.grey),
-                                                const SizedBox(width: 6),
-                                              ],
-                                              Expanded(
-                                                child: Text(
-                                                  isGcashProof ? 'GCash Receipt Attached' : lastMsg,
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    fontFamily: 'Inter',
-                                                    fontSize: 13,
-                                                    color: isGcashProof
-                                                        ? Colors.blue
-                                                        : (isDark ? Colors.white70 : Colors.grey.shade800),
-                                                    fontWeight: isGcashProof ? FontWeight.bold : FontWeight.normal,
+                                          Builder(
+                                            builder: (context) {
+                                              final isOffer = lastMsg.startsWith('Can we agree on ₱') || lastMsg.contains('? Deal?');
+                                              final isAccepted = lastMsg == 'Offer Accepted!' || lastMsg.contains('Deal! 🤝') || lastMsg.contains('Deal!');
+
+                                              Color iconColor = isDark ? Colors.white30 : Colors.grey;
+                                              IconData iconData = Icons.chat_bubble_outline_rounded;
+                                              Color textColor = isDark ? Colors.white70 : Colors.grey.shade800;
+                                              FontWeight fontWeight = FontWeight.normal;
+                                              String displayText = lastMsg;
+
+                                              if (isGcashProof) {
+                                                iconColor = Colors.blue;
+                                                iconData = Icons.receipt_long_rounded;
+                                                textColor = Colors.blue;
+                                                fontWeight = FontWeight.bold;
+                                                displayText = 'GCash Receipt Attached';
+                                              } else if (isAccepted) {
+                                                iconColor = TeknoyTheme.success;
+                                                iconData = Icons.handshake_rounded;
+                                                textColor = TeknoyTheme.success;
+                                                fontWeight = FontWeight.bold;
+                                                displayText = '🤝 Deal Accepted! Ready for Checkout';
+                                              } else if (isOffer) {
+                                                iconColor = const Color(0xFFC48200);
+                                                iconData = Icons.local_offer_rounded;
+                                                textColor = const Color(0xFFC48200);
+                                                fontWeight = FontWeight.bold;
+                                                displayText = '🏷️ Tawad Offer: $lastMsg';
+                                              }
+
+                                              return Row(
+                                                children: [
+                                                  Icon(iconData, size: 14, color: iconColor),
+                                                  const SizedBox(width: 6),
+                                                  Expanded(
+                                                    child: Text(
+                                                      displayText,
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        fontFamily: 'Inter',
+                                                        fontSize: 13,
+                                                        color: textColor,
+                                                        fontWeight: fontWeight,
+                                                      ),
+                                                    ),
                                                   ),
-                                                ),
-                                              ),
-                                            ],
+                                                ],
+                                              );
+                                            },
                                           ),
                                         ],
                                       ),

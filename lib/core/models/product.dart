@@ -8,14 +8,59 @@ class ProductAttribute {
 
   const ProductAttribute({required this.name, required this.value});
 
+  /// Canonical size rank for apparel sorting (XS/S first, XL/XXL last)
+  static int sizeRank(String size) {
+    final s = size.trim().toUpperCase();
+    const standardRanks = {
+      'XXS': 1,
+      'XS': 2,
+      'S': 3,
+      'SMALL': 3,
+      'M': 4,
+      'MED': 4,
+      'MEDIUM': 4,
+      'L': 5,
+      'LARGE': 5,
+      'XL': 6,
+      'EXTRA LARGE': 6,
+      'XXL': 7,
+      '2XL': 7,
+      'XXXL': 8,
+      '3XL': 8,
+      '4XL': 9,
+      '5XL': 10,
+    };
+    if (standardRanks.containsKey(s)) {
+      return standardRanks[s]!;
+    }
+    final numVal = int.tryParse(s);
+    if (numVal != null) {
+      return 100 + numVal; // e.g. 28 -> 128, 30 -> 130
+    }
+    if (s == 'FREE SIZE' || s == 'FREESIZE' || s == 'ONE SIZE') {
+      return 999;
+    }
+    return 500;
+  }
+
   /// Returns individual option values when multiple variants are listed (e.g. "S, M, L" -> ["S", "M", "L"])
   List<String> get options {
     if (value.isEmpty) return const [];
-    return value
-        .split(',')
+    final delimiter = value.contains(',')
+        ? ','
+        : (value.contains('·') ? '·' : null);
+    if (delimiter == null) {
+      return [value.trim()];
+    }
+    final list = value
+        .split(delimiter)
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
+    if (name.trim().toLowerCase() == 'size') {
+      list.sort((a, b) => sizeRank(a).compareTo(sizeRank(b)));
+    }
+    return list;
   }
 
   factory ProductAttribute.fromJson(Map<String, dynamic> json) {
@@ -57,14 +102,20 @@ class CategoryAttributeTemplate {
   });
 
   factory CategoryAttributeTemplate.fromJson(Map<String, dynamic> json) {
+    final name = json['name'] as String? ?? '';
+    final rawOptions = (json['options'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+    final isColor = name.trim().toLowerCase() == 'color';
+    final options = isColor
+        ? rawOptions.where((o) => o.trim().toLowerCase() != 'other').toList()
+        : rawOptions;
     return CategoryAttributeTemplate(
-      name: json['name'] as String? ?? '',
+      name: name,
       type: json['type'] as String? ?? 'text',
       placeholder: json['placeholder'] as String? ?? '',
-      options: (json['options'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      options: options,
       isMultiSelect: json['is_multi_select'] as bool? ?? false,
     );
   }
@@ -85,6 +136,7 @@ class Product {
   final String description;
   final double price;
   final String? imageUrl;
+  final List<String> imageUrls;
   final String category;
   final String condition; // e.g., 'New', 'Like New', 'Gently Used', 'Fair'
   final String sellerId;
@@ -99,6 +151,7 @@ class Product {
     required this.description,
     required this.price,
     this.imageUrl,
+    this.imageUrls = const [],
     required this.category,
     required this.condition,
     required this.sellerId,
@@ -115,12 +168,40 @@ class Product {
     if (json['category_attributes'] != null) {
       final rawAttrs = json['category_attributes'];
       if (rawAttrs is List) {
-        attrs = rawAttrs
+        final parsed = rawAttrs
             .whereType<Map<String, dynamic>>()
             .map((a) => ProductAttribute.fromJson(a))
             .where((a) => a.name.isNotEmpty && a.value.isNotEmpty)
             .toList();
+        final seen = <String>{};
+        attrs = [];
+        for (final a in parsed) {
+          final key = a.name.trim().toLowerCase();
+          if (seen.add(key)) {
+            attrs.add(a);
+          }
+        }
       }
+    }
+
+    // Parse multi-image URLs if present
+    List<String> parsedImages = [];
+    if (json['image_urls'] is List) {
+      parsedImages = (json['image_urls'] as List).map((e) => e.toString()).toList();
+    } else if (json['product_images'] is List) {
+      final rawList = json['product_images'] as List;
+      for (final item in rawList) {
+        if (item is Map && item['image_url'] != null) {
+          parsedImages.add(item['image_url'].toString());
+        } else if (item is String && item.isNotEmpty) {
+          parsedImages.add(item);
+        }
+      }
+    }
+
+    final singleImg = json['image_url'] as String?;
+    if (parsedImages.isEmpty && singleImg != null && singleImg.isNotEmpty) {
+      parsedImages = [singleImg];
     }
 
     return Product(
@@ -128,7 +209,8 @@ class Product {
       title: json['title'] as String,
       description: json['description'] as String,
       price: (json['price'] as num).toDouble(),
-      imageUrl: json['image_url'] as String?,
+      imageUrl: singleImg ?? (parsedImages.isNotEmpty ? parsedImages.first : null),
+      imageUrls: parsedImages,
       category: json['category'] as String,
       condition: json['condition'] as String,
       sellerId: json['seller_id'] as String,
@@ -147,6 +229,7 @@ class Product {
       'description': description,
       'price': price,
       'image_url': imageUrl,
+      'image_urls': imageUrls,
       'category': category,
       'condition': condition,
       'seller_id': sellerId,
@@ -165,6 +248,7 @@ class Product {
     String? description,
     double? price,
     String? imageUrl,
+    List<String>? imageUrls,
     String? category,
     String? condition,
     String? sellerId,
@@ -179,6 +263,7 @@ class Product {
       description: description ?? this.description,
       price: price ?? this.price,
       imageUrl: imageUrl ?? this.imageUrl,
+      imageUrls: imageUrls ?? this.imageUrls,
       category: category ?? this.category,
       condition: condition ?? this.condition,
       sellerId: sellerId ?? this.sellerId,
@@ -199,6 +284,7 @@ class Product {
           description == other.description &&
           price == other.price &&
           imageUrl == other.imageUrl &&
+          listEquals(imageUrls, other.imageUrls) &&
           category == other.category &&
           condition == other.condition &&
           sellerId == other.sellerId &&
@@ -214,6 +300,7 @@ class Product {
       description.hashCode ^
       price.hashCode ^
       imageUrl.hashCode ^
+      imageUrls.hashCode ^
       category.hashCode ^
       condition.hashCode ^
       sellerId.hashCode ^

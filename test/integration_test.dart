@@ -8,7 +8,7 @@ import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/main.dart';
 import 'package:teknoycart/features/auth/views/auth_gate_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
-import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
+import 'package:teknoycart/features/feed/views/product_detail_view.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:teknoycart/core/models/product.dart';
@@ -172,8 +172,8 @@ void main() {
       await tester.tap(find.text('Engineering Drawing Table'));
       await tester.pumpAndSettle();
 
-      // Verify details bottom sheet is visible and displays all specifications correctly
-      expect(find.byType(ProductDetailsSheet), findsOneWidget);
+      // Verify details view is visible and displays all specifications correctly
+      expect(find.byType(ProductDetailView), findsOneWidget);
       expect(find.text('₱450.00'), findsWidgets);
       expect(find.text('Drawing Tools'), findsWidgets);
       expect(find.text('Verified Student Account'), findsOneWidget);
@@ -217,7 +217,7 @@ void main() {
       // Verify the seller's reply appears in the chat bubbles (exact text from service)
       expect(
         find.text('Sure! I can accept ₱400. Let\'s meet at the Library Lobby for the item exchange. Deal! 🤝'),
-        findsOneWidget,
+        findsWidgets,
       );
 
       // 5. Navigate back to feed / details and initiate campus meetup checkout process

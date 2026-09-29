@@ -2,13 +2,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme.dart';
+import '../../services/auth_service.dart';
 
 // ---------------------------------------------------------------------------
 // Email Verification Dialog with countdown timer
 // ---------------------------------------------------------------------------
 class EmailVerificationDialog extends StatefulWidget {
   final String email;
-  const EmailVerificationDialog({super.key, required this.email});
+  final String? fullName;
+  const EmailVerificationDialog({super.key, required this.email, this.fullName});
 
   @override
   State<EmailVerificationDialog> createState() => _EmailVerificationDialogState();
@@ -75,10 +77,21 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
   Future<void> _resendEmail() async {
     setState(() { _resending = true; _resent = false; });
     try {
-      await Supabase.instance.client.auth.resend(
-        type: OtpType.signup,
-        email: widget.email,
+      // 1. Trigger Spring Boot campus backend SMTP verification (primary)
+      final authService = AuthService();
+      await authService.resendVerificationEmail(
+        widget.email,
+        widget.fullName ?? 'Student',
       );
+
+      // 2. Also trigger Supabase signup resend as fallback
+      try {
+        await Supabase.instance.client.auth.resend(
+          type: OtpType.signup,
+          email: widget.email,
+        );
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           _resending = false;

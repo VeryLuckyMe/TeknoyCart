@@ -59,7 +59,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       // Assert presence of app bar title
-      expect(find.text('Financial Reports'), findsOneWidget);
+      expect(find.text('Sales Analytics'), findsOneWidget);
 
       // Assert presence of sales summary header
       expect(find.text('Sales Summary'), findsOneWidget);

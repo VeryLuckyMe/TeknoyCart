@@ -7,8 +7,9 @@ import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
-import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
+import 'package:teknoycart/features/feed/views/product_detail_view.dart';
 import 'package:teknoycart/core/widgets/navigation_drawer.dart';
+import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:flutter/services.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'mock_http_client.dart';
@@ -115,10 +116,97 @@ void main() {
       await tester.tap(find.text('Drawing Board Kit'));
       await tester.pumpAndSettle();
 
-      // Verify details bottom sheet overlay is visible
-      expect(find.byType(ProductDetailsSheet), findsOneWidget);
+      // Verify details view is visible
+      expect(find.byType(ProductDetailView), findsOneWidget);
       expect(find.text('₱300.00'), findsWidgets);
       expect(find.text('Verified Student Account'), findsOneWidget);
+    });
+
+    testWidgets('tapping Make Offer opens Tawad bottom sheet and updates offer CTA dynamically', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream.value(mockUser)),
+          ],
+          child: MaterialApp(
+            home: ProductDetailView(product: testProduct),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify Make Offer button exists in bottom bar
+      expect(find.text('Make Offer'), findsOneWidget);
+
+      // Tap Make Offer
+      await tester.tap(find.text('Make Offer'));
+      await tester.pumpAndSettle();
+
+      // Verify Tawad modal sheet opened
+      expect(find.text('Make an Offer (Tawad)'), findsOneWidget);
+      expect(find.text('-5%'), findsOneWidget);
+      expect(find.text('-10%'), findsWidgets);
+      expect(find.text('-15%'), findsOneWidget);
+      expect(find.text('-20%'), findsOneWidget);
+
+      // Tap -15% chip (300 * 0.85 = 255)
+      await tester.tap(find.text('-15%'));
+      await tester.pumpAndSettle();
+
+      // Verify CTA button dynamically updated
+      expect(find.text('Send ₱255 Offer & Open Chat'), findsOneWidget);
+    });
+
+    testWidgets('CheckoutView correctly populates negotiated product, displays Tawad banner, strike-through, and agreed price', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream.value(mockUser)),
+          ],
+          child: MaterialApp(
+            home: CheckoutView(
+              product: testProduct,
+              agreedPrice: 255.0,
+              isDirectBuy: true,
+              roomId: 'room-123',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify Header
+      expect(find.text('Confirm P2P Deal'), findsOneWidget);
+
+      // Verify Tawad Deal Hero Banner is present
+      expect(find.text('Campus Meetup Handshake Deal'), findsOneWidget);
+      expect(find.text('AGREED PRICE • SAVE ₱45.00'), findsOneWidget);
+
+      // Verify Product Spotlight Card shows the negotiated item (NOT Cart Items (0)!)
+      expect(find.text('Cart Items (0)'), findsNothing);
+      expect(find.text('Drawing Board Kit'), findsOneWidget);
+      expect(find.text('TAWAD DEAL'), findsOneWidget);
+
+      // Verify Strikethrough asking price and agreed price
+      expect(find.text('₱300.00'), findsOneWidget);
+      expect(find.text('₱255.00'), findsWidgets);
+
+      // Verify Order summary total payable shows agreed price and savings
+      expect(find.textContaining('Save ₱45.00'), findsOneWidget);
     });
   });
 }

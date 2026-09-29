@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
@@ -195,7 +196,6 @@ const Map<String, List<CategoryAttributeTemplate>> _fallbackTemplates = {
         'Brown',
         'Green',
         'Red',
-        'Other',
       ],
       isMultiSelect: true,
     ),
@@ -484,12 +484,21 @@ class ProductListNotifier
         final images = (row['product_images'] as List<dynamic>?) ?? [];
         
         String imageUrl = '';
+        List<String> imageUrls = [];
         if (images.isNotEmpty) {
-          final primary = images.firstWhere(
-            (img) => img['is_primary'] == true,
-            orElse: () => images[0],
+          final sortedImages = List<Map<String, dynamic>>.from(
+            images.whereType<Map<String, dynamic>>(),
           );
-          imageUrl = primary['image_url'] as String? ?? '';
+          sortedImages.sort((a, b) {
+            final aPrim = a['is_primary'] == true ? 1 : 0;
+            final bPrim = b['is_primary'] == true ? 1 : 0;
+            return bPrim.compareTo(aPrim);
+          });
+          imageUrls = sortedImages
+              .map((img) => img['image_url'] as String? ?? '')
+              .where((url) => url.isNotEmpty)
+              .toList();
+          imageUrl = imageUrls.isNotEmpty ? imageUrls.first : '';
         }
 
         final catId = row['category_id'] as int? ?? 5;
@@ -498,6 +507,7 @@ class ProductListNotifier
         if (imageUrl.isEmpty) {
           // Pick the best available image from Unsplash based on category
           imageUrl = _categoryImage(category);
+          imageUrls = [imageUrl];
         }
 
         final usersMap = row['users'] as Map<String, dynamic>?;
@@ -546,6 +556,7 @@ class ProductListNotifier
           description: row['description'] as String? ?? '',
           price: double.tryParse(row['base_price'].toString()) ?? 0,
           imageUrl: imageUrl,
+          imageUrls: imageUrls,
           category: category,
           condition: variants.isNotEmpty
               ? (variants[0]['variant_value'] as String? ?? 'Standard')
@@ -574,7 +585,11 @@ class ProductListNotifier
   }
 
   /// Adds a new product optimistically to the local state and inserts into Supabase.
-  Future<void> addProduct(Product product) async {
+  Future<void> addProduct(
+    Product product, {
+    Map<String, int>? variantStocks,
+    int totalStock = 1,
+  }) async {
     // Update local state immediately for instant feedback
     state.whenData((list) {
       state = AsyncValue.data([product, ...list]);
@@ -622,49 +637,90 @@ class ProductListNotifier
 
       final String dbProductId = inserted['product_id'] as String;
 
-      // 1b. Insert product image if uploaded
-      if (product.imageUrl != null && product.imageUrl!.isNotEmpty) {
-        await _supabase.from('product_images').insert({
-          'product_id': dbProductId,
-          'image_url': product.imageUrl!,
-          'is_primary': true,
-        });
+      // 1b. Insert product images if uploaded (supporting multiple gallery photos)
+      final allImagesToInsert = <String>[];
+      if (product.imageUrls.isNotEmpty) {
+        allImagesToInsert.addAll(product.imageUrls);
+      } else if (product.imageUrl != null && product.imageUrl!.isNotEmpty) {
+        allImagesToInsert.add(product.imageUrl!);
       }
 
-      // 2. Create product variants
-      // Check if product has specific multi-variants (e.g. Size or Color)
-      final sizeAttr = product.categoryAttributes
-          .where((a) => a.name.toLowerCase() == 'size')
-          .firstOrNull;
-      final variantOptions = (sizeAttr != null && sizeAttr.options.isNotEmpty)
-          ? sizeAttr.options
-          : [product.condition];
-
-      for (int i = 0; i < variantOptions.length; i++) {
-        final opt = variantOptions[i];
-        final cleanOpt = opt.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
-        final sku = 'SKU-${product.category.substring(0, product.category.length < 3 ? product.category.length : 3).toUpperCase()}-${dbProductId.substring(0, 6).toUpperCase()}-$cleanOpt';
-
-        try {
-          final insertedVariant = await _supabase.from('product_variants').insert({
+      for (int i = 0; i < allImagesToInsert.length; i++) {
+        final imgUrl = allImagesToInsert[i];
+        if (imgUrl.isNotEmpty) {
+          await _supabase.from('product_images').insert({
             'product_id': dbProductId,
-            'variant_name': sizeAttr != null ? 'Size' : 'Condition',
-            'variant_value': opt,
+            'image_url': imgUrl,
+            'is_primary': i == 0,
+          }).catchError((_) => <String, dynamic>{});
+        }
+      }
+
+      // 2. Create product variants (supporting combination matrix and individual options)
+      bool anyVariantCreated = false;
+
+      if (variantStocks != null && variantStocks.isNotEmpty) {
+        int index = 0;
+        for (final entry in variantStocks.entries) {
+          final combo = entry.key;
+          final targetStock = entry.value;
+          final cleanCombo = combo.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
+          final safeProd = dbProductId.length >= 6 ? dbProductId.substring(0, 6) : dbProductId;
+          final catPrefix = product.category.substring(0, product.category.length < 3 ? product.category.length : 3).toUpperCase();
+          final timestampSuffix = DateTime.now().millisecondsSinceEpoch % 10000;
+          final sku = 'SKU-$catPrefix-${safeProd.toUpperCase()}-$cleanCombo-$timestampSuffix-$index';
+          index++;
+
+          try {
+            final insertedVariant = await _supabase.from('product_variants').insert({
+              'product_id': dbProductId,
+              'variant_name': combo.contains(' / ') ? 'Variation' : 'Size',
+              'variant_value': combo,
+              'additional_price': 0,
+              'sku': sku,
+            }).select().maybeSingle();
+
+            if (insertedVariant != null && insertedVariant['variant_id'] != null) {
+              final String dbVariantId = insertedVariant['variant_id'] as String;
+              anyVariantCreated = true;
+
+              await _supabase.from('inventory').insert({
+                'variant_id': dbVariantId,
+                'stock_qty': targetStock >= 0 ? targetStock : 0,
+                'reserved_qty': 0,
+                'low_stock_threshold': 1,
+              }).catchError((_) {});
+            }
+          } catch (vErr) {
+            debugPrint("Failed to insert variant $combo: $vErr");
+          }
+        }
+      }
+
+      // 4. Guarantee at least 1 default variant & inventory record if no variants were created
+      if (!anyVariantCreated) {
+        try {
+          final safeProd = dbProductId.length >= 8 ? dbProductId.substring(0, 8) : dbProductId;
+          final fallbackSku = 'SKU-${safeProd.toUpperCase()}-DEFAULT-${DateTime.now().millisecondsSinceEpoch % 10000}';
+          final fallbackVar = await _supabase.from('product_variants').insert({
+            'product_id': dbProductId,
+            'variant_name': 'Standard',
+            'variant_value': product.condition.isNotEmpty ? product.condition : 'Default',
             'additional_price': 0,
-            'sku': sku,
-          }).select().single();
+            'sku': fallbackSku,
+          }).select().maybeSingle();
 
-          final String dbVariantId = insertedVariant['variant_id'] as String;
-
-          // 3. Create inventory record so it shows up in Web Admin!
-          await _supabase.from('inventory').insert({
-            'variant_id': dbVariantId,
-            'stock_qty': 1,
-            'reserved_qty': 0,
-            'low_stock_threshold': 1,
-          });
-        } catch (_) {
-          // If inserting individual variant fails, continue with next
+          if (fallbackVar != null && fallbackVar['variant_id'] != null) {
+            final String fallbackVarId = fallbackVar['variant_id'] as String;
+            await _supabase.from('inventory').insert({
+              'variant_id': fallbackVarId,
+              'stock_qty': totalStock > 0 ? totalStock : 1,
+              'reserved_qty': 0,
+              'low_stock_threshold': 1,
+            }).catchError((_) {});
+          }
+        } catch (fErr) {
+          debugPrint("Fallback variant creation error: $fErr");
         }
       }
 

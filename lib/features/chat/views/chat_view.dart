@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -19,11 +17,13 @@ import 'widgets/chat_input_bar.dart';
 class ChatView extends ConsumerStatefulWidget {
   final Product product;
   final String roomId;
+  final double? initialOfferPrice;
 
   const ChatView({
     super.key,
     required this.product,
     this.roomId = 'room-1',
+    this.initialOfferPrice,
   });
 
   @override
@@ -50,6 +50,14 @@ class _ChatViewState extends ConsumerState<ChatView> {
     super.initState();
     _agreedPrice = widget.product.price;
     _checkOtherPartyDeleted();
+
+    if (widget.initialOfferPrice != null && widget.initialOfferPrice! > 0) {
+      _negotiationState = 'offered';
+      _offeredPrice = widget.initialOfferPrice!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _sendMessage(customContent: 'Can we agree on ₱${widget.initialOfferPrice!.toStringAsFixed(0)}? Deal?');
+      });
+    }
   }
 
   Future<void> _checkOtherPartyDeleted() async {
@@ -235,6 +243,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
       final cleanStr = content
           .replaceAll('Can we agree on ₱', '')
           .replaceAll('? Deal?', '')
+          .replaceAll(',', '')
           .trim();
       return double.tryParse(cleanStr);
     }
@@ -335,8 +344,11 @@ class _ChatViewState extends ConsumerState<ChatView> {
         if (price != null) {
           activeState = 'offered';
           activeOfferPrice = price;
-        } else if (msg.content == 'Offer Accepted!') {
+        } else if (msg.content == 'Offer Accepted!' || msg.content.contains('Deal! 🤝') || msg.content.contains('Deal!')) {
           activeState = 'agreed';
+          if (activeOfferPrice > 0) {
+            _agreedPrice = activeOfferPrice;
+          }
         } else if (msg.content == 'Offer Declined.') {
           activeState = 'none';
         } else if (msg.content.startsWith('Handshake Deal Confirmed!') || 
@@ -383,13 +395,16 @@ class _ChatViewState extends ConsumerState<ChatView> {
             isBuyer: ref.read(authStateProvider).valueOrNull?.id != widget.product.sellerId,
             onOfferPrice: _showOfferPriceDialog,
             onCheckout: () {
+              final checkoutPrice = (activeOfferPrice > 0)
+                  ? activeOfferPrice
+                  : (_agreedPrice > 0 ? _agreedPrice : widget.product.price);
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => CheckoutView(
                     product: widget.product,
-                    agreedPrice: activeOfferPrice,
-                    isDirectBuy: false,
+                    agreedPrice: checkoutPrice,
+                    isDirectBuy: true,
                     roomId: widget.roomId,
                   ),
                 ),
@@ -556,6 +571,25 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                               _agreedPrice = offerPrice;
                                             });
                                             _sendMessage(customContent: 'Offer Accepted!');
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Row(
+                                                  children: [
+                                                    const Icon(Icons.handshake_rounded, color: Colors.white),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: Text(
+                                                        'Deal Accepted for ₱${offerPrice.toStringAsFixed(2)}! Buyer can now checkout.',
+                                                        style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                backgroundColor: TeknoyTheme.success,
+                                                behavior: SnackBarBehavior.floating,
+                                                duration: const Duration(seconds: 4),
+                                              ),
+                                            );
                                           },
                                           style: TextButton.styleFrom(
                                             foregroundColor: TeknoyTheme.success,
@@ -580,6 +614,89 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                   ),
                                 ),
                               ],
+                               if (activeState == 'agreed') ...[
+                                 Container(
+                                   padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                                   decoration: BoxDecoration(
+                                     color: TeknoyTheme.success.withOpacity(0.12),
+                                     borderRadius: const BorderRadius.only(
+                                       bottomLeft: Radius.circular(20),
+                                       bottomRight: Radius.circular(20),
+                                     ),
+                                     border: Border(
+                                       top: BorderSide(
+                                         color: TeknoyTheme.success.withOpacity(0.2),
+                                         width: 1,
+                                       ),
+                                     ),
+                                   ),
+                                   child: Row(
+                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                     children: [
+                                       Expanded(
+                                         child: Row(
+                                           children: [
+                                             const Icon(Icons.check_circle_rounded, color: TeknoyTheme.success, size: 18),
+                                             const SizedBox(width: 8),
+                                             Expanded(
+                                               child: Text(
+                                                 'Deal Accepted: ₱${(activeOfferPrice > 0 ? activeOfferPrice : offerPrice).toStringAsFixed(2)}! 🤝',
+                                                 style: const TextStyle(
+                                                   fontFamily: 'Outfit',
+                                                   fontWeight: FontWeight.bold,
+                                                   fontSize: 13,
+                                                   color: TeknoyTheme.success,
+                                                 ),
+                                                 overflow: TextOverflow.ellipsis,
+                                               ),
+                                             ),
+                                           ],
+                                         ),
+                                       ),
+                                       if (currentUser?.id != widget.product.sellerId) ...[
+                                         const SizedBox(width: 8),
+                                         ElevatedButton(
+                                           onPressed: () {
+                                             final checkoutPrice = (activeOfferPrice > 0)
+                                                 ? activeOfferPrice
+                                                 : (_agreedPrice > 0 ? _agreedPrice : offerPrice);
+                                             Navigator.push(
+                                               context,
+                                               MaterialPageRoute(
+                                                 builder: (context) => CheckoutView(
+                                                   product: widget.product,
+                                                   agreedPrice: checkoutPrice,
+                                                   isDirectBuy: true,
+                                                   roomId: widget.roomId,
+                                                 ),
+                                               ),
+                                             );
+                                           },
+                                           style: ElevatedButton.styleFrom(
+                                             backgroundColor: TeknoyTheme.success,
+                                             foregroundColor: Colors.white,
+                                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                             minimumSize: Size.zero,
+                                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                             elevation: 0,
+                                             shape: RoundedRectangleBorder(
+                                               borderRadius: BorderRadius.circular(8),
+                                             ),
+                                           ),
+                                           child: const Text(
+                                             'Checkout',
+                                             style: TextStyle(
+                                               fontFamily: 'Outfit',
+                                               fontSize: 12,
+                                               fontWeight: FontWeight.bold,
+                                             ),
+                                           ),
+                                         ),
+                                       ],
+                                     ],
+                                   ),
+                                 ),
+                               ],
                             ],
                           ),
                         ),

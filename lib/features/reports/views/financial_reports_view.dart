@@ -218,7 +218,7 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
         return Scaffold(
           appBar: AppBar(
             title: const Text(
-              'Financial Reports',
+              'Sales Analytics',
               style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
             ),
             actions: [

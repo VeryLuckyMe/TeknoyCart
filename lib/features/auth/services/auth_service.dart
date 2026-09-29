@@ -37,6 +37,8 @@ class AuthService {
       username: user.userMetadata?['username'] as String? ??
           (user.email?.split('@').first ?? 'student'),
       email: user.email ?? '',
+      role: (user.userMetadata?['role'] as String?) ?? 'BUYER',
+      isSellerVerified: (user.userMetadata?['is_seller_verified'] as bool?) ?? false,
       avatarUrl: user.userMetadata?['avatar_url'] as String?,
       department: user.userMetadata?['department'] as String?,
       contact: user.userMetadata?['contact'] as String?,
@@ -120,6 +122,8 @@ class AuthService {
         id: userData?['userId'] as String? ?? '',
         username: userData?['fullName'] as String? ?? emailTrimmed.split('@').first,
         email: userData?['email'] as String? ?? emailTrimmed,
+        role: userData?['role'] as String? ?? 'BUYER',
+        isSellerVerified: (userData?['isSellerVerified'] as bool?) ?? (userData?['is_seller_verified'] as bool?) ?? false,
         createdAt: DateTime.now(),
       );
     }

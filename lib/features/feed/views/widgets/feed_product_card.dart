@@ -79,33 +79,70 @@ class _FeedProductCardState extends State<FeedProductCard> {
                     ),
                   ),
 
-                  // Condition Badge (top-left) - modern rounded tag
+                  // Condition Badge & Tawad Badge (top-left) - modern Shopee-inspired tags
                   Positioned(
                     top: 10,
                     left: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
-                      decoration: BoxDecoration(
-                        color: badgeBg.withValues(alpha: 0.95),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          )
-                        ],
-                      ),
-                      child: Text(
-                        product.condition.toUpperCase(),
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w800,
-                          fontSize: 9,
-                          color: badgeText,
-                          letterSpacing: 0.8,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                          decoration: BoxDecoration(
+                            color: badgeBg.withValues(alpha: 0.95),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              )
+                            ],
+                          ),
+                          child: Text(
+                            product.condition.toUpperCase(),
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w800,
+                              fontSize: 9,
+                              color: badgeText,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 4.0),
+                          decoration: BoxDecoration(
+                            color: TeknoyTheme.citMaroon.withValues(alpha: 0.92),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              )
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.handshake_rounded, size: 10, color: TeknoyTheme.citGold),
+                              SizedBox(width: 2.5),
+                              Text(
+                                'TAWAD',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 8.5,
+                                  color: Colors.white,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
@@ -272,16 +309,48 @@ class _FeedProductCardState extends State<FeedProductCard> {
                                         const Icon(Icons.storefront_rounded, size: 12, color: TeknoyTheme.citMaroon),
                                         const SizedBox(width: 3),
                                         Expanded(
-                                          child: Text(
-                                            product.sellerStoreName!,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontFamily: 'Inter',
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                              color: TeknoyTheme.citMaroon,
-                                            ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  product.sellerStoreName!,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Inter',
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: TeknoyTheme.citMaroon,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                                decoration: BoxDecoration(
+                                                  color: TeknoyTheme.citGold.withValues(alpha: 0.25),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(color: TeknoyTheme.citGold, width: 0.6),
+                                                ),
+                                                child: const Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.verified_rounded, size: 9, color: TeknoyTheme.citMaroon),
+                                                    SizedBox(width: 2),
+                                                    Text(
+                                                      'CIT-U',
+                                                      style: TextStyle(
+                                                        fontFamily: 'Inter',
+                                                        fontSize: 7.5,
+                                                        fontWeight: FontWeight.w800,
+                                                        color: TeknoyTheme.citMaroon,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ],
@@ -342,16 +411,37 @@ class _FeedProductCardState extends State<FeedProductCard> {
                       ),
                     ),
 
-                    // Price - prominent burgundy highlight
-                    Text(
-                      '₱${product.price.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w800,
-                        fontSize: 18,
-                        color: TeknoyTheme.citMaroon,
-                        letterSpacing: -0.5,
-                      ),
+                    // Price & Deal Tag - prominent burgundy highlight
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          '₱${product.price.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            color: TeknoyTheme.citMaroon,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            'Campus Meetup',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontWeight: FontWeight.w500,
+                              fontSize: 8.5,
+                              color: isDark ? Colors.white38 : const Color(0xFF8E8895),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

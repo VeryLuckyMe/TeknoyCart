@@ -60,12 +60,14 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   final Map<String, String> _resolvedVariantIds = {};
   bool _isLoadingInventory = true;
 
+  bool get _isSingleProductCheckout => widget.isDirectBuy || widget.product != null;
+
   List<CheckoutItem> get _checkoutItems {
-    if (widget.isDirectBuy) {
+    if (_isSingleProductCheckout && widget.product != null) {
       return [
         CheckoutItem(
           product: widget.product!,
-          price: widget.agreedPrice!,
+          price: widget.agreedPrice ?? widget.product!.price,
           quantity: widget.quantity,
           variantId: _resolvedVariantIds[widget.product!.id],
           variantName: widget.variantName,
@@ -155,31 +157,77 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     try {
       final client = SupabaseConfig.client;
 
-      // FIX #7: Run all inventory checks in parallel.
+      // FIX #7: Run all inventory checks in parallel with multi-stage auto-heal.
       final futures = _checkoutItems.map((item) async {
         try {
-          // Resolve variant ID if not already provided.
-          String variantId = item.variantId ?? '00000000-0000-0000-0000-000000000000';
-          if (item.variantId == null) {
-            var query = client
-                .from('product_variants')
-                .select('variant_id')
-                .eq('product_id', item.product.id);
+          String? variantId = item.variantId;
+          if (variantId == null || variantId == '00000000-0000-0000-0000-000000000000') {
+            // Stage 1: Try matching variantName
             if (item.variantName != null && item.variantName!.isNotEmpty) {
-              query = query.eq('variant_value', item.variantName!);
+              final variants = await client
+                  .from('product_variants')
+                  .select('variant_id')
+                  .eq('product_id', item.product.id)
+                  .eq('variant_value', item.variantName!)
+                  .limit(1);
+              if ((variants as List).isNotEmpty && variants[0]['variant_id'] != null) {
+                variantId = variants[0]['variant_id'] as String;
+              }
             }
-            final variants = await query.limit(1);
-            if ((variants as List).isNotEmpty) {
-              variantId = variants[0]['variant_id'] as String;
+
+            // Stage 2: Fallback to ANY available variant for this product
+            if (variantId == null || variantId == '00000000-0000-0000-0000-000000000000') {
+              final anyVariants = await client
+                  .from('product_variants')
+                  .select('variant_id')
+                  .eq('product_id', item.product.id)
+                  .limit(1);
+              if ((anyVariants as List).isNotEmpty && anyVariants[0]['variant_id'] != null) {
+                variantId = anyVariants[0]['variant_id'] as String;
+              }
+            }
+
+            // Stage 3: Auto-heal: If no variant exists at all in DB, insert default variant & inventory
+            if (variantId == null || variantId == '00000000-0000-0000-0000-000000000000') {
+              try {
+                final safeProd = item.product.id.length > 8 ? item.product.id.substring(0, 8) : item.product.id;
+                final newVar = await client.from('product_variants').insert({
+                  'product_id': item.product.id,
+                  'variant_name': 'Standard',
+                  'variant_value': 'Default',
+                  'sku': 'SKU-${safeProd.toUpperCase()}-${DateTime.now().millisecondsSinceEpoch}',
+                }).select().maybeSingle();
+                if (newVar != null && newVar['variant_id'] != null) {
+                  variantId = newVar['variant_id'] as String;
+                } else if (newVar != null && newVar['id'] != null) {
+                  variantId = newVar['id'] as String;
+                } else {
+                  variantId = 'var-standard-${safeProd.toLowerCase()}';
+                }
+
+                await client.from('inventory').insert({
+                  'variant_id': variantId,
+                  'stock_qty': 10,
+                  'reserved_qty': 0,
+                }).catchError((_) {});
+              } catch (healErr) {
+                debugPrint("Variant auto-heal in initState error: $healErr");
+              }
             }
           }
-          _resolvedVariantIds[item.product.id] = variantId;
 
-          final inventoryRecord = await client
-              .from('inventory')
-              .select('stock_qty, reserved_qty')
-              .eq('variant_id', variantId)
-              .maybeSingle();
+          if (variantId != null) {
+            _resolvedVariantIds[item.product.id] = variantId;
+          }
+
+          Map<String, dynamic>? inventoryRecord;
+          if (variantId != null && variantId.isNotEmpty) {
+            inventoryRecord = await client
+                .from('inventory')
+                .select('stock_qty, reserved_qty')
+                .eq('variant_id', variantId)
+                .maybeSingle();
+          }
 
           bool isReservation = false;
           if (inventoryRecord != null) {
@@ -237,26 +285,72 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         final client = SupabaseConfig.client;
 
         for (final item in _checkoutItems) {
-          // FIX #7: Use pre-resolved variant IDs from the parallel fetch done in initState.
-          String itemVariantId = _resolvedVariantIds[item.product.id]
-              ?? item.variantId
-              ?? '00000000-0000-0000-0000-000000000000';
+          String? itemVariantId = _resolvedVariantIds[item.product.id] ?? item.variantId;
 
-          // If still unresolved (edge-case), fetch it now.
-          if (!_resolvedVariantIds.containsKey(item.product.id) && item.variantId == null) {
+          // If still unresolved or invalid, resolve via multi-stage search & auto-heal
+          if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
             try {
-              var query = client
-                  .from('product_variants')
-                  .select('variant_id')
-                  .eq('product_id', item.product.id);
               if (item.variantName != null && item.variantName!.isNotEmpty) {
-                query = query.eq('variant_value', item.variantName!);
+                final variants = await client
+                    .from('product_variants')
+                    .select('variant_id')
+                    .eq('product_id', item.product.id)
+                    .eq('variant_value', item.variantName!)
+                    .limit(1);
+                if ((variants as List).isNotEmpty && variants[0]['variant_id'] != null) {
+                  itemVariantId = variants[0]['variant_id'] as String;
+                }
               }
-              final variants = await query.limit(1);
-              if ((variants as List).isNotEmpty) {
-                itemVariantId = variants[0]['variant_id'] as String;
+
+              if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
+                final anyVariants = await client
+                    .from('product_variants')
+                    .select('variant_id')
+                    .eq('product_id', item.product.id)
+                    .limit(1);
+                if ((anyVariants as List).isNotEmpty && anyVariants[0]['variant_id'] != null) {
+                  itemVariantId = anyVariants[0]['variant_id'] as String;
+                }
               }
-            } catch (_) {}
+
+              if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
+                final safeProd = item.product.id.length > 8 ? item.product.id.substring(0, 8) : item.product.id;
+                final inserted = await client.from('product_variants').insert({
+                  'product_id': item.product.id,
+                  'variant_name': 'Standard',
+                  'variant_value': 'Default',
+                  'sku': 'SKU-${safeProd.toUpperCase()}-${DateTime.now().millisecondsSinceEpoch}',
+                }).select().maybeSingle();
+                if (inserted != null && inserted['variant_id'] != null) {
+                  itemVariantId = inserted['variant_id'] as String;
+                } else if (inserted != null && inserted['id'] != null) {
+                  itemVariantId = inserted['id'] as String;
+                } else {
+                  itemVariantId = 'var-standard-${safeProd.toLowerCase()}';
+                }
+
+                await client.from('inventory').insert({
+                  'variant_id': itemVariantId,
+                  'stock_qty': 10,
+                  'reserved_qty': 0,
+                }).catchError((_) {});
+              }
+            } catch (vErr) {
+              debugPrint("Variant fallback in submitCheckout: $vErr");
+            }
+          }
+
+          if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
+            if (mounted) {
+              setState(() => _isSubmitting = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Unable to link listing inventory SKU. Please retry in a moment.'),
+                  backgroundColor: TeknoyTheme.error,
+                ),
+              );
+            }
+            return;
           }
 
           // Find or create matching inquiry row.
@@ -346,7 +440,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
             final handshakeMessage = widget.isPreorder
                 ? '📦 [PRE-ORDER PLACED]\nHello! I placed a pre-order for ${item.product.title} (Qty: ${item.quantity}).\nEstimated lead time: 3-7 business days.\nPreferred campus availability: $_selectedTimeSlot at $_selectedLocation.\nPlease message me here once the batch arrives on campus!'
-                : '🤝 Handshake Deal Confirmed! Meetup requested for $_selectedDay ($_selectedTimeSlot) at $_selectedLocation.';
+                : (widget.agreedPrice != null
+                    ? '🤝 Handshake Deal Confirmed! Agreed Tawad Price: ₱${item.price.toStringAsFixed(2)}. Meetup requested for $_selectedDay ($_selectedTimeSlot) at $_selectedLocation.'
+                    : '🤝 Handshake Deal Confirmed! Meetup requested for $_selectedDay ($_selectedTimeSlot) at $_selectedLocation.');
 
             await ref.read(chatControllerProvider.notifier).postMessage(
               senderId: buyerId,
@@ -359,8 +455,8 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             debugPrint("CHAT_CHECKOUT_MESSAGE_POST_ERROR: $e");
           }
 
-          // Remove from cart if not direct buy.
-          if (!widget.isDirectBuy) {
+          // Remove from cart if not single product direct/negotiated buy.
+          if (!_isSingleProductCheckout) {
             ref.read(cartProvider.notifier).removeFromCart(item.product.id, item.variantId);
           }
         }
@@ -492,6 +588,109 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     );
   }
 
+  Widget _buildTawadDealHeroBanner(bool isDark) {
+    final double asking = widget.product?.price ?? (_checkoutItems.isNotEmpty ? _checkoutItems.first.product.price : 0.0);
+    final double agreed = widget.agreedPrice ?? 0.0;
+    final double discount = (asking > agreed && asking > 0) ? (asking - agreed) : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF2A1C0A), TeknoyTheme.darkSurface]
+              : [const Color(0xFFFFFDF5), const Color(0xFFFFF8E7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.45 : 0.6),
+          width: 1.3,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.15 : 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [TeknoyTheme.citGold, Color(0xFFFFA000)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: TeknoyTheme.citGold.withValues(alpha: 0.35),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.handshake_rounded, color: Colors.black87, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.25 : 0.2),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.6), width: 0.8),
+                  ),
+                  child: Text(
+                    discount > 0
+                        ? 'AGREED PRICE • SAVE ₱${discount.toStringAsFixed(2)}'
+                        : 'AGREED TAWAD PRICE LOCK',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroonDark,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Campus Meetup Handshake Deal',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: isDark ? Colors.white : TeknoyTheme.citMaroonDark,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Seller agreed to your offer of ₱${agreed.toStringAsFixed(2)}${discount > 0 ? ' (original: ₱${asking.toStringAsFixed(2)})' : ''}. Confirm your meetup landmark and schedule below to finalize the handshake reservation.',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 12,
+                    height: 1.4,
+                    color: isDark ? Colors.white70 : TeknoyTheme.citMaroonDark.withValues(alpha: 0.75),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProductSpotlightCard(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -579,18 +778,76 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                               ),
                             ),
                           ),
+                          if (widget.agreedPrice != null) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: TeknoyTheme.citGold.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: TeknoyTheme.citGold,
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.handshake_rounded, size: 11, color: TeknoyTheme.citGold),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'TAWAD DEAL',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroonDark,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           const Spacer(),
                           // High-contrast WCAG AAA price display:
                           // citGold in dark mode (9.77:1), citMaroon in light mode (10.95:1)
-                          Text(
-                            '₱${_checkoutItems.first.price.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                          if (widget.agreedPrice != null && widget.agreedPrice! < _checkoutItems.first.product.price) ...[
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '₱${_checkoutItems.first.product.price.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 11,
+                                    decoration: TextDecoration.lineThrough,
+                                    color: isDark ? Colors.white38 : Colors.black38,
+                                  ),
+                                ),
+                                Text(
+                                  '₱${_checkoutItems.first.price.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
+                          ] else ...[
+                            Text(
+                              '₱${_checkoutItems.first.price.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ],
@@ -1325,38 +1582,52 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Total Payable',
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total Payable',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : TeknoyTheme.citMaroonDark,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.agreedPrice != null && _checkoutItems.isNotEmpty && widget.agreedPrice! < _checkoutItems.first.product.price
+                      ? '$totalUnits ${totalUnits == 1 ? 'item' : 'items'} • 🤝 Tawad Deal (Save ₱${(_checkoutItems.first.product.price - widget.agreedPrice!).toStringAsFixed(2)})'
+                      : '$totalUnits ${totalUnits == 1 ? 'item' : 'items'} total • ${widget.isPreorder ? 'Pay upon batch handoff' : 'Pay upon meetup handoff'}',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 11,
+                    color: widget.agreedPrice != null
+                        ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                        : (isDark ? Colors.white54 : Colors.black54),
+                    fontWeight: widget.agreedPrice != null ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Contrast WCAG AAA compliant price with responsive text scaling:
+          // citGold in dark mode (9.77:1), citMaroon in light mode (10.95:1)
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                '₱${_totalPrice.toStringAsFixed(2)}',
                 style: TextStyle(
                   fontFamily: 'Outfit',
-                  fontSize: 14,
+                  fontSize: 26,
                   fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : TeknoyTheme.citMaroonDark,
+                  color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                '$totalUnits ${totalUnits == 1 ? 'item' : 'items'} total • ${widget.isPreorder ? 'Pay upon batch handoff' : 'Pay upon meetup handoff'}',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 11,
-                  color: isDark ? Colors.white54 : Colors.black54,
-                ),
-              ),
-            ],
-          ),
-          // Contrast WCAG AAA compliant price:
-          // citGold in dark mode (9.77:1), citMaroon in light mode (10.95:1)
-          Text(
-            '₱${_totalPrice.toStringAsFixed(2)}',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
             ),
           ),
         ],
@@ -1507,6 +1778,10 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             children: [
               if (widget.isPreorder) ...[
                 _buildPreorderHeroBanner(isDark),
+                const SizedBox(height: 18),
+              ],
+              if (widget.agreedPrice != null) ...[
+                _buildTawadDealHeroBanner(isDark),
                 const SizedBox(height: 18),
               ],
               _buildProductSpotlightCard(isDark),

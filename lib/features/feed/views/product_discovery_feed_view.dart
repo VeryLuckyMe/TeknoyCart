@@ -15,6 +15,7 @@ import 'package:teknoycart/core/widgets/navigation_drawer.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
+import 'package:teknoycart/features/feed/views/product_detail_view.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
@@ -27,6 +28,24 @@ import 'package:teknoycart/features/feed/views/widgets/feed_product_card.dart';
 import 'package:teknoycart/features/feed/views/widgets/feed_trending_banner.dart';
 import 'package:teknoycart/features/feed/providers/review_provider.dart';
 import 'package:teknoycart/features/feed/views/widgets/buyer_reviews_sheet.dart';
+import 'package:teknoycart/features/feed/views/manage_listings_view.dart';
+
+/// Provider to dynamically count completed orders/deals for a given user ID
+final userCompletedDealsCountProvider = FutureProvider.family<int, String>((ref, userId) async {
+  if (userId.isEmpty) return 0;
+  try {
+    final client = SupabaseConfig.client;
+    final res = await client
+        .from('orders')
+        .select('order_id')
+        .or('buyer_id.eq.$userId,seller_id.eq.$userId')
+        .eq('status', 'completed');
+    return (res as List).length;
+  } catch (_) {
+    return 0;
+  }
+});
+
 /// Product Discovery Feed representing Figma Node 1:39.
 /// Main marketplace landing hub for listing, browsing, and searching products.
 class ProductDiscoveryFeedView extends ConsumerStatefulWidget {
@@ -47,9 +66,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   final _sellTitleController = TextEditingController();
   final _sellPriceController = TextEditingController();
   final _sellDescController = TextEditingController();
+  final _sellStockController = TextEditingController(text: '1');
   String _sellCategory = 'Books';
   String _sellCondition = 'New';
-  XFile? _selectedImageFile;
+  final List<XFile> _selectedImageFiles = [];
   bool _isUploadingProductImage = false;
   final _imagePicker = ImagePicker();
 
@@ -58,6 +78,73 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   final Map<String, String> _attributeSelectValues = {};
   final Map<String, Set<String>> _attributeMultiSelectValues = {};
   final Map<String, List<String>> _customAttributeOptions = {};
+  final Map<String, TextEditingController> _variantStockControllers = {};
+  final TextEditingController _batchStockController = TextEditingController(text: '5');
+
+  bool get _hasActiveVariants {
+    return _attributeMultiSelectValues.values.any((set) => set.isNotEmpty);
+  }
+
+  List<String> get _variationCombinations {
+    final activeEntries = _attributeMultiSelectValues.entries
+        .where((e) => e.value.isNotEmpty)
+        .toList();
+
+    if (activeEntries.isEmpty) return const [];
+
+    List<String> getSortedOptions(MapEntry<String, Set<String>> entry) {
+      final list = entry.value.toList();
+      if (entry.key.trim().toLowerCase() == 'size') {
+        list.sort((a, b) => ProductAttribute.sizeRank(a).compareTo(ProductAttribute.sizeRank(b)));
+      }
+      return list;
+    }
+
+    if (activeEntries.length == 1) {
+      return getSortedOptions(activeEntries.first);
+    }
+
+    // Generate cartesian product across all active variation dimensions (e.g. Size x Color)
+    List<String> combinations = getSortedOptions(activeEntries.first);
+    for (int i = 1; i < activeEntries.length; i++) {
+      final nextOptions = getSortedOptions(activeEntries[i]);
+      final List<String> nextCombos = [];
+      for (final prefix in combinations) {
+        for (final opt in nextOptions) {
+          nextCombos.add('$prefix · $opt');
+        }
+      }
+      combinations = nextCombos;
+    }
+    return combinations;
+  }
+
+  int get _calculatedTotalVariantStock {
+    final combos = _variationCombinations;
+    if (combos.isEmpty) {
+      return int.tryParse(_sellStockController.text.trim()) ?? 1;
+    }
+    int total = 0;
+    for (final combo in combos) {
+      final ctrl = _variantStockControllers[combo];
+      total += int.tryParse(ctrl?.text.trim() ?? '') ?? 5;
+    }
+    return total;
+  }
+
+  static const List<String> _foodConditionOptions = [
+    'Freshly Prepared / Daily Cooked',
+    'Packaged & Sealed (Brand New)',
+    'Made to Order',
+    'Frozen / Chilled',
+  ];
+
+  static const List<String> _generalConditionOptions = [
+    'New',
+    'Like New',
+    'Gently Used',
+    'Well Used',
+  ];
 
   StreamSubscription<AuthState>? _recoverySub;
 
@@ -169,6 +256,12 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     _sellTitleController.dispose();
     _sellPriceController.dispose();
     _sellDescController.dispose();
+    _sellStockController.dispose();
+    _batchStockController.dispose();
+    for (final ctrl in _variantStockControllers.values) {
+      ctrl.dispose();
+    }
+    _variantStockControllers.clear();
     for (final ctrl in _attributeTextControllers.values) {
       ctrl.dispose();
     }
@@ -182,6 +275,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     final title = _sellTitleController.text.trim();
     final priceStr = _sellPriceController.text.trim();
     final desc = _sellDescController.text.trim();
+    final stockStr = _sellStockController.text.trim();
 
     if (title.isEmpty || priceStr.isEmpty || desc.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -204,28 +298,48 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       return;
     }
 
-    _doPostItem(title: title, desc: desc, price: price);
+    final stock = int.tryParse(stockStr) ?? 1;
+    if (stock <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid stock quantity of at least 1.'),
+          backgroundColor: TeknoyTheme.error,
+        ),
+      );
+      return;
+    }
+
+    _doPostItem(title: title, desc: desc, price: price, stock: stock);
   }
 
-  Future<void> _doPostItem({required String title, required String desc, required double price}) async {
-    // Use uploaded image URL if available, otherwise use category-based mock
-    String imageUrl;
-    if (_selectedImageFile != null) {
+  Future<void> _doPostItem({
+    required String title,
+    required String desc,
+    required double price,
+    required int stock,
+  }) async {
+    // Upload all selected images to Supabase Storage
+    List<String> imageUrls = [];
+    if (_selectedImageFiles.isNotEmpty) {
       setState(() => _isUploadingProductImage = true);
       try {
         final sellerId = ref.read(authStateProvider).valueOrNull?.id ?? 'usr-seller';
-        final fileName = 'product_${sellerId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final bytes = await _selectedImageFile!.readAsBytes();
-        await SupabaseConfig.client.storage
-            .from('product-images')
-            .uploadBinary(
-              fileName,
-              bytes,
-              fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
-            );
-        imageUrl = SupabaseConfig.client.storage
-            .from('product-images')
-            .getPublicUrl(fileName);
+        for (int i = 0; i < _selectedImageFiles.length; i++) {
+          final file = _selectedImageFiles[i];
+          final fileName = 'product_${sellerId}_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
+          final bytes = await file.readAsBytes();
+          await SupabaseConfig.client.storage
+              .from('product-images')
+              .uploadBinary(
+                fileName,
+                bytes,
+                fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+              );
+          final publicUrl = SupabaseConfig.client.storage
+              .from('product-images')
+              .getPublicUrl(fileName);
+          imageUrls.add(publicUrl);
+        }
       } catch (e) {
         setState(() => _isUploadingProductImage = false);
         if (mounted) {
@@ -248,7 +362,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         'School Supplies': 'https://picsum.photos/seed/school-supplies/400/300',
         'Services': 'https://picsum.photos/seed/services/400/300',
       };
-      imageUrl = categoryImages[_sellCategory] ?? 'https://picsum.photos/seed/others/400/300';
+      final fallbackUrl = categoryImages[_sellCategory] ?? 'https://picsum.photos/seed/others/400/300';
+      imageUrls = [fallbackUrl];
     }
 
     // Collect category-specific attributes from form controllers
@@ -266,7 +381,11 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     }
     for (final entry in _attributeMultiSelectValues.entries) {
       if (entry.value.isNotEmpty) {
-        categoryAttributes.add(ProductAttribute(name: entry.key, value: entry.value.join(', ')));
+        final list = entry.value.toList();
+        if (entry.key.trim().toLowerCase() == 'size') {
+          list.sort((a, b) => ProductAttribute.sizeRank(a).compareTo(ProductAttribute.sizeRank(b)));
+        }
+        categoryAttributes.add(ProductAttribute(name: entry.key, value: list.join(', ')));
       }
     }
 
@@ -277,18 +396,43 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       price: price,
       category: _sellCategory,
       condition: _sellCondition,
-      imageUrl: imageUrl,
+      imageUrl: imageUrls.isNotEmpty ? imageUrls.first : null,
+      imageUrls: imageUrls,
       sellerId: ref.read(authStateProvider).valueOrNull?.id ?? 'usr-buyer',
       createdAt: DateTime.now(),
       categoryAttributes: categoryAttributes,
     );
 
-    ref.read(productsListNotifierProvider.notifier).addProduct(newProduct);
+    // Collect individual variant stock levels (combination matrix)
+    final Map<String, int> variantStocks = {};
+    if (_hasActiveVariants) {
+      for (final combo in _variationCombinations) {
+        final ctrl = _variantStockControllers[combo];
+        final val = int.tryParse(ctrl?.text.trim() ?? '') ?? 5;
+        // Standardize delimiter to ' / ' for backend storage & checkout resolution
+        final standardizedKey = combo.replaceAll(' · ', ' / ');
+        variantStocks[standardizedKey] = val >= 0 ? val : 0;
+      }
+    }
+
+    final int effectiveTotalStock = _hasActiveVariants ? _calculatedTotalVariantStock : stock;
+
+    ref.read(productsListNotifierProvider.notifier).addProduct(
+      newProduct,
+      variantStocks: variantStocks.isNotEmpty ? variantStocks : null,
+      totalStock: effectiveTotalStock,
+    );
 
     // Reset Form
     _sellTitleController.clear();
     _sellPriceController.clear();
     _sellDescController.clear();
+    _sellStockController.text = '1';
+    _batchStockController.text = '5';
+    for (final ctrl in _variantStockControllers.values) {
+      ctrl.dispose();
+    }
+    _variantStockControllers.clear();
     for (final ctrl in _attributeTextControllers.values) {
       ctrl.dispose();
     }
@@ -299,7 +443,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     setState(() {
       _sellCategory = 'Books';
       _sellCondition = 'New';
-      _selectedImageFile = null;
+      _selectedImageFiles.clear();
       _activeTab = 0;
     });
 
@@ -315,15 +459,43 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
 
   Future<void> _pickProductImage(ImageSource source) async {
     try {
-      final picked = await _imagePicker.pickImage(
-        source: source,
-        imageQuality: 80,
-        maxWidth: 1080,
-      );
-      if (picked == null) return;
-      setState(() {
-        _selectedImageFile = picked;
-      });
+      if (source == ImageSource.gallery) {
+        final List<XFile> pickedList = await _imagePicker.pickMultiImage(
+          imageQuality: 80,
+          maxWidth: 1080,
+        );
+        if (pickedList.isNotEmpty) {
+          setState(() {
+            for (final file in pickedList) {
+              if (_selectedImageFiles.length < 8) {
+                _selectedImageFiles.add(file);
+              }
+            }
+          });
+        }
+      } else {
+        if (_selectedImageFiles.length >= 8) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Maximum of 8 photos reached.'),
+                backgroundColor: TeknoyTheme.citMaroon,
+              ),
+            );
+          }
+          return;
+        }
+        final picked = await _imagePicker.pickImage(
+          source: source,
+          imageQuality: 80,
+          maxWidth: 1080,
+        );
+        if (picked != null) {
+          setState(() {
+            _selectedImageFiles.add(picked);
+          });
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -697,11 +869,253 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 );
               }
             }),
+            // ── Consolidated Shopee / Lazada Variation Stock Matrix ──
+            if (_hasActiveVariants) ...[
+              const SizedBox(height: 12),
+              _buildShopeeVariationMatrixDeck(isDark),
+            ],
           ],
         );
       },
     );
   }
+
+  /// Interactive Shopee / Lazada style Variation Stock Matrix deck
+  Widget _buildShopeeVariationMatrixDeck(bool isDark) {
+    final combos = _variationCombinations;
+    if (combos.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF191922) : const Color(0xFFF9F9FB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: TeknoyTheme.citMaroon.withOpacity(0.25),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: TeknoyTheme.citMaroon.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.table_chart_outlined, size: 18, color: TeknoyTheme.citMaroon),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Stock per Variation Combination',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: TeknoyTheme.citMaroon,
+                      ),
+                    ),
+                    Text(
+                      'Set exact inventory for each size & color pair',
+                      style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: TeknoyTheme.citGold.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${combos.length} variations',
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF8B6B00),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // ── Quick Fill / Batch Tool (Shopee/Lazada style) ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF14141A) : Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isDark ? Colors.white12 : Colors.black12,
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.bolt_rounded, size: 18, color: TeknoyTheme.citGold),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Quick Fill All:',
+                    style: TextStyle(fontFamily: 'Outfit', fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                SizedBox(
+                  width: 55,
+                  height: 34,
+                  child: TextField(
+                    controller: _batchStockController,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
+                    decoration: InputDecoration(
+                      contentPadding: EdgeInsets.zero,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    final batchVal = _batchStockController.text.trim();
+                    if (batchVal.isEmpty) return;
+                    setState(() {
+                      for (final combo in combos) {
+                        _variantStockControllers.putIfAbsent(combo, () => TextEditingController()).text = batchVal;
+                      }
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Applied $batchVal units to all ${combos.length} variations!'),
+                        duration: const Duration(seconds: 1),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: TeknoyTheme.citMaroon,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    minimumSize: const Size(60, 34),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text(
+                    'Apply All',
+                    style: TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ── Combination Rows ──
+          ...combos.map((combo) {
+            final ctrl = _variantStockControllers.putIfAbsent(
+              combo,
+              () => TextEditingController(text: '5'),
+            );
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF14141A) : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.2 : 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        combo,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: TeknoyTheme.citMaroon,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.remove_circle_outline_rounded, size: 20),
+                      color: TeknoyTheme.citMaroon,
+                      onPressed: () {
+                        final cur = int.tryParse(ctrl.text.trim()) ?? 0;
+                        if (cur > 0) {
+                          setState(() {
+                            ctrl.text = '${cur - 1}';
+                          });
+                        }
+                      },
+                    ),
+                    SizedBox(
+                      width: 48,
+                      height: 32,
+                      child: TextField(
+                        controller: ctrl,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        onChanged: (_) => setState(() {}),
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                        decoration: InputDecoration(
+                          contentPadding: EdgeInsets.zero,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
+                      color: TeknoyTheme.citMaroon,
+                      onPressed: () {
+                        final cur = int.tryParse(ctrl.text.trim()) ?? 0;
+                        setState(() {
+                          ctrl.text = '${cur + 1}';
+                        });
+                      },
+                    ),
+                    const Text(
+                      'units',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
 
   /// Opens an intuitive dialog allowing the seller to add a custom size (e.g. 33, 34, US 9.5) or custom variant
   void _showAddCustomOptionDialog(String templateName) {
@@ -856,9 +1270,11 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const Text(
-                'Add Product Photo',
-                style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
+              Text(
+                _selectedImageFiles.isEmpty
+                    ? 'Add Product Photos (Up to 8)'
+                    : 'Add More Photos (${_selectedImageFiles.length}/8)',
+                style: const TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               ListTile(
@@ -867,7 +1283,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   child: Icon(Icons.photo_library_rounded, color: Colors.white),
                 ),
                 title: const Text('Choose from Gallery', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
-                subtitle: const Text('Pick a photo from your device', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
+                subtitle: const Text('Pick one or multiple photos from device', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickProductImage(ImageSource.gallery);
@@ -879,7 +1295,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   child: Icon(Icons.camera_alt_rounded, color: Colors.white),
                 ),
                 title: const Text('Take a Photo', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
-                subtitle: const Text('Capture using your camera', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
+                subtitle: const Text('Capture item or variant close-up', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey)),
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickProductImage(ImageSource.camera);
@@ -1205,11 +1621,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   color: isDark ? Colors.white70 : const Color(0xFF5A413D),
                   size: 22,
                 ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('System checks: verified connection with local Supabase live client.')),
-                  );
-                },
+                onPressed: () => _showNotificationsSheet(context),
                 tooltip: 'Notifications',
               ),
               Positioned(
@@ -1232,7 +1644,11 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           ),
         ],
       ),
-      drawer: const TeknoyNavigationDrawer(),
+      drawer: TeknoyNavigationDrawer(
+        onSelectTab: (index) {
+          setState(() => _activeTab = index);
+        },
+      ),
       body: _buildActiveTabBody(context),
       bottomNavigationBar: Container(
         height: 64,
@@ -1300,6 +1716,97 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     );
   }
 
+  void _showNotificationsSheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1B1B22) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: TeknoyTheme.kElevationHigh,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white24 : Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.notifications_active_rounded, color: TeknoyTheme.citMaroon, size: 22),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Campus Deal Notifications',
+                    style: TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFE8F5E9),
+                child: Icon(Icons.handshake_rounded, color: TeknoyTheme.success),
+              ),
+              title: const Text('Tawad & Offer Alerts', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: const Text('Live negotiation offers and accepted deals are synced to your Chat Inbox in real time.', style: TextStyle(fontFamily: 'Inter', fontSize: 12)),
+            ),
+            const Divider(),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFFFF8E1),
+                child: Icon(Icons.security_rounded, color: Color(0xFF8B6B00)),
+              ),
+              title: const Text('TeknoyCart Student Guarantee', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: const Text('All approved meetup deals require OTP & QR confirmation before funds release.', style: TextStyle(fontFamily: 'Inter', fontSize: 12)),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const InboxView()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TeknoyTheme.citMaroon,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+              label: const Text('View All Deals in Chat Inbox', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildActiveTabBody(BuildContext context) {
     switch (_activeTab) {
       case 0:
@@ -1309,7 +1816,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       case 2:
         return _buildSellTabBody(context);
       case 3:
-        return const OrderHistoryView();
+        return const OrderHistoryView(embedded: true);
       case 4:
         return _buildProfileTabBody(context);
       default:
@@ -1589,7 +2096,12 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                           (context, index) {
                             final product = filteredProducts[index];
                             return GestureDetector(
-                              onTap: () => ProductDetailsSheet.show(context, product),
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ProductDetailView(product: product),
+                                ),
+                              ),
                               child: FeedProductCard(product: product),
                             );
                           },
@@ -2121,12 +2633,12 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'List Pre-Loved Item',
+                'List an Item',
                 style: TextStyle(fontFamily: 'Outfit', fontSize: 22, fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
               ),
               const SizedBox(height: 6),
               const Text(
-                'List drawing boards, drawing sets, textbooks, uniforms, or snacks to trade with fellow student Wildcats.',
+                'List textbooks, uniforms, electronics, or snacks to trade with fellow student Wildcats.',
                 style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey),
               ),
               const SizedBox(height: 24),
@@ -2171,14 +2683,23 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Condition *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                    Text(
+                      _sellCategory == 'Food & Beverages' ? 'Freshness & Prep *' : 'Condition *',
+                      style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: _sellCondition,
-                      items: ['New', 'Like New', 'Gently Used', 'Well Used']
-                          .map((val) => DropdownMenuItem(value: val, child: Text(val)))
+                      value: (_sellCategory == 'Food & Beverages' ? _foodConditionOptions : _generalConditionOptions).contains(_sellCondition)
+                          ? _sellCondition
+                          : (_sellCategory == 'Food & Beverages' ? _foodConditionOptions.first : _generalConditionOptions.first),
+                      items: (_sellCategory == 'Food & Beverages' ? _foodConditionOptions : _generalConditionOptions)
+                          .map((val) => DropdownMenuItem(value: val, child: Text(val, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13))))
                           .toList(),
-                      onChanged: (val) => setState(() => _sellCondition = val!),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _sellCondition = val);
+                        }
+                      },
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -2186,6 +2707,141 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                     ),
                   ],
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Available Stock Quantity (Dynamic Shopee/Lazada style)
+          Row(
+            children: [
+              Expanded(
+                child: _hasActiveVariants
+                    ? Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1B1B22) : const Color(0xFFF7F7FA),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: TeknoyTheme.citMaroon.withOpacity(0.2),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: TeknoyTheme.citMaroon.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.calculate_outlined, size: 20, color: TeknoyTheme.citMaroon),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Wrap(
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    children: [
+                                      const Text(
+                                        'Available Stock Quantity',
+                                        style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF10B981).withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Text(
+                                          'Auto-Summed',
+                                          style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF059669),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '$_calculatedTotalVariantStock units across ${_variationCombinations.length} combinations',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 12,
+                                      color: isDark ? Colors.white70 : Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: TeknoyTheme.citMaroon,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '$_calculatedTotalVariantStock',
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text(
+                                'Available Stock Quantity *',
+                                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'Total Units',
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: TeknoyTheme.citMaroon,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _sellStockController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              hintText: 'e.g. 10',
+                              prefixIcon: Icon(Icons.inventory_2_outlined, size: 20, color: TeknoyTheme.citMaroon),
+                              suffixText: 'units',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                          ),
+                        ],
+                      ),
               ),
             ],
           ),
@@ -2209,7 +2865,18 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 _attributeSelectValues.clear();
                 _attributeMultiSelectValues.clear();
                 _customAttributeOptions.clear();
-                setState(() => _sellCategory = val);
+                for (final ctrl in _variantStockControllers.values) {
+                  ctrl.dispose();
+                }
+                _variantStockControllers.clear();
+                setState(() {
+                  _sellCategory = val;
+                  if (val == 'Food & Beverages') {
+                    _sellCondition = _foodConditionOptions.first;
+                  } else if (!_generalConditionOptions.contains(_sellCondition)) {
+                    _sellCondition = _generalConditionOptions.first;
+                  }
+                });
               }
             },
             decoration: const InputDecoration(
@@ -2237,107 +2904,229 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           ),
           const SizedBox(height: 24),
 
-          // Image uploader — real picker with preview
-          GestureDetector(
-            onTap: _showProductImageSourceSheet,
-            child: Container(
-              height: _selectedImageFile != null ? null : 140,
-              decoration: BoxDecoration(
-                color: _selectedImageFile != null
-                    ? Colors.transparent
-                    : (isDark ? const Color(0xFF18181C) : Colors.grey.shade100),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _selectedImageFile != null
-                      ? TeknoyTheme.citMaroon.withOpacity(0.4)
-                      : Colors.grey.shade400,
-                  style: BorderStyle.solid,
+          // Image uploader — Multi-photo gallery deck (up to 8 photos)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Product Photos',
+                    style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _selectedImageFiles.isNotEmpty
+                          ? TeknoyTheme.citMaroon.withOpacity(0.12)
+                          : Colors.grey.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${_selectedImageFiles.length}/8',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        color: _selectedImageFiles.isNotEmpty ? TeknoyTheme.citMaroon : Colors.grey,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (_selectedImageFiles.isNotEmpty && _selectedImageFiles.length < 8)
+                GestureDetector(
+                  onTap: _showProductImageSourceSheet,
+                  child: const Text(
+                    '+ Add Photo',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: TeknoyTheme.citMaroon,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Upload front, back, close-ups, and variant angles. 1st photo is Cover.',
+            style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: isDark ? Colors.white60 : Colors.black54),
+          ),
+          const SizedBox(height: 10),
+
+          if (_selectedImageFiles.isEmpty)
+            GestureDetector(
+              onTap: _showProductImageSourceSheet,
+              child: Container(
+                height: 130,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF18181C) : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: TeknoyTheme.citMaroon.withOpacity(0.3),
+                    style: BorderStyle.solid,
+                    width: 1.2,
+                  ),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: TeknoyTheme.citMaroon.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.add_photo_alternate_rounded, size: 30, color: TeknoyTheme.citMaroon),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Add Product Photos (Up to 8)',
+                        style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon, fontSize: 14),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Tap to choose multiple images from gallery or take a photo',
+                        style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              child: _selectedImageFile != null
-                  ? Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(11),
+            )
+          else
+            SizedBox(
+              height: 140,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _selectedImageFiles.length + (_selectedImageFiles.length < 8 ? 1 : 0),
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  // Add more card at the end
+                  if (index == _selectedImageFiles.length) {
+                    return GestureDetector(
+                      onTap: _showProductImageSourceSheet,
+                      child: Container(
+                        width: 105,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF18181C) : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: TeknoyTheme.citMaroon.withOpacity(0.35),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_a_photo_outlined, size: 26, color: TeknoyTheme.citMaroon.withOpacity(0.8)),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Add Photo',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: TeknoyTheme.citMaroon,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  final file = _selectedImageFiles[index];
+                  final isCover = index == 0;
+
+                  return Stack(
+                    children: [
+                      Container(
+                        width: 110,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isCover ? TeknoyTheme.citMaroon : Colors.grey.withOpacity(0.3),
+                            width: isCover ? 2 : 1,
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
                           child: kIsWeb
                               ? Image.network(
-                                  _selectedImageFile!.path,
-                                  width: double.infinity,
-                                  height: 220,
+                                  file.path,
+                                  width: 110,
+                                  height: 140,
                                   fit: BoxFit.cover,
                                 )
                               : Image.file(
-                                  File(_selectedImageFile!.path),
-                                  width: double.infinity,
-                                  height: 220,
+                                  File(file.path),
+                                  width: 110,
+                                  height: 140,
                                   fit: BoxFit.cover,
                                 ),
                         ),
+                      ),
+                      // Cover Badge
+                      if (isCover)
                         Positioned(
-                          top: 8,
-                          right: 8,
-                          child: GestureDetector(
-                            onTap: () => setState(() {
-                              _selectedImageFile = null;
-                            }),
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.6),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.close_rounded, color: Colors.white, size: 16),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
+                          bottom: 6,
+                          left: 6,
+                          right: 6,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 2),
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.bottomCenter,
-                                end: Alignment.topCenter,
-                                colors: [Colors.black.withOpacity(0.55), Colors.transparent],
-                              ),
-                              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(11)),
+                              color: TeknoyTheme.citMaroon,
+                              borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Row(
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 16),
-                                const SizedBox(width: 6),
-                                const Text(
-                                  'Photo selected — tap to change',
-                                  style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.white),
+                                Icon(Icons.star_rounded, size: 11, color: TeknoyTheme.citGold),
+                                SizedBox(width: 3),
+                                Text(
+                                  'Cover',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
                         ),
-                      ],
-                    )
-                  : Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.add_photo_alternate_rounded, size: 40, color: TeknoyTheme.citMaroon),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Add Product Photo',
-                            style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
+                      // Remove Button
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedImageFiles.removeAt(index);
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.65),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Tap to choose from gallery or camera',
-                            style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey.shade500),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
           const SizedBox(height: 32),
 
           // Submit Post
@@ -2350,16 +3139,16 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             child: _isUploadingProductImage
-                ? const Row(
+                ? Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      SizedBox(
+                      const SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       ),
-                      SizedBox(width: 12),
-                      Text('Uploading photo...', style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      const SizedBox(width: 12),
+                      Text('Uploading photos (${_selectedImageFiles.length})...', style: const TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                     ],
                   )
                 : const Text('Post Campus Listing', style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold)),
@@ -3338,6 +4127,14 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     final gcashNumber = user?.gcashNumber ?? 'Not Configured';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final productsAsync = ref.watch(productsListProvider);
+    final userListingsCount = productsAsync.valueOrNull
+            ?.where((p) => p.sellerId == rawId)
+            .length ??
+        0;
+    final dealsAsync = ref.watch(userCompletedDealsCountProvider(rawId));
+    final dealsCount = dealsAsync.valueOrNull ?? 0;
+
     // Dark mode palette from the design prompt
     const profileBgDark = Color(0xFF101010);
     const cardBgDark = Color(0xFF1A1A1E);
@@ -3511,9 +4308,26 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _buildStatItem('Listings', '12', isDark),
+                          _buildStatItem(
+                            'Listings',
+                            '$userListingsCount',
+                            isDark,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const ManageListingsView()),
+                              );
+                            },
+                          ),
                           _buildStatDivider(cardBorder),
-                          _buildStatItem('Deals', '48', isDark),
+                          _buildStatItem(
+                            'Deals',
+                            '$dealsCount',
+                            isDark,
+                            onTap: () {
+                              setState(() => _activeTab = 3);
+                            },
+                          ),
                           _buildStatDivider(cardBorder),
                           Consumer(
                             builder: (context, ref, _) {
@@ -4045,8 +4859,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     );
   }
 
-  Widget _buildStatItem(String label, String value, bool isDark, {bool isHighlight = false}) {
-    return Column(
+  Widget _buildStatItem(String label, String value, bool isDark, {bool isHighlight = false, VoidCallback? onTap}) {
+    final itemWidget = Column(
       children: [
         Text(
           value,
@@ -4071,6 +4885,21 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         ),
       ],
     );
+
+    if (onTap != null) {
+      return Tooltip(
+        message: 'View $label',
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            child: itemWidget,
+          ),
+        ),
+      );
+    }
+    return itemWidget;
   }
 
   Widget _buildStatDivider(Color borderColor) {

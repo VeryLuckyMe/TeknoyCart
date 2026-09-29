@@ -7,7 +7,7 @@ import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
-import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
+import 'package:teknoycart/features/feed/views/product_detail_view.dart';
 import 'package:teknoycart/features/feed/providers/review_provider.dart';
 
 /// State-of-the-Art Seller Storefront View matching modern campus marketplace design (Figma Node 1:39 style).
@@ -34,26 +34,6 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
   String _sortBy = 'latest'; // latest, price_low, price_high
   String? _selectedCategory;
 
-  String get _mockFollowers {
-    final hash = widget.sellerId.hashCode.abs();
-    final base = 800 + (hash % 1200);
-    if (base >= 1000) {
-      final kVal = (base / 1000).toStringAsFixed(1);
-      return _isFollowing ? '${kVal}k+' : '${kVal}k';
-    }
-    return _isFollowing ? '${base + 1}' : '$base';
-  }
-
-  String get _mockFollowings {
-    final hash = widget.sellerId.hashCode.abs();
-    return '${15 + (hash % 35)}';
-  }
-
-  String get _mockRating {
-    final hash = widget.sellerId.hashCode.abs();
-    final ratings = ['4.8', '4.9', '4.7', '5.0'];
-    return ratings[hash % ratings.length];
-  }
 
   @override
   void initState() {
@@ -171,6 +151,10 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
     
     final storeName = _fetchedStoreName ?? widget.sellerName;
     final ownerName = _fetchedOwnerName ?? (widget.sellerName != storeName ? widget.sellerName : 'Campus Seller');
+    final sellerProductsCount = productsAsync.valueOrNull
+            ?.where((p) => p.sellerId == widget.sellerId)
+            .length ??
+        0;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0A0A0C) : const Color(0xFFF6F6F9),
@@ -369,7 +353,7 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                             });
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(_isFollowing ? 'Now following $storeName' : 'Unfollowed $storeName'),
+                                content: Text(_isFollowing ? 'â­ Added $storeName to your favorites' : 'Removed $storeName from favorites'),
                                 duration: const Duration(seconds: 1),
                                 behavior: SnackBarBehavior.floating,
                               ),
@@ -384,13 +368,24 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: Text(
-                            _isFollowing ? 'Following' : 'Follow',
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
-                            ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _isFollowing ? Icons.bookmark_added_rounded : Icons.bookmark_add_outlined,
+                                size: 16,
+                                color: TeknoyTheme.citMaroon,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                _isFollowing ? 'Favorited' : 'Favorite Store',
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -424,14 +419,14 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                   ),
                   const SizedBox(height: 18),
 
-                  // 3 Stat Cards (RATING, FOLLOWERS, FOLLOWINGS)
+                  // 3 Real Stat Cards (RATING, PRODUCTS, VERIFIED WILDCAT)
                   Container(
                     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.22),
+                      color: Colors.black.withValues(alpha: 0.22),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white.withValues(alpha: 0.15),
                         width: 1,
                       ),
                     ),
@@ -441,14 +436,19 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                         Builder(
                           builder: (context) {
                             final summary = ref.watch(sellerRatingSummaryProvider(widget.sellerId));
-                            final ratingText = summary.total > 0 ? summary.average.toStringAsFixed(1) : _mockRating;
-                            return _buildHeaderStatItem(ratingText, 'RATING');
+                            final ratingText = summary.total > 0
+                                ? '${summary.average.toStringAsFixed(1)} ★'
+                                : '5.0 ★';
+                            final ratingLabel = summary.total > 0
+                                ? 'RATING (${summary.total})'
+                                : 'NEW SELLER';
+                            return _buildHeaderStatItem(ratingText, ratingLabel);
                           },
                         ),
                         _buildStatDivider(),
-                        _buildHeaderStatItem(_mockFollowers, 'FOLLOWERS'),
+                        _buildHeaderStatItem('$sellerProductsCount', 'PRODUCTS'),
                         _buildStatDivider(),
-                        _buildHeaderStatItem(_mockFollowings, 'FOLLOWINGS'),
+                        _buildHeaderStatItem('CIT-U', 'VERIFIED'),
                       ],
                     ),
                   ),
@@ -669,11 +669,11 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                       final product = sellerProducts[index];
                       return GestureDetector(
                         onTap: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (context) => ProductDetailsSheet(product: product),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ProductDetailView(product: product),
+                            ),
                           );
                         },
                         child: Container(
@@ -789,54 +789,25 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
   }
 
   Widget _buildProductCard(Product product, bool isDark, int index) {
-    // Show mock discount badge on select items for realistic campus storefront visual
-    final showDiscount = index % 3 == 0;
-    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                child: product.imageUrl != null && product.imageUrl!.isNotEmpty
-                    ? Image.network(
-                        product.imageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          color: TeknoyTheme.citMaroon.withOpacity(0.05),
-                          child: const Icon(Icons.broken_image_rounded, color: Colors.grey),
-                        ),
-                      )
-                    : Container(
-                        color: TeknoyTheme.citMaroon.withOpacity(0.05),
-                        child: const Icon(Icons.image_not_supported_rounded, color: Colors.grey),
-                      ),
-              ),
-              if (showDiscount)
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade700,
-                      borderRadius: BorderRadius.circular(6),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: product.imageUrl != null && product.imageUrl!.isNotEmpty
+                ? Image.network(
+                    product.imageUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      color: TeknoyTheme.citMaroon.withOpacity(0.05),
+                      child: const Icon(Icons.broken_image_rounded, color: Colors.grey),
                     ),
-                    child: const Text(
-                      '-25%',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                  )
+                : Container(
+                    color: TeknoyTheme.citMaroon.withOpacity(0.05),
+                    child: const Icon(Icons.image_not_supported_rounded, color: Colors.grey),
                   ),
-                ),
-            ],
           ),
         ),
         Padding(

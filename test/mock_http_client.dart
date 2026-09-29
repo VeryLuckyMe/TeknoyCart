@@ -97,7 +97,7 @@ class _MockHttpClientResponse extends Stream<List<int>> implements HttpClientRes
     0x00, 0x02, 0x02, 0x4c, 0x01, 0x00, 0x3b
   ];
 
-  static final List<int> _dummyJson = utf8.encode('[{"inquiry_id": "mock-inquiry-123", "id": "mock-id-123"}]');
+  static final List<int> _dummyJson = utf8.encode('[{"inquiry_id": "mock-inquiry-123", "id": "mock-id-123", "variant_id": "mock-variant-123"}]');
 
   @override
   StreamSubscription<List<int>> listen(

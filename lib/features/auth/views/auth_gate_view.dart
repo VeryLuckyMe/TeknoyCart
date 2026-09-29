@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme.dart';
 import '../providers/auth_provider.dart';
+import '../services/auth_service.dart';
 import 'widgets/email_verification_dialog.dart';
 import 'widgets/auth_password_sheets.dart';
 import 'widgets/auth_form_fields.dart';
@@ -24,6 +26,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _studentIdController = TextEditingController();
@@ -34,6 +37,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
   String _selectedRole = 'BUYER';
   String _selectedSellerType = 'STUDENT';
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
@@ -77,6 +81,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
     _fadeController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _studentIdController.dispose();
@@ -92,6 +97,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
       setState(() {
         _isLoginTab = isLogin;
         _registerStep = 0;
+        _confirmPasswordController.clear();
         _formKey.currentState?.reset();
       });
       _fadeController.forward();
@@ -125,16 +131,22 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
           return false;
         }
         if (_departmentController.text.trim().isEmpty) {
-          _showErrorSnackBar('Please enter your college/department affiliation');
+          _showErrorSnackBar('Please select your college/department affiliation');
           return false;
         }
       } else {
-        if (_studentIdController.text.trim().isEmpty) {
+        final idTrimmed = _studentIdController.text.trim();
+        if (idTrimmed.isEmpty) {
           _showErrorSnackBar('Please enter your Student ID');
           return false;
         }
+        final studentIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
+        if (!studentIdRegex.hasMatch(idTrimmed)) {
+          _showErrorSnackBar('Student ID must follow ##-####-### format (e.g. 21-1234-567)');
+          return false;
+        }
         if (_departmentController.text.trim().isEmpty) {
-          _showErrorSnackBar('Please enter your department code');
+          _showErrorSnackBar('Please select your department or school');
           return false;
         }
       }
@@ -179,7 +191,33 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
             );
       } catch (e) {
         if (mounted) {
+          // Catch unverified email specifically and open the friendly verification modal immediately
+          if (e is UnverifiedEmailException) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => EmailVerificationDialog(
+                email: e.email,
+                fullName: e.fullName,
+              ),
+            );
+            return;
+          }
           String msg = e.toString();
+          if (msg.contains('EMAIL_UNVERIFIED_PENDING:')) {
+            final parts = msg.replaceAll('EMAIL_UNVERIFIED_PENDING:', '').trim().split('|');
+            final email = parts.isNotEmpty ? parts[0] : _emailController.text.trim();
+            final fullName = parts.length > 1 ? parts[1] : 'Student';
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => EmailVerificationDialog(
+                email: email,
+                fullName: fullName,
+              ),
+            );
+            return;
+          }
           if (msg.contains('invalid_credentials') ||
               msg.contains('Invalid login credentials') ||
               msg.contains('400')) {
@@ -197,6 +235,11 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
     } else {
       if (!_validateStep(0) || !_validateStep(1)) return;
       if (!_formKey.currentState!.validate()) return;
+
+      if (_passwordController.text != _confirmPasswordController.text) {
+        _showErrorSnackBar('Passwords do not match. Please re-enter your password.');
+        return;
+      }
 
       try {
         final isOrg = _selectedRole == 'SELLER' && _selectedSellerType == 'ORG';
@@ -225,6 +268,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
             barrierDismissible: false,
             builder: (ctx) => EmailVerificationDialog(
               email: _emailController.text.trim(),
+              fullName: fullName,
             ),
           );
           _switchTab(true); // go to login after dialog is dismissed
@@ -399,6 +443,33 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                     // Step Progress Indicator
                                     if (!_isLoginTab) ...[
                                       Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            'Step ${_registerStep + 1} of 3',
+                                            style: const TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: TeknoyTheme.citGold,
+                                            ),
+                                          ),
+                                          Text(
+                                            _registerStep == 0
+                                                ? 'Role & Identity'
+                                                : _registerStep == 1
+                                                    ? 'Campus Details'
+                                                    : 'Account Credentials',
+                                            style: TextStyle(
+                                              fontFamily: 'Inter',
+                                              fontSize: 11,
+                                              color: subtitleColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
                                         children: List.generate(3, (index) {
                                           final active = index <= _registerStep;
                                           return Expanded(
@@ -415,7 +486,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                           );
                                         }),
                                       ),
-                                      const SizedBox(height: 24),
+                                      const SizedBox(height: 20),
                                     ],
 
                                     // LOGIN FORM
@@ -572,7 +643,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                                 role: 'BUYER',
                                                 selectedRole: _selectedRole,
                                                 title: 'Buyer',
-                                                desc: 'Browse & purchase',
+                                                desc: 'Browse & buy (can upgrade anytime)',
                                                 icon: Icons.shopping_bag_outlined,
                                                 onSelected: (val) => setState(() => _selectedRole = val),
                                               ),
@@ -583,7 +654,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                                 role: 'SELLER',
                                                 selectedRole: _selectedRole,
                                                 title: 'Seller',
-                                                desc: 'List & trade products',
+                                                desc: 'Sell items, plus browse & buy',
                                                 icon: Icons.storefront_outlined,
                                                 onSelected: (val) => setState(() => _selectedRole = val),
                                               ),
@@ -740,24 +811,194 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                             keyboardType: TextInputType.phone,
                                           ),
                                           const SizedBox(height: 16),
-                                          AuthInputField(
-                                            controller: _departmentController,
-                                            label: 'College / Dept. Affiliation (e.g. CCS)',
+                                          AuthDropdownField<String>(
+                                            value: citDepartmentOptions.any((opt) => opt.code == _departmentController.text.trim())
+                                                ? _departmentController.text.trim()
+                                                : null,
+                                            label: 'College / Dept. Affiliation',
+                                            hint: 'Select Department or School',
                                             icon: Icons.account_balance_outlined,
+                                            items: citDepartmentOptions.map((opt) {
+                                              return DropdownMenuItem<String>(
+                                                value: opt.code,
+                                                child: Text(
+                                                  opt.fullTitle,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontFamily: 'Inter',
+                                                    fontSize: 13,
+                                                    fontWeight: _departmentController.text.trim() == opt.code
+                                                        ? FontWeight.bold
+                                                        : FontWeight.normal,
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                            onChanged: (val) {
+                                              if (val != null) {
+                                                setState(() => _departmentController.text = val);
+                                              }
+                                            },
                                           ),
+                                          const SizedBox(height: 8),
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 6,
+                                            children: citDepartmentOptions.map((opt) {
+                                              final isSelected = _departmentController.text.trim().toUpperCase() == opt.code;
+                                              return GestureDetector(
+                                                onTap: () => setState(() => _departmentController.text = opt.code),
+                                                child: AnimatedContainer(
+                                                  duration: const Duration(milliseconds: 150),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                                  decoration: BoxDecoration(
+                                                    color: isSelected
+                                                        ? TeknoyTheme.citMaroon.withValues(alpha: 0.15)
+                                                        : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04)),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(
+                                                      color: isSelected
+                                                          ? TeknoyTheme.citMaroon
+                                                          : (isDark ? Colors.white12 : Colors.black12),
+                                                      width: isSelected ? 1.5 : 1,
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    opt.code,
+                                                    style: TextStyle(
+                                                      fontFamily: 'Inter',
+                                                      fontSize: 11,
+                                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                                      color: isSelected
+                                                          ? TeknoyTheme.citMaroon
+                                                          : (isDark ? Colors.white70 : Colors.black87),
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ),
+                                          if (_departmentController.text.trim().isNotEmpty &&
+                                              citDepartmentOptions.any((opt) => opt.code == _departmentController.text.trim())) ...[
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.check_circle_rounded, size: 14, color: Colors.green),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    citDepartmentOptions.firstWhere((o) => o.code == _departmentController.text.trim()).name,
+                                                    style: TextStyle(
+                                                      fontFamily: 'Inter',
+                                                      fontSize: 11.5,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: isDark ? Colors.white70 : Colors.black87,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ] else ...[
                                           AuthInputField(
                                             controller: _studentIdController,
                                             label: 'Student ID (##-####-###)',
                                             icon: Icons.badge_outlined,
                                             keyboardType: TextInputType.phone,
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter.digitsOnly,
+                                              StudentIdInputFormatter(),
+                                            ],
                                           ),
                                           const SizedBox(height: 16),
-                                          AuthInputField(
-                                            controller: _departmentController,
-                                            label: 'Department Code (e.g. CCS)',
+                                          AuthDropdownField<String>(
+                                            value: citDepartmentOptions.any((opt) => opt.code == _departmentController.text.trim())
+                                                ? _departmentController.text.trim()
+                                                : null,
+                                            label: 'Department / Academic Level',
+                                            hint: 'Select Department or School',
                                             icon: Icons.school_outlined,
+                                            items: citDepartmentOptions.map((opt) {
+                                              return DropdownMenuItem<String>(
+                                                value: opt.code,
+                                                child: Text(
+                                                  opt.fullTitle,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontFamily: 'Inter',
+                                                    fontSize: 13,
+                                                    fontWeight: _departmentController.text.trim() == opt.code
+                                                        ? FontWeight.bold
+                                                        : FontWeight.normal,
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                            onChanged: (val) {
+                                              if (val != null) {
+                                                setState(() => _departmentController.text = val);
+                                              }
+                                            },
                                           ),
+                                          const SizedBox(height: 8),
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 6,
+                                            children: citDepartmentOptions.map((opt) {
+                                              final isSelected = _departmentController.text.trim().toUpperCase() == opt.code;
+                                              return GestureDetector(
+                                                onTap: () => setState(() => _departmentController.text = opt.code),
+                                                child: AnimatedContainer(
+                                                  duration: const Duration(milliseconds: 150),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                                  decoration: BoxDecoration(
+                                                    color: isSelected
+                                                        ? TeknoyTheme.citMaroon.withValues(alpha: 0.15)
+                                                        : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04)),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(
+                                                      color: isSelected
+                                                          ? TeknoyTheme.citMaroon
+                                                          : (isDark ? Colors.white12 : Colors.black12),
+                                                      width: isSelected ? 1.5 : 1,
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    opt.code,
+                                                    style: TextStyle(
+                                                      fontFamily: 'Inter',
+                                                      fontSize: 11,
+                                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                                      color: isSelected
+                                                          ? TeknoyTheme.citMaroon
+                                                          : (isDark ? Colors.white70 : Colors.black87),
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ),
+                                          if (_departmentController.text.trim().isNotEmpty &&
+                                              citDepartmentOptions.any((opt) => opt.code == _departmentController.text.trim())) ...[
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.check_circle_rounded, size: 14, color: Colors.green),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    citDepartmentOptions.firstWhere((o) => o.code == _departmentController.text.trim()).name,
+                                                    style: TextStyle(
+                                                      fontFamily: 'Inter',
+                                                      fontSize: 11.5,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: isDark ? Colors.white70 : Colors.black87,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ],
                                         const SizedBox(height: 24),
                                         Row(
@@ -859,6 +1100,61 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                             }
                                             if (val.length < 6) {
                                               return 'Password must be at least 6 characters';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                _passwordController.text.length >= 6
+                                                    ? Icons.check_circle_rounded
+                                                    : Icons.info_outline_rounded,
+                                                size: 13,
+                                                color: _passwordController.text.length >= 6
+                                                    ? Colors.green
+                                                    : (isDark ? Colors.white54 : Colors.black45),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Must be at least 6 characters',
+                                                style: TextStyle(
+                                                  fontFamily: 'Inter',
+                                                  fontSize: 11,
+                                                  color: _passwordController.text.length >= 6
+                                                      ? Colors.green
+                                                      : (isDark ? Colors.white54 : Colors.black45),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        AuthInputField(
+                                          controller: _confirmPasswordController,
+                                          label: 'Confirm Password',
+                                          icon: Icons.lock_clock_outlined,
+                                          obscureText: _obscureConfirmPassword,
+                                          suffixIcon: IconButton(
+                                            icon: Icon(
+                                              _obscureConfirmPassword
+                                                  ? Icons.visibility_off_outlined
+                                                  : Icons.visibility_outlined,
+                                              color: isDark ? Colors.white60 : Colors.black54,
+                                              size: 20,
+                                            ),
+                                            onPressed: () =>
+                                                setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                                          ),
+                                          validator: (val) {
+                                            if (val == null || val.isEmpty) {
+                                              return 'Please confirm your password';
+                                            }
+                                            if (val != _passwordController.text) {
+                                              return 'Passwords do not match';
                                             }
                                             return null;
                                           },

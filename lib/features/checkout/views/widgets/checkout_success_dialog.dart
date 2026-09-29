@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme.dart';
+import '../order_history_view.dart';
 
 class CheckoutSuccessDialog extends StatelessWidget {
   final bool isPreorder;
   final double totalPrice;
+  final VoidCallback? onViewOrders;
 
   const CheckoutSuccessDialog({
     super.key,
     required this.isPreorder,
     required this.totalPrice,
+    this.onViewOrders,
   });
 
   static Future<void> show(
     BuildContext context, {
     required bool isPreorder,
     required double totalPrice,
+    VoidCallback? onViewOrders,
   }) {
     return showDialog(
       context: context,
@@ -22,6 +26,7 @@ class CheckoutSuccessDialog extends StatelessWidget {
       builder: (context) => CheckoutSuccessDialog(
         isPreorder: isPreorder,
         totalPrice: totalPrice,
+        onViewOrders: onViewOrders,
       ),
     );
   }
@@ -112,20 +117,45 @@ class CheckoutSuccessDialog extends StatelessWidget {
         ],
       ),
       actions: [
-        ElevatedButton(
+        OutlinedButton(
           onPressed: () {
-            Navigator.pop(context);
-            Navigator.pop(context);
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          },
+          style: OutlinedButton.styleFrom(
+            foregroundColor: isDark ? Colors.white70 : const Color(0xFF5A413D),
+            side: BorderSide(
+              color: isDark ? Colors.white24 : const Color(0xFFD0C3C0),
+            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          child: const Text(
+            'Back to Feed',
+            style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600, fontSize: 13),
+          ),
+        ),
+        ElevatedButton.icon(
+          onPressed: () {
+            Navigator.of(context).pop(); // dismiss dialog
+            if (onViewOrders != null) {
+              onViewOrders!();
+            } else {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const OrderHistoryView()),
+              );
+            }
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: TeknoyTheme.citMaroon,
             foregroundColor: Colors.white,
+            elevation: 2,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           ),
-          child: const Text(
-            'Back to Feed',
-            style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+          icon: const Icon(Icons.receipt_long_rounded, size: 16),
+          label: const Text(
+            'View Order Details',
+            style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
           ),
         ),
       ],

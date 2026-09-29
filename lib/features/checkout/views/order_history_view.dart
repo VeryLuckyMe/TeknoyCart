@@ -8,7 +8,8 @@ import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
 /// Orders Hub — unified view for buyers ("My Purchases") and sellers ("Incoming Orders").
 /// Shows full order details including buyer/seller name, pickup schedule, payment method, and action buttons.
 class OrderHistoryView extends ConsumerStatefulWidget {
-  const OrderHistoryView({super.key});
+  final bool embedded;
+  const OrderHistoryView({super.key, this.embedded = false});
 
   @override
   ConsumerState<OrderHistoryView> createState() => _OrderHistoryViewState();
@@ -16,23 +17,65 @@ class OrderHistoryView extends ConsumerStatefulWidget {
 
 class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+  TabController? _tabController;
   bool _isLoadingBuyer = true;
-  bool _isLoadingSeller = true;
+  bool _isLoadingSeller = false;
   List<Map<String, dynamic>> _buyerOrders = [];
   List<Map<String, dynamic>> _sellerOrders = [];
+  bool _isSeller = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _fetchBuyerOrders();
+    _resolveUserRole();
+  }
+
+  Future<void> _resolveUserRole() async {
+    final user = ref.read(authStateProvider).valueOrNull;
+    if (user != null && user.isSeller) {
+      _initSellerMode();
+      return;
+    }
+
+    // Defensive check on Supabase auth user metadata (must be SELLER and is_seller_verified == true)
+    final metaRole = SupabaseConfig.client.auth.currentUser?.userMetadata?['role'] as String?;
+    final metaVerified = SupabaseConfig.client.auth.currentUser?.userMetadata?['is_seller_verified'] as bool? ?? false;
+    if (metaRole != null && metaRole.toUpperCase() == 'SELLER' && metaVerified) {
+      _initSellerMode();
+      return;
+    }
+
+    // Direct database verification check in 'users' table (must be SELLER and is_seller_verified == true)
+    final targetUserId = user?.id ?? SupabaseConfig.client.auth.currentUser?.id;
+    if (targetUserId != null) {
+      try {
+        final res = await SupabaseConfig.client
+            .from('users')
+            .select('role, is_seller_verified')
+            .eq('user_id', targetUserId)
+            .maybeSingle();
+        final role = res?['role']?.toString().toUpperCase();
+        final isVerified = res?['is_seller_verified'] == true;
+        if (role == 'SELLER' && isVerified) {
+          _initSellerMode();
+        }
+      } catch (_) {}
+    }
+  }
+
+  void _initSellerMode() {
+    if (!mounted) return;
+    setState(() {
+      _isSeller = true;
+      _tabController = TabController(length: 2, vsync: this);
+    });
     _fetchSellerOrders();
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _tabController?.dispose();
     super.dispose();
   }
 
@@ -435,47 +478,98 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final user = ref.watch(authStateProvider).valueOrNull;
+    final isSellerUser = _isSeller || (user?.isSeller ?? false);
+
+    // Pure Student Buyer or Unverified/Pending Seller: Focused entirely on purchases without confusing incoming seller tabs
+    if (!isSellerUser) {
+      final buyerList = _buildBuyerPurchasesList(isDark);
+      if (widget.embedded) {
+        return buyerList;
+      }
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'My Purchases',
+            style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+          ),
+          centerTitle: true,
+        ),
+        body: buyerList,
+      );
+    }
+
+    // Verified Campus Seller: Unified Orders Hub with both purchases and incoming customer orders
     final pendingCount = _pendingSellerCount;
+    final controller = _tabController ?? TabController(length: 2, vsync: this);
+
+    final tabBar = TabBar(
+      controller: controller,
+      indicatorColor: TeknoyTheme.citMaroon,
+      indicatorWeight: 3,
+      labelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
+      unselectedLabelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w500, fontSize: 14),
+      labelColor: TeknoyTheme.citMaroon,
+      unselectedLabelColor: isDark ? Colors.white54 : Colors.black54,
+      tabs: [
+        const Tab(text: 'My Purchases'),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Incoming Orders'),
+              if (pendingCount > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(10)),
+                  child: Text(
+                    '$pendingCount',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final tabViews = TabBarView(
+      controller: controller,
+      children: [
+        _buildBuyerPurchasesList(isDark),
+        _buildSellerOrdersList(isDark),
+      ],
+    );
+
+    if (widget.embedded) {
+      return Column(
+        children: [
+          Container(
+            color: isDark ? const Color(0xFF0F0F12) : Colors.white,
+            child: tabBar,
+          ),
+          Expanded(child: tabViews),
+        ],
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Orders Hub', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: TeknoyTheme.citMaroon,
-          labelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
-          unselectedLabelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w500, fontSize: 14),
-          labelColor: TeknoyTheme.citMaroon,
-          unselectedLabelColor: isDark ? Colors.white54 : Colors.black54,
-          tabs: [
-            const Tab(text: 'My Purchases'),
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Incoming Orders'),
-                  if (pendingCount > 0) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(10)),
-                      child: Text('$pendingCount', style: const TextStyle(fontFamily: 'Outfit', fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
+        title: const Text(
+          'Orders Hub',
+          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
         ),
+        centerTitle: true,
+        bottom: tabBar,
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildBuyerPurchasesList(isDark),
-          _buildSellerOrdersList(isDark),
-        ],
-      ),
+      body: tabViews,
     );
   }
 
