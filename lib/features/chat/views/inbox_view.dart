@@ -96,49 +96,78 @@ class _InboxViewState extends ConsumerState<InboxView> {
           .or('buyer_id.eq.${currentUser.id},seller_id.eq.${currentUser.id}');
 
       final chatData = response as List<dynamic>;
-      final List<Map<String, dynamic>> rooms = [];
 
-      for (var rawRoom in chatData) {
-        final String chatId = rawRoom['chat_id'] as String;
+      // 1. Filter valid rooms first (skipping deleted rooms & rooms with missing product data)
+      final validRooms = <Map<String, dynamic>>[];
+      for (final raw in chatData) {
+        final rawRoom = raw as Map<String, dynamic>;
         final String buyerId = rawRoom['buyer_id'] as String;
         final String sellerId = rawRoom['seller_id'] as String;
-        
         final bool deletedByBuyer = rawRoom['deleted_by_buyer'] as bool? ?? false;
         final bool deletedBySeller = rawRoom['deleted_by_seller'] as bool? ?? false;
 
-        // Skip chat rooms soft-deleted by the current user
+        // Skip chat rooms soft-deleted by current user
         if (currentUser.id == buyerId && deletedByBuyer) continue;
         if (currentUser.id == sellerId && deletedBySeller) continue;
-        
+
         final inquiry = rawRoom['inquiries'];
         if (inquiry == null) continue;
-        
+
         final productData = inquiry['products'];
         if (productData == null) continue;
 
-        // Fetch other participant details
-        final otherUserId = currentUser.id == buyerId ? sellerId : buyerId;
-        final otherUserRes = await client
-            .from('users')
-            .select('full_name, email')
-            .eq('user_id', otherUserId)
-            .maybeSingle();
+        validRooms.add(rawRoom);
+      }
 
-        final otherUserName = otherUserRes != null 
-            ? otherUserRes['full_name'] as String? ?? 'Wildcat Student'
-            : 'Wildcat Student';
+      // 2. Batch fetch participant details in a single query instead of N serial queries
+      final otherUserIds = validRooms.map((r) {
+        final buyerId = r['buyer_id'] as String;
+        final sellerId = r['seller_id'] as String;
+        return currentUser.id == buyerId ? sellerId : buyerId;
+      }).toSet().toList();
 
-        // Fetch last message content
-        final lastMsgRes = await client
+      final Map<String, String> userNames = {};
+      if (otherUserIds.isNotEmpty) {
+        try {
+          final usersRes = await client
+              .from('users')
+              .select('user_id, full_name')
+              .filter('user_id', 'in', otherUserIds);
+          for (final u in (usersRes as List)) {
+            userNames[u['user_id'].toString()] = u['full_name'] as String? ?? 'Wildcat Student';
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fetch latest messages concurrently in parallel
+      final messageFutures = validRooms.map((r) {
+        final chatId = r['chat_id'] as String;
+        return client
             .from('messages')
             .select('content, sent_at')
             .eq('chat_id', chatId)
             .order('sent_at', ascending: false)
             .limit(1)
-            .maybeSingle();
+            .maybeSingle()
+            .catchError((_) => null);
+      }).toList();
 
+      final messageResults = await Future.wait(messageFutures);
+
+      final List<Map<String, dynamic>> rooms = [];
+      for (int i = 0; i < validRooms.length; i++) {
+        final rawRoom = validRooms[i];
+        final String chatId = rawRoom['chat_id'] as String;
+        final String buyerId = rawRoom['buyer_id'] as String;
+        final String sellerId = rawRoom['seller_id'] as String;
+        final productData = rawRoom['inquiries']['products'];
+
+        final otherUserId = currentUser.id == buyerId ? sellerId : buyerId;
+        final otherUserName = userNames[otherUserId] ?? 'Wildcat Student';
+
+        final lastMsgRes = messageResults[i];
         final String lastMessage = lastMsgRes != null
-            ? lastMsgRes['content'] as String? ?? 'No messages yet'
+            ? (lastMsgRes['content'] as String? ?? 'No messages yet')
             : 'No messages yet';
 
         // Parse Product

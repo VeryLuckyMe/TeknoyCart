@@ -114,20 +114,32 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
           .eq('buyer_id', user.id)
           .order('created_at', ascending: false);
 
-      // Enrich each order with seller info
-      final List<Map<String, dynamic>> enriched = [];
-      for (final order in (response as List)) {
-        final o = Map<String, dynamic>.from(order);
+      final List<dynamic> ordersList = response as List;
+      final Set<String> sellerIds = ordersList
+          .map((o) => o['seller_id']?.toString())
+          .whereType<String>()
+          .toSet();
+
+      final Map<String, Map<String, dynamic>> sellerMap = {};
+      if (sellerIds.isNotEmpty) {
         try {
           final sellerRes = await SupabaseConfig.client
               .from('users')
-              .select('full_name, contact, gcash_number')
-              .eq('user_id', o['seller_id'])
-              .maybeSingle();
-          o['seller_name'] = sellerRes?['full_name'] ?? 'Seller';
-          o['seller_contact'] = sellerRes?['contact'];
-          o['seller_gcash'] = sellerRes?['gcash_number'];
+              .select('user_id, full_name, contact, gcash_number')
+              .filter('user_id', 'in', sellerIds.toList());
+          for (final s in (sellerRes as List)) {
+            sellerMap[s['user_id'].toString()] = Map<String, dynamic>.from(s);
+          }
         } catch (_) {}
+      }
+
+      final List<Map<String, dynamic>> enriched = [];
+      for (final order in ordersList) {
+        final o = Map<String, dynamic>.from(order);
+        final seller = sellerMap[o['seller_id']?.toString()];
+        o['seller_name'] = seller?['full_name'] ?? 'Seller';
+        o['seller_contact'] = seller?['contact'];
+        o['seller_gcash'] = seller?['gcash_number'];
         enriched.add(o);
       }
 
@@ -176,19 +188,31 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
           .eq('seller_id', user.id)
           .order('created_at', ascending: false);
 
-      // Enrich each order with buyer info
-      final List<Map<String, dynamic>> enriched = [];
-      for (final order in (response as List)) {
-        final o = Map<String, dynamic>.from(order);
+      final List<dynamic> ordersList = response as List;
+      final Set<String> buyerIds = ordersList
+          .map((o) => o['buyer_id']?.toString())
+          .whereType<String>()
+          .toSet();
+
+      final Map<String, Map<String, dynamic>> buyerMap = {};
+      if (buyerIds.isNotEmpty) {
         try {
           final buyerRes = await SupabaseConfig.client
               .from('users')
-              .select('full_name, contact')
-              .eq('user_id', o['buyer_id'])
-              .maybeSingle();
-          o['buyer_name'] = buyerRes?['full_name'] ?? 'Buyer';
-          o['buyer_contact'] = buyerRes?['contact'];
+              .select('user_id, full_name, contact')
+              .filter('user_id', 'in', buyerIds.toList());
+          for (final b in (buyerRes as List)) {
+            buyerMap[b['user_id'].toString()] = Map<String, dynamic>.from(b);
+          }
         } catch (_) {}
+      }
+
+      final List<Map<String, dynamic>> enriched = [];
+      for (final order in ordersList) {
+        final o = Map<String, dynamic>.from(order);
+        final buyer = buyerMap[o['buyer_id']?.toString()];
+        o['buyer_name'] = buyer?['full_name'] ?? 'Buyer';
+        o['buyer_contact'] = buyer?['contact'];
         enriched.add(o);
       }
 
