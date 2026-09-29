@@ -48,3 +48,11 @@ app.*.map.json
 node_modules/
 package-lock.json
 
+# Secrets, Keystores & Environment
+.env*
+*.jks
+*.keystore
+*.key
+*.pem
+*.p12
+
