@@ -2711,8 +2711,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
 
           // Price & Condition row
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
+                flex: 4,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2725,29 +2727,52 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                         hintText: 'e.g. 450',
                         prefixText: '₱ ',
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Expanded(
+                flex: 5,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       _sellCategory == 'Food & Beverages' ? 'Freshness & Prep *' : 'Condition *',
                       style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      isDense: true,
                       value: (_sellCategory == 'Food & Beverages' ? _foodConditionOptions : _generalConditionOptions).contains(_sellCondition)
                           ? _sellCondition
                           : (_sellCategory == 'Food & Beverages' ? _foodConditionOptions.first : _generalConditionOptions.first),
                       items: (_sellCategory == 'Food & Beverages' ? _foodConditionOptions : _generalConditionOptions)
-                          .map((val) => DropdownMenuItem(value: val, child: Text(val, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13))))
+                          .map((val) => DropdownMenuItem(
+                                value: val,
+                                child: Text(
+                                  val,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12.5, fontFamily: 'Inter'),
+                                ),
+                              ))
                           .toList(),
+                      selectedItemBuilder: (context) {
+                        return (_sellCategory == 'Food & Beverages' ? _foodConditionOptions : _generalConditionOptions).map((val) {
+                          return Text(
+                            val,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12.5, fontFamily: 'Inter'),
+                          );
+                        }).toList();
+                      },
                       onChanged: (val) {
                         if (val != null) {
                           setState(() => _sellCondition = val);
@@ -2755,7 +2780,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                       },
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       ),
                     ),
                   ],
@@ -2904,10 +2929,20 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           const Text('Category *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
+            isExpanded: true,
+            isDense: true,
             value: _sellCategory,
             items: ref.watch(sellCategoriesProvider)
-                .map((val) => DropdownMenuItem(value: val, child: Text(val)))
+                .map((val) => DropdownMenuItem(
+                      value: val,
+                      child: Text(val, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'Inter', fontSize: 13)),
+                    ))
                 .toList(),
+            selectedItemBuilder: (context) {
+              return ref.watch(sellCategoriesProvider).map((val) {
+                return Text(val, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'Inter', fontSize: 13));
+              }).toList();
+            },
             onChanged: (val) {
               if (val != null && val != _sellCategory) {
                 // Clear previous attribute controllers when category changes
