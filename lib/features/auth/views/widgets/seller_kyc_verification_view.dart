@@ -189,74 +189,111 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
   void _showHonorCodeBottomSheet(BuildContext context, bool isDark) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: isDark ? const Color(0xFF18181C) : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.gavel_rounded, color: TeknoyTheme.citMaroon, size: 24),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Campus Vendor Agreement',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87,
+        return SafeArea(
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.85,
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top drag pill handle
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: (isDark ? Colors.white : Colors.black).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _buildAgreementItem(
-                Icons.verified_outlined,
-                'Prohibited Goods Policy',
-                'Listing illicit items, weapons, tobacco/vape products, leaked exam keys, or non-academic unauthorized services is strictly forbidden.',
-                isDark,
-              ),
-              const SizedBox(height: 12),
-              _buildAgreementItem(
-                Icons.location_on_outlined,
-                'Safe Campus Handover',
-                'All transaction handovers and peer exchanges must occur within designated public CIT-U campus zones (e.g. Canteen, SAL Lobby, Library, Gate 1).',
-                isDark,
-              ),
-              const SizedBox(height: 12),
-              _buildAgreementItem(
-                Icons.privacy_tip_outlined,
-                'Zero-Retention Privacy (RA 10173)',
-                'Your identification and biometric selfie are used exclusively for verification and are wiped from server storage once approved or rejected.',
-                isDark,
-              ),
-              const SizedBox(height: 12),
-              _buildAgreementItem(
-                Icons.school_outlined,
-                'Student Handbook Enforcement',
-                'Fraudulent behavior or willful misrepresentation of items will result in immediate shop termination and disciplinary referral.',
-                isDark,
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: TeknoyTheme.citMaroon,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('I Understand', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
                 ),
-              ),
-            ],
+                Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: TeknoyTheme.citMaroon.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.gavel_rounded, color: TeknoyTheme.citMaroon, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Campus Vendor Agreement',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Flexible(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      children: [
+                        _buildAgreementItem(
+                          Icons.verified_outlined,
+                          'Prohibited Goods Policy',
+                          'Listing illicit items, weapons, tobacco/vape products, leaked exam keys, or non-academic unauthorized services is strictly forbidden.',
+                          isDark,
+                        ),
+                        const SizedBox(height: 14),
+                        _buildAgreementItem(
+                          Icons.location_on_outlined,
+                          'Safe Campus Handover',
+                          'All transaction handovers and peer exchanges must occur within designated public CIT-U campus zones (e.g. Canteen, SAL Lobby, Library, Gate 1).',
+                          isDark,
+                        ),
+                        const SizedBox(height: 14),
+                        _buildAgreementItem(
+                          Icons.privacy_tip_outlined,
+                          'Zero-Retention Privacy (RA 10173)',
+                          'Your identification and biometric selfie are used exclusively for verification and are wiped from server storage once approved or rejected.',
+                          isDark,
+                        ),
+                        const SizedBox(height: 14),
+                        _buildAgreementItem(
+                          Icons.school_outlined,
+                          'Student Handbook Enforcement',
+                          'Fraudulent behavior or willful misrepresentation of items will result in immediate shop termination and disciplinary referral.',
+                          isDark,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: TeknoyTheme.citMaroon,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('I Understand', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -267,8 +304,21 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: TeknoyTheme.citGold),
-        const SizedBox(width: 10),
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: TeknoyTheme.citGold.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: TeknoyTheme.citGold.withOpacity(0.25),
+              width: 1,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Icon(icon, size: 18, color: TeknoyTheme.citGold),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,19 +327,19 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                 title,
                 style: TextStyle(
                   fontFamily: 'Outfit',
-                  fontSize: 13,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.bold,
                   color: isDark ? Colors.white : Colors.black87,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Text(
                 body,
                 style: TextStyle(
                   fontFamily: 'Inter',
                   fontSize: 11.5,
                   color: isDark ? Colors.white70 : Colors.black54,
-                  height: 1.35,
+                  height: 1.4,
                 ),
               ),
             ],
@@ -298,6 +348,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
       ],
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -734,8 +785,12 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
 
   Widget _buildMicroCommitment(IconData icon, String text, bool isDark) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 14, color: isDark ? Colors.white54 : Colors.black45),
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(icon, size: 14, color: isDark ? Colors.white54 : Colors.black45),
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -744,6 +799,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
               fontFamily: 'Inter',
               fontSize: 11,
               color: isDark ? Colors.white60 : Colors.black54,
+              height: 1.35,
             ),
           ),
         ),
@@ -778,8 +834,21 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: hasFile ? const Color(0xFF10B981) : TeknoyTheme.citMaroon),
-              const SizedBox(width: 10),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: (hasFile ? const Color(0xFF10B981) : TeknoyTheme.citMaroon).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: hasFile ? const Color(0xFF10B981) : TeknoyTheme.citMaroon,
+                ),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   title,
@@ -791,6 +860,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                   ),
                 ),
               ),
+
               if (hasFile)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
