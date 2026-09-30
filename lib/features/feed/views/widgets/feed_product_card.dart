@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/product.dart';
 import '../../../../core/theme.dart';
 import '../../providers/review_provider.dart';
+import '../search_results_view.dart';
 
 class FeedProductCard extends StatefulWidget {
   final Product product;
@@ -377,27 +378,43 @@ class _FeedProductCardState extends State<FeedProductCard> {
                                       runSpacing: 2,
                                       children: product.categoryAttributes
                                           .take(2)
-                                          .map((attr) => Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                                decoration: BoxDecoration(
-                                                  color: isDark
-                                                      ? Colors.white.withValues(alpha: 0.06)
-                                                      : const Color(0xFFF0EDF5),
+                                          .map((attr) => Material(
+                                                color: Colors.transparent,
+                                                child: InkWell(
                                                   borderRadius: BorderRadius.circular(5),
-                                                  border: Border.all(
-                                                    color: isDark
-                                                        ? Colors.white.withValues(alpha: 0.08)
-                                                        : const Color(0xFFDDD8E6),
-                                                    width: 0.5,
-                                                  ),
-                                                ),
-                                                child: Text(
-                                                  '${attr.name}: ${attr.value}',
-                                                  style: TextStyle(
-                                                    fontFamily: 'Inter',
-                                                    fontSize: 8,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: isDark ? Colors.white54 : const Color(0xFF5A4978),
+                                                  onTap: () {
+                                                    Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (_) => SearchResultsView(
+                                                          initialQuery: attr.value,
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                    decoration: BoxDecoration(
+                                                      color: isDark
+                                                          ? Colors.white.withValues(alpha: 0.06)
+                                                          : const Color(0xFFF0EDF5),
+                                                      borderRadius: BorderRadius.circular(5),
+                                                      border: Border.all(
+                                                        color: isDark
+                                                            ? Colors.white.withValues(alpha: 0.08)
+                                                            : const Color(0xFFDDD8E6),
+                                                        width: 0.5,
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      '${attr.name}: ${attr.value}',
+                                                      style: TextStyle(
+                                                        fontFamily: 'Inter',
+                                                        fontSize: 8,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: isDark ? Colors.white54 : const Color(0xFF5A4978),
+                                                      ),
+                                                    ),
                                                   ),
                                                 ),
                                               ))

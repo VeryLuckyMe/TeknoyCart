@@ -75,6 +75,8 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
   final Map<String, String> _attrSelectValues = {};
   final Map<String, Set<String>> _attrMultiSelectValues = {};
   final Map<String, TextEditingController> _customAttrControllers = {};
+  final Map<String, List<String>> _customAttributeOptions = {};
+  bool _isDetailsAccordionExpanded = false;
 
   // Variants & Matrix
   final Map<String, _VariantEditItem> _variantMatrix = {};
@@ -858,14 +860,131 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                       final specTemplates = templates.where((t) => !t.isMultiSelect).toList();
                       if (specTemplates.isEmpty) return const SizedBox.shrink();
 
+                      // Split into primary (1-tap pill chips / top suggestions) & secondary (collapsible accordion)
+                      final primaryConfig = primaryCategoryAttributeNames[_categoryName] ?? [];
+                      final effectivePrimary = specTemplates
+                          .where((t) => primaryConfig.contains(t.name))
+                          .toList();
+                      final effectiveSecondary = specTemplates
+                          .where((t) => !primaryConfig.contains(t.name))
+                          .toList();
+
+                      // Count how many secondary attributes are filled
+                      int filledSecondaryCount = 0;
+                      for (final sec in effectiveSecondary) {
+                        final val = sec.type == 'select'
+                            ? _attrSelectValues[sec.name]
+                            : _attrTextControllers[sec.name]?.text.trim();
+                        if (val != null && val.isNotEmpty) {
+                          filledSecondaryCount++;
+                        }
+                      }
+
                       return _buildSectionCard(
                         isDark: isDark,
-                        title: 'Specifications',
-                        subtitle: 'Help buyers discover your item by specifying attributes',
+                        title: '$_categoryName Specifications',
+                        subtitle: 'Tap quick options below to speed up buyer discovery',
                         icon: Icons.list_alt_rounded,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: specTemplates.map((t) => _buildAttributeField(t, isDark)).toList(),
+                          children: [
+                            // 1. Primary Attributes (1-Tap Chips)
+                            ...effectivePrimary.map((t) => _buildAttributeField(t, isDark, isPrimary: true)),
+
+                            // 2. Secondary Attributes (Collapsible Accordion)
+                            if (effectiveSecondary.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF16161D) : const Color(0xFFF8F8FA),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: _isDetailsAccordionExpanded
+                                        ? TeknoyTheme.citMaroon.withOpacity(0.35)
+                                        : (isDark ? Colors.white10 : Colors.black.withOpacity(0.08)),
+                                    width: _isDetailsAccordionExpanded ? 1.4 : 1.0,
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap: () => setState(() => _isDetailsAccordionExpanded = !_isDetailsAccordionExpanded),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              _isDetailsAccordionExpanded ? Icons.tune_rounded : Icons.add_circle_outline_rounded,
+                                              size: 18,
+                                              color: TeknoyTheme.citMaroon,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                'More $_categoryName Details (Optional)',
+                                                style: TextStyle(
+                                                  fontFamily: 'Outfit',
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13,
+                                                  color: isDark ? Colors.white : Colors.black87,
+                                                ),
+                                              ),
+                                            ),
+                                            if (filledSecondaryCount > 0)
+                                              Container(
+                                                margin: const EdgeInsets.only(right: 8),
+                                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: TeknoyTheme.citMaroon.withOpacity(0.12),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  '$filledSecondaryCount added',
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Inter',
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: TeknoyTheme.citMaroon,
+                                                  ),
+                                                ),
+                                              ),
+                                            AnimatedRotation(
+                                              turns: _isDetailsAccordionExpanded ? 0.5 : 0.0,
+                                              duration: const Duration(milliseconds: 200),
+                                              child: Icon(
+                                                Icons.keyboard_arrow_down_rounded,
+                                                size: 20,
+                                                color: isDark ? Colors.white54 : Colors.black45,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    AnimatedCrossFade(
+                                      firstChild: const SizedBox.shrink(),
+                                      secondChild: Padding(
+                                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Divider(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06), height: 1),
+                                            const SizedBox(height: 14),
+                                            ...effectiveSecondary.map((t) => _buildAttributeField(t, isDark, isPrimary: false)),
+                                          ],
+                                        ),
+                                      ),
+                                      crossFadeState: _isDetailsAccordionExpanded
+                                          ? CrossFadeState.showSecond
+                                          : CrossFadeState.showFirst,
+                                      duration: const Duration(milliseconds: 220),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       );
                     },
@@ -1324,6 +1443,38 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
     );
   }
 
+  void _showAddCustomSpecificationDialog(String templateName) {
+    final ctrl = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Text('Add Custom $templateName', style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Outfit')),
+        content: TextField(
+          controller: ctrl,
+          decoration: InputDecoration(hintText: 'e.g. $templateName name'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: TeknoyTheme.citMaroon),
+            onPressed: () {
+              final val = ctrl.text.trim();
+              if (val.isNotEmpty) {
+                setState(() {
+                  final list = _customAttributeOptions.putIfAbsent(templateName, () => <String>[]);
+                  if (!list.contains(val)) list.add(val);
+                  _attrSelectValues[templateName] = val;
+                });
+                Navigator.pop(dCtx);
+              }
+            },
+            child: const Text('Add & Select', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildVariantRow(_VariantEditItem item, bool isDark) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1412,26 +1563,145 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
     );
   }
 
-  Widget _buildAttributeField(CategoryAttributeTemplate t, bool isDark) {
+  Widget _buildAttributeField(CategoryAttributeTemplate t, bool isDark, {required bool isPrimary}) {
     if (t.type == 'select') {
-      final current = _attrSelectValues[t.name] ?? (t.options.isNotEmpty ? t.options.first : '');
+      final currentValue = _attrSelectValues[t.name];
+      final customOptions = _customAttributeOptions.putIfAbsent(t.name, () => <String>[]);
+      if (currentValue != null && currentValue.isNotEmpty && !t.options.contains(currentValue) && !customOptions.contains(currentValue)) {
+        customOptions.add(currentValue);
+      }
+      final allOptions = [...t.options, ...customOptions];
+
       return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.only(bottom: 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildLabel(t.name),
-            DropdownButtonFormField<String>(
-              initialValue: t.options.contains(current) ? current : (t.options.isNotEmpty ? t.options.first : null),
-              decoration: _inputDecoration(isDark: isDark),
-              items: t.options
-                  .map((opt) => DropdownMenuItem(value: opt, child: Text(opt)))
-                  .toList(),
-              onChanged: (val) {
-                if (val != null) {
-                  setState(() => _attrSelectValues[t.name] = val);
-                }
-              },
+            Row(
+              children: [
+                _buildLabel(t.name),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Optional',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.white54 : Colors.black45,
+                    ),
+                  ),
+                ),
+                if (currentValue != null && currentValue.isNotEmpty) ...[
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => setState(() => _attrSelectValues.remove(t.name)),
+                    child: Text(
+                      'Clear',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 11,
+                        color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...allOptions.map((opt) {
+                  final isSelected = currentValue == opt;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () {
+                      setState(() {
+                        if (isSelected) {
+                          _attrSelectValues.remove(t.name);
+                        } else {
+                          _attrSelectValues[t.name] = opt;
+                        }
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7.5),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? TeknoyTheme.citMaroon
+                            : (isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? TeknoyTheme.citMaroon
+                              : (isDark ? Colors.white12 : Colors.black12),
+                          width: isSelected ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isSelected) ...[
+                            const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            opt,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12.5,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: isSelected
+                                  ? Colors.white
+                                  : (isDark ? Colors.white : Colors.black87),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => _showAddCustomSpecificationDialog(t.name),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7.5),
+                    decoration: BoxDecoration(
+                      color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.05),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: TeknoyTheme.citMaroon.withOpacity(0.4),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add_rounded, size: 14, color: TeknoyTheme.citMaroon),
+                        SizedBox(width: 4),
+                        Text(
+                          '+ Other',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: TeknoyTheme.citMaroon,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1441,15 +1711,119 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
         t.name,
         () => TextEditingController(text: _attrSelectValues[t.name] ?? ''),
       );
+      final suggestions = primaryAttributeQuickSuggestions[_categoryName]?[t.name] ?? [];
+
       return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.only(bottom: 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildLabel(t.name),
+            Row(
+              children: [
+                _buildLabel(t.name),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Optional',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.white54 : Colors.black45,
+                    ),
+                  ),
+                ),
+                if (suggestions.isNotEmpty) ...[
+                  const Spacer(),
+                  Text(
+                    '1-Tap Suggestions',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            if (suggestions.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: suggestions.map((sug) {
+                  final isMatch = ctrl.text.trim().toLowerCase() == sug.toLowerCase();
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () {
+                      setState(() {
+                        if (isMatch) {
+                          ctrl.clear();
+                        } else {
+                          ctrl.text = sug;
+                        }
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isMatch
+                            ? TeknoyTheme.citMaroon
+                            : (isDark ? const Color(0xFF191922) : const Color(0xFFF1F1F5)),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isMatch
+                              ? TeknoyTheme.citMaroon
+                              : (isDark ? Colors.white12 : Colors.black12),
+                          width: isMatch ? 1.4 : 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isMatch) ...[
+                            const Icon(Icons.check_rounded, size: 13, color: Colors.white),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            sug,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12,
+                              fontWeight: isMatch ? FontWeight.bold : FontWeight.w500,
+                              color: isMatch ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 6),
+            ],
+            const SizedBox(height: 6),
             TextFormField(
               controller: ctrl,
-              decoration: _inputDecoration(hintText: t.placeholder, isDark: isDark),
+              onChanged: (_) => setState(() {}),
+              decoration: _inputDecoration(
+                hintText: t.placeholder,
+                isDark: isDark,
+              ).copyWith(
+                suffixIcon: ctrl.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded, size: 16),
+                        onPressed: () => setState(() => ctrl.clear()),
+                      )
+                    : null,
+              ),
             ),
           ],
         ),

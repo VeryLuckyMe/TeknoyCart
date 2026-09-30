@@ -262,6 +262,57 @@ const Map<String, List<CategoryAttributeTemplate>> _fallbackTemplates = {
   ],
 };
 
+/// Defines which attribute names are primary (featured as 1-tap chips outside the accordion)
+const Map<String, List<String>> primaryCategoryAttributeNames = {
+  'Books': ['Subject'],
+  'Drawing Tools': ['Type'],
+  'Uniforms': ['Uniform Type', 'Size'],
+  'Clothes': ['Clothing Type', 'Size'],
+  'Electronics': ['Brand'],
+  'Food & Beverages': ['Type', 'Flavor/Variant'],
+  'School Supplies': ['Type'],
+  'Services': ['Service Type'],
+  'Others': ['Type'],
+};
+
+/// Popular campus quick suggestions for primary text attributes
+const Map<String, Map<String, List<String>>> primaryAttributeQuickSuggestions = {
+  'Books': {
+    'Subject': [
+      'Calculus',
+      'Physics',
+      'Eng. Math',
+      'CS / IT',
+      'Chemistry',
+      'Accounting',
+      'General Education',
+    ],
+  },
+  'Electronics': {
+    'Brand': [
+      'Casio',
+      'Canon',
+      'HP',
+      'Logitech',
+      'Apple',
+      'Asus',
+      'Acer',
+      'Lenovo',
+      'Xiaomi',
+    ],
+  },
+  'Food & Beverages': {
+    'Flavor/Variant': [
+      'Classic',
+      'Chocolate',
+      'Cheese',
+      'Spicy',
+      'Sweet',
+      'Salted',
+    ],
+  },
+};
+
 // ── Local cache (fallback for offline resilience) ──
 class ProductCacheService {
   List<Product>? _cachedProducts;

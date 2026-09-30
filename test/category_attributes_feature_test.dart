@@ -351,5 +351,76 @@ void main() {
       // Verify choice changed to M
       expect(find.text('Chosen: M'), findsOneWidget);
     });
+
+    test('primaryCategoryAttributeNames and primaryAttributeQuickSuggestions are properly configured', () {
+      // Books
+      expect(primaryCategoryAttributeNames['Books'], contains('Subject'));
+      expect(primaryAttributeQuickSuggestions['Books']?['Subject'], containsAll(['Calculus', 'Physics', 'Eng. Math', 'CS / IT']));
+
+      // Clothes
+      expect(primaryCategoryAttributeNames['Clothes'], containsAll(['Size', 'Clothing Type']));
+
+      // Uniforms
+      expect(primaryCategoryAttributeNames['Uniforms'], containsAll(['Size', 'Uniform Type']));
+
+      // Electronics
+      expect(primaryCategoryAttributeNames['Electronics'], contains('Brand'));
+      expect(primaryAttributeQuickSuggestions['Electronics']?['Brand'], containsAll(['Casio', 'Apple', 'Canon']));
+
+      // Drawing Tools
+      expect(primaryCategoryAttributeNames['Drawing Tools'], contains('Type'));
+
+      // Food & Beverages
+      expect(primaryCategoryAttributeNames['Food & Beverages'], containsAll(['Type', 'Flavor/Variant']));
+    });
+
+    testWidgets('Tapping attribute chip on FeedProductCard opens SearchResultsView', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final testProduct = Product(
+        id: 'prod-search-test',
+        title: 'Engineering Mathematics Vol 1',
+        description: 'Complete book',
+        price: 300.0,
+        category: 'Books',
+        condition: 'Good',
+        sellerId: 'seller-book-1',
+        createdAt: DateTime.now(),
+        categoryAttributes: const [
+          ProductAttribute(name: 'Subject', value: 'Calculus'),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 200,
+                height: 360,
+                child: FeedProductCard(product: testProduct),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Subject: Calculus'), findsOneWidget);
+
+      // Tap the attribute chip
+      await tester.tap(find.text('Subject: Calculus'));
+      await tester.pumpAndSettle();
+
+      // Verify SearchResultsView is pushed with 'Calculus' query
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('Matching Stores'), findsOneWidget);
+    });
   });
 }
+

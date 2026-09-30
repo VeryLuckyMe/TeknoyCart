@@ -80,6 +80,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   final Map<String, List<String>> _customAttributeOptions = {};
   final Map<String, TextEditingController> _variantStockControllers = {};
   final TextEditingController _batchStockController = TextEditingController(text: '5');
+  bool _isDetailsAccordionExpanded = false;
 
   bool get _hasActiveVariants {
     return _attributeMultiSelectValues.values.any((set) => set.isNotEmpty);
@@ -509,6 +510,9 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   /// Each category has its own set of attributes (e.g., Size/Color for Uniforms,
   /// Brand/Model for Electronics). Templates are fetched from Supabase with
   /// a hardcoded fallback for offline resilience.
+  /// Builds dynamic category attribute fields based on the selected category.
+  /// Uses a hybrid model: Primary attributes are displayed as fast 1-tap pill chips,
+  /// while secondary optional specifications are placed inside an elegant collapsible accordion.
   Widget _buildCategoryAttributeFields(bool isDark) {
     final templatesAsync = ref.watch(categoryAttributeTemplatesProvider);
 
@@ -521,10 +525,33 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           return const SizedBox.shrink();
         }
 
+        final primaryNames = primaryCategoryAttributeNames[_sellCategory] ?? [];
+        final primaryTemplates = templates.where((t) => primaryNames.contains(t.name)).toList();
+        final effectivePrimary = primaryTemplates.isNotEmpty ? primaryTemplates : templates.take(2).toList();
+        final effectiveSecondary = templates.where((t) => !effectivePrimary.contains(t)).toList();
+
+        // Calculate count of filled secondary attributes for the accordion badge
+        int filledSecondaryCount = 0;
+        for (final t in effectiveSecondary) {
+          if (t.isMultiSelect) {
+            if ((_attributeMultiSelectValues[t.name]?.isNotEmpty ?? false)) {
+              filledSecondaryCount++;
+            }
+          } else if (t.type == 'select') {
+            if ((_attributeSelectValues[t.name]?.isNotEmpty ?? false)) {
+              filledSecondaryCount++;
+            }
+          } else {
+            if ((_attributeTextControllers[t.name]?.text.trim().isNotEmpty ?? false)) {
+              filledSecondaryCount++;
+            }
+          }
+        }
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Section header with animated category icon
+            // Section header with category badge
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
@@ -563,7 +590,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                           ),
                         ),
                         Text(
-                          'Fill in details specific to this category (optional)',
+                          'Tap quick options below to speed up buyer discovery',
                           style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 11,
@@ -578,297 +605,103 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
             ),
             const SizedBox(height: 14),
 
-            // Attribute fields grid
-            ...templates.map((template) {
-              if (template.type == 'select' && template.options.isNotEmpty) {
-                if (template.isMultiSelect) {
-                  // Multi-select chip selector for sizes or colors
-                  final selectedSet = _attributeMultiSelectValues.putIfAbsent(template.name, () => <String>{});
-                  final customOptions = _customAttributeOptions.putIfAbsent(template.name, () => <String>[]);
-                  final allOptions = [...template.options, ...customOptions];
+            // 1. Primary Attributes (1-Tap Pill Chips)
+            ...effectivePrimary.map((template) => _buildSingleAttributeWidget(template, isDark, isPrimary: true)),
 
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+            // 2. Secondary Attributes (Collapsible Accordion)
+            if (effectiveSecondary.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF16161D) : const Color(0xFFF8F8FA),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: _isDetailsAccordionExpanded
+                        ? TeknoyTheme.citMaroon.withOpacity(0.35)
+                        : (isDark ? Colors.white10 : Colors.black.withOpacity(0.08)),
+                    width: _isDetailsAccordionExpanded ? 1.4 : 1.0,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => setState(() => _isDetailsAccordionExpanded = !_isDetailsAccordionExpanded),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
                           children: [
-                            Text(
-                              template.name,
-                              style: const TextStyle(
-                                fontFamily: 'Outfit',
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
+                            Icon(
+                              _isDetailsAccordionExpanded ? Icons.tune_rounded : Icons.add_circle_outline_rounded,
+                              size: 18,
+                              color: TeknoyTheme.citMaroon,
                             ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
+                            const SizedBox(width: 10),
+                            Expanded(
                               child: Text(
-                                'Optional',
+                                'More $_sellCategory Details (Optional)',
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                  color: isDark ? Colors.white54 : Colors.black45,
-                                ),
-                              ),
-                            ),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: TeknoyTheme.citMaroon.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                selectedSet.isEmpty
-                                    ? 'Tap in-stock options'
-                                    : '${selectedSet.length} selected',
-                                style: const TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 10,
+                                  fontFamily: 'Outfit',
                                   fontWeight: FontWeight.w600,
-                                  color: TeknoyTheme.citMaroon,
+                                  fontSize: 13,
+                                  color: isDark ? Colors.white : Colors.black87,
                                 ),
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            ...allOptions.map((opt) {
-                              final isSelected = selectedSet.contains(opt);
-                              return InkWell(
-                                borderRadius: BorderRadius.circular(10),
-                                onTap: () {
-                                  setState(() {
-                                    if (isSelected) {
-                                      selectedSet.remove(opt);
-                                    } else {
-                                      selectedSet.add(opt);
-                                    }
-                                  });
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 150),
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? TeknoyTheme.citMaroon
-                                        : (isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC)),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? TeknoyTheme.citMaroon
-                                          : (isDark ? Colors.white12 : Colors.black12),
-                                      width: isSelected ? 1.5 : 1.0,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (isSelected) ...[
-                                        const Icon(Icons.check_rounded, size: 14, color: Colors.white),
-                                        const SizedBox(width: 4),
-                                      ],
-                                      Text(
-                                        opt,
-                                        style: TextStyle(
-                                          fontFamily: 'Inter',
-                                          fontSize: 13,
-                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                          color: isSelected
-                                              ? Colors.white
-                                              : (isDark ? Colors.white : Colors.black87),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }),
-                            // + Custom Option chip (e.g. custom size 33, 34, shoe size, or custom color)
-                            InkWell(
-                              borderRadius: BorderRadius.circular(10),
-                              onTap: () => _showAddCustomOptionDialog(template.name),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            if (filledSecondaryCount > 0)
+                              Container(
+                                margin: const EdgeInsets.only(right: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.05),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: TeknoyTheme.citMaroon.withOpacity(0.4),
-                                    width: 1.2,
+                                  color: TeknoyTheme.citMaroon.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '$filledSecondaryCount added',
+                                  style: const TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: TeknoyTheme.citMaroon,
                                   ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.add_rounded, size: 15, color: TeknoyTheme.citMaroon),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '+ Custom ${template.name}',
-                                      style: const TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: TeknoyTheme.citMaroon,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              ),
+                            AnimatedRotation(
+                              turns: _isDetailsAccordionExpanded ? 0.5 : 0.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                size: 20,
+                                color: isDark ? Colors.white54 : Colors.black45,
                               ),
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
-                  );
-                }
-
-                // Single-select dropdown field
-                final currentValue = _attributeSelectValues[template.name];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            template.name,
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'Optional',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                                color: isDark ? Colors.white54 : Colors.black45,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      DropdownButtonFormField<String>(
-                        value: (currentValue != null && template.options.contains(currentValue))
-                            ? currentValue
-                            : null,
-                        hint: Text(
-                          template.placeholder,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 13,
-                            color: isDark ? Colors.white30 : Colors.black38,
-                          ),
-                        ),
-                        items: template.options
-                            .map((opt) => DropdownMenuItem(
-                                  value: opt,
-                                  child: Text(opt, style: const TextStyle(fontFamily: 'Inter', fontSize: 13)),
-                                ))
-                            .toList(),
-                        onChanged: (val) {
-                          setState(() {
-                            if (val != null) {
-                              _attributeSelectValues[template.name] = val;
-                            }
-                          });
-                        },
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          filled: true,
-                          fillColor: isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC),
-                        ),
-                        isExpanded: true,
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 13,
-                          color: isDark ? Colors.white : Colors.black87,
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox.shrink(),
+                      secondChild: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Divider(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06), height: 1),
+                            const SizedBox(height: 14),
+                            ...effectiveSecondary.map((template) => _buildSingleAttributeWidget(template, isDark, isPrimary: false)),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                );
-              } else {
-                // Text input field
-                if (!_attributeTextControllers.containsKey(template.name)) {
-                  _attributeTextControllers[template.name] = TextEditingController();
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            template.name,
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'Optional',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                                color: isDark ? Colors.white54 : Colors.black45,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: _attributeTextControllers[template.name],
-                        decoration: InputDecoration(
-                          hintText: template.placeholder,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          filled: true,
-                          fillColor: isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC),
-                        ),
-                        style: const TextStyle(fontFamily: 'Inter', fontSize: 13),
-                      ),
-                    ],
-                  ),
-                );
-              }
-            }),
+                      crossFadeState: _isDetailsAccordionExpanded
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 220),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
             // ── Consolidated Shopee / Lazada Variation Stock Matrix ──
             if (_hasActiveVariants) ...[
               const SizedBox(height: 12),
@@ -878,6 +711,454 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         );
       },
     );
+  }
+
+  /// Builds an individual category attribute field:
+  /// - Multi-select attributes render as a 1-tap multi-selection chip deck with checkmarks
+  /// - Single-select options render as responsive 1-tap pill chips with custom options
+  /// - Text attributes with quick suggestions render 1-tap suggestion pills + clean input
+  /// - Standard text attributes render as clean compact text inputs
+  Widget _buildSingleAttributeWidget(
+    CategoryAttributeTemplate template,
+    bool isDark, {
+    required bool isPrimary,
+  }) {
+    if (template.type == 'select' && template.options.isNotEmpty) {
+      if (template.isMultiSelect) {
+        // Multi-select chip selector for sizes or colors
+        final selectedSet = _attributeMultiSelectValues.putIfAbsent(template.name, () => <String>{});
+        final customOptions = _customAttributeOptions.putIfAbsent(template.name, () => <String>[]);
+        final allOptions = [...template.options, ...customOptions];
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    template.name,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Optional',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.white54 : Colors.black45,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      selectedSet.isEmpty
+                          ? 'Tap in-stock options'
+                          : '${selectedSet.length} selected',
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: TeknoyTheme.citMaroon,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...allOptions.map((opt) {
+                    final isSelected = selectedSet.contains(opt);
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () {
+                        setState(() {
+                          if (isSelected) {
+                            selectedSet.remove(opt);
+                          } else {
+                            selectedSet.add(opt);
+                          }
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? TeknoyTheme.citMaroon
+                              : (isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC)),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected
+                                ? TeknoyTheme.citMaroon
+                                : (isDark ? Colors.white12 : Colors.black12),
+                            width: isSelected ? 1.5 : 1.0,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isSelected) ...[
+                              const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                              const SizedBox(width: 4),
+                            ],
+                            Text(
+                              opt,
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 13,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                color: isSelected
+                                    ? Colors.white
+                                    : (isDark ? Colors.white : Colors.black87),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  // + Custom Option chip
+                  InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _showAddCustomOptionDialog(template.name),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.05),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: TeknoyTheme.citMaroon.withOpacity(0.4),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.add_rounded, size: 15, color: TeknoyTheme.citMaroon),
+                          const SizedBox(width: 4),
+                          Text(
+                            '+ Custom ${template.name}',
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: TeknoyTheme.citMaroon,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Single-select: 1-Tap Pill Chips
+      final currentValue = _attributeSelectValues[template.name];
+      final customOptions = _customAttributeOptions.putIfAbsent(template.name, () => <String>[]);
+      final allOptions = [...template.options, ...customOptions];
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  template.name,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Optional',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.white54 : Colors.black45,
+                    ),
+                  ),
+                ),
+                if (currentValue != null && currentValue.isNotEmpty) ...[
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => setState(() => _attributeSelectValues.remove(template.name)),
+                    child: Text(
+                      'Clear',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 11,
+                        color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...allOptions.map((opt) {
+                  final isSelected = currentValue == opt;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () {
+                      setState(() {
+                        if (isSelected) {
+                          _attributeSelectValues.remove(template.name);
+                        } else {
+                          _attributeSelectValues[template.name] = opt;
+                        }
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7.5),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? TeknoyTheme.citMaroon
+                            : (isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? TeknoyTheme.citMaroon
+                              : (isDark ? Colors.white12 : Colors.black12),
+                          width: isSelected ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isSelected) ...[
+                            const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            opt,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12.5,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: isSelected
+                                  ? Colors.white
+                                  : (isDark ? Colors.white : Colors.black87),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+                // + Custom Option chip for single-select
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => _showAddCustomOptionDialog(template.name),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7.5),
+                    decoration: BoxDecoration(
+                      color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.05),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: TeknoyTheme.citMaroon.withOpacity(0.4),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.add_rounded, size: 14, color: TeknoyTheme.citMaroon),
+                        const SizedBox(width: 4),
+                        Text(
+                          '+ Other',
+                          style: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: TeknoyTheme.citMaroon,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Text input field — with optional 1-tap quick suggestion chips!
+      if (!_attributeTextControllers.containsKey(template.name)) {
+        _attributeTextControllers[template.name] = TextEditingController();
+      }
+      final ctrl = _attributeTextControllers[template.name]!;
+      final suggestions = primaryAttributeQuickSuggestions[_sellCategory]?[template.name] ?? [];
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  template.name,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Optional',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.white54 : Colors.black45,
+                    ),
+                  ),
+                ),
+                if (suggestions.isNotEmpty) ...[
+                  const Spacer(),
+                  Text(
+                    '1-Tap Suggestions',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            if (suggestions.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: suggestions.map((sug) {
+                  final isMatch = ctrl.text.trim().toLowerCase() == sug.toLowerCase();
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () {
+                      setState(() {
+                        if (isMatch) {
+                          ctrl.clear();
+                        } else {
+                          ctrl.text = sug;
+                        }
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isMatch
+                            ? TeknoyTheme.citMaroon
+                            : (isDark ? const Color(0xFF191922) : const Color(0xFFF1F1F5)),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isMatch
+                              ? TeknoyTheme.citMaroon
+                              : (isDark ? Colors.white12 : Colors.black12),
+                          width: isMatch ? 1.4 : 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isMatch) ...[
+                            const Icon(Icons.check_rounded, size: 13, color: Colors.white),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            sug,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12,
+                              fontWeight: isMatch ? FontWeight.bold : FontWeight.w500,
+                              color: isMatch ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 6),
+            ],
+            const SizedBox(height: 6),
+            TextField(
+              controller: ctrl,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: template.placeholder,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                filled: true,
+                fillColor: isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC),
+                suffixIcon: ctrl.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded, size: 16),
+                        onPressed: () => setState(() => ctrl.clear()),
+                      )
+                    : null,
+              ),
+              style: const TextStyle(fontFamily: 'Inter', fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   /// Interactive Shopee / Lazada style Variation Stock Matrix deck
