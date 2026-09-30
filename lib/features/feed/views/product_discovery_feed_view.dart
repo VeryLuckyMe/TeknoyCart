@@ -147,6 +147,107 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     'Well Used',
   ];
 
+  static const Map<String, List<String>> _quickTitleStarters = {
+    'Books': [
+      'Calculus Early Transcendentals',
+      'University Physics',
+      'Engineering Mechanics',
+      'Differential Equations',
+    ],
+    'Uniforms': [
+      'CIT-U Official PE Shirt',
+      'CIT-U School Uniform Polo',
+      'Department Organization Shirt',
+      'CEA White Lab Gown',
+    ],
+    'Clothes': [
+      'Oversized Graphic T-Shirt',
+      'Vintage Baggy Denim Jorts',
+      'Campus Fleece Hoodie',
+      'Relaxed Fit Cargo Shorts',
+    ],
+    'Electronics': [
+      'Casio Scientific Calculator',
+      'Wireless Ergonomic Mouse',
+      'Laptop Type-C Power Adapter',
+      'USB-C Multiport Dongle',
+    ],
+    'Drawing Tools': [
+      'Staedtler Technical Pen Set',
+      'Drafting T-Square 24-inch',
+      'Rotring Precision Compass',
+      'Engineering Triangle Set 30/60',
+    ],
+    'Food & Beverages': [
+      'Freshly Cooked Silog Meal',
+      'Chilled Cold Brew Coffee',
+      'Homemade Fudgy Brownies',
+      'Sweet Pastillas Pack',
+    ],
+    'School Supplies': [
+      'Yellow Intermediate Pad Paper',
+      'Pilot G-Tech 0.3 Black Pens',
+      'A4 Clear Book Display Binder',
+      'Complete Student Stationery Kit',
+    ],
+    'Services': [
+      'Peer Tutoring (Math / CS)',
+      'High-Speed Document Printing',
+      'Hardbound Thesis Binding',
+      'Graphic Design & Poster Making',
+    ],
+    'Others': [
+      'Student Dorm Essential',
+      'Campus Umbrella',
+      'Water Tumbler 1L',
+    ],
+  };
+
+  static const Map<String, List<String>> _quickDescStarters = {
+    'Books': [
+      'Complete pages, no markings',
+      'Used for 1 term, pristine condition',
+      'Meetup at CIT-U Library lobby',
+    ],
+    'Uniforms': [
+      'Clean & sanitized, no stains',
+      'Official CIT-U embroidery intact',
+      'Meetup at CIT-U Main Gate / Quad',
+    ],
+    'Clothes': [
+      'Washed and ready to wear',
+      'Boxy/oversized fit, pre-loved',
+      'Meetup at campus canteen',
+    ],
+    'Electronics': [
+      '100% working, test upon meetup',
+      'Includes original charging cable',
+      'Essential for engineering math',
+    ],
+    'Food & Beverages': [
+      'Freshly prepared daily, clean prep',
+      'Pre-order 1 day ahead for batch meetup',
+      'Free campus delivery at Main Gate',
+    ],
+    'Drawing Tools': [
+      'All drafting pieces complete with case',
+      'Used for CEA graphics class',
+      'Good condition, no cracks',
+    ],
+    'School Supplies': [
+      'Brand new / sealed packaging',
+      'Surplus student stock from last term',
+    ],
+    'Services': [
+      'Available Mon-Fri 3PM to 6PM',
+      'Fast turnaround time, student rate',
+    ],
+    'Others': [
+      'Used for 1 term, still in great shape',
+      'Campus meetup available today',
+    ],
+  };
+
   StreamSubscription<AuthState>? _recoverySub;
 
   @override
@@ -1530,6 +1631,432 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     }
   }
 
+  void _onCategorySelected(String val) {
+    if (val == _sellCategory) return;
+    for (final ctrl in _attributeTextControllers.values) {
+      ctrl.dispose();
+    }
+    _attributeTextControllers.clear();
+    _attributeSelectValues.clear();
+    _attributeMultiSelectValues.clear();
+    _customAttributeOptions.clear();
+    for (final ctrl in _variantStockControllers.values) {
+      ctrl.dispose();
+    }
+    _variantStockControllers.clear();
+    setState(() {
+      _sellCategory = val;
+      if (val == 'Food & Beverages') {
+        _sellCondition = _foodConditionOptions.first;
+      } else if (!_generalConditionOptions.contains(_sellCondition)) {
+        _sellCondition = _generalConditionOptions.first;
+      }
+    });
+  }
+
+  Widget _buildCategorySelector(bool isDark) {
+    final categories = ref.watch(sellCategoriesProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Select Category *',
+              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+              decoration: BoxDecoration(
+                color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                _sellCategory,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: TeknoyTheme.citMaroon,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 68,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: categories.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final cat = categories[index];
+              final isSelected = cat == _sellCategory;
+              final icon = _getCategoryIcon(cat);
+
+              return InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => _onCategorySelected(cat),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 92,
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? TeknoyTheme.citMaroon
+                        : (isDark ? const Color(0xFF191922) : const Color(0xFFF3F3F7)),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isSelected
+                          ? TeknoyTheme.citMaroon
+                          : (isDark ? Colors.white10 : Colors.black.withOpacity(0.06)),
+                      width: isSelected ? 1.5 : 1.0,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: TeknoyTheme.citMaroon.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 20,
+                        color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        cat,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 10.5,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildConditionChips(bool isDark) {
+    final isFood = _sellCategory == 'Food & Beverages';
+    final options = isFood ? _foodConditionOptions : _generalConditionOptions;
+
+    String getDisplayLabel(String raw) {
+      switch (raw) {
+        case 'Freshly Prepared / Daily Cooked':
+          return '🍲 Freshly Prepared';
+        case 'Packaged & Sealed (Brand New)':
+          return '📦 Sealed Pack';
+        case 'Made to Order':
+          return '🍳 Made to Order';
+        case 'Frozen / Chilled':
+          return '❄️ Frozen / Chilled';
+        case 'New':
+          return '✨ Brand New';
+        case 'Like New':
+          return '💎 Like New';
+        case 'Gently Used':
+          return '👍 Gently Used';
+        case 'Well Used':
+          return '📦 Well Used';
+        default:
+          return raw;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              isFood ? 'Freshness & Preparation *' : 'Item Condition *',
+              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                '1-Tap Choice',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: TeknoyTheme.citMaroon,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((opt) {
+            final isSelected = _sellCondition == opt;
+            return InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                setState(() => _sellCondition = opt);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? TeknoyTheme.citMaroon
+                      : (isDark ? const Color(0xFF191922) : const Color(0xFFF3F3F7)),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isSelected
+                        ? TeknoyTheme.citMaroon
+                        : (isDark ? Colors.white12 : Colors.black12),
+                    width: isSelected ? 1.5 : 1.0,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isSelected) ...[
+                      const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                      const SizedBox(width: 5),
+                    ],
+                    Text(
+                      getDisplayLabel(opt),
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12.5,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? Colors.white70 : Colors.black87),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPriceAndStockSection(bool isDark) {
+    final currentStock = int.tryParse(_sellStockController.text.trim()) ?? 1;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Price Input with prefix
+            Expanded(
+              flex: 5,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Price (₱) *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _sellPriceController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. 450',
+                      prefixText: '₱ ',
+                      prefixStyle: const TextStyle(fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon, fontSize: 15),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Stock Stepper / Variant Indicator
+            Expanded(
+              flex: 5,
+              child: _hasActiveVariants
+                  ? Container(
+                      height: 72,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1B1B22) : const Color(0xFFF7F7FA),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: TeknoyTheme.citMaroon.withOpacity(0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.calculate_outlined, size: 14, color: TeknoyTheme.citMaroon),
+                              SizedBox(width: 4),
+                              Text('Stock (Variants)', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 11)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$_calculatedTotalVariantStock total units',
+                            style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, fontSize: 13, color: TeknoyTheme.citMaroon),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Available Stock *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF191922) : const Color(0xFFFAFAFC),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.remove_rounded, size: 18),
+                                color: currentStock > 1 ? TeknoyTheme.citMaroon : Colors.grey,
+                                onPressed: currentStock > 1
+                                    ? () {
+                                        setState(() {
+                                          _sellStockController.text = '${currentStock - 1}';
+                                        });
+                                      }
+                                    : null,
+                              ),
+                              Text(
+                                '$currentStock unit${currentStock > 1 ? 's' : ''}',
+                                style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.add_rounded, size: 18),
+                                color: TeknoyTheme.citMaroon,
+                                onPressed: () {
+                                  setState(() {
+                                    _sellStockController.text = '${currentStock + 1}';
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // 1-Tap Quick Price Benchmark chips
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              Text(
+                'Quick ₱:',
+                style: TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? Colors.white54 : Colors.black45),
+              ),
+              const SizedBox(width: 6),
+              ...[50, 100, 150, 250, 350, 500].map((pVal) {
+                final isCurrent = _sellPriceController.text.trim() == '$pVal';
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6.0),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () {
+                      setState(() {
+                        _sellPriceController.text = '$pVal';
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isCurrent
+                            ? TeknoyTheme.citMaroon
+                            : (isDark ? const Color(0xFF1E1E26) : const Color(0xFFF1F1F5)),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isCurrent ? TeknoyTheme.citMaroon : Colors.transparent,
+                        ),
+                      ),
+                      child: Text(
+                        '₱$pVal',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 11,
+                          fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                          color: isCurrent ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              // +₱50 bump button
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  final cur = double.tryParse(_sellPriceController.text.trim()) ?? 0;
+                  setState(() {
+                    _sellPriceController.text = '${(cur + 50).toInt()}';
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.15 : 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    '+₱50',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: TeknoyTheme.citMaroon,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showProductImageSourceSheet() {
     showModalBottomSheet(
       context: context,
@@ -2696,282 +3223,103 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               ),
               const SizedBox(height: 24),
           
-          // Title
-          const Text('Product Title *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+          // ── 1. Category Selection ──
+          _buildCategorySelector(isDark),
+          const SizedBox(height: 20),
+
+          // ── 2. Product Title (with 1-Tap Starters) ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Product Title *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+              if (_sellTitleController.text.isNotEmpty)
+                GestureDetector(
+                  onTap: () => setState(() => _sellTitleController.clear()),
+                  child: Text(
+                    'Clear',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: 8),
           TextField(
             controller: _sellTitleController,
-            decoration: const InputDecoration(
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
               hintText: 'e.g. Calculus Transcendentals 9th Ed',
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
           ),
-          const SizedBox(height: 20),
-
-          // Price & Condition row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 4,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Price (₱) *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _sellPriceController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        hintText: 'e.g. 450',
-                        prefixText: '₱ ',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      ),
+          if ((_quickTitleStarters[_sellCategory] ?? []).isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  Text(
+                    '1-Tap Starters:',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: TeknoyTheme.citMaroon.withOpacity(0.8),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 5,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _sellCategory == 'Food & Beverages' ? 'Freshness & Prep *' : 'Condition *',
-                      style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      isDense: true,
-                      value: (_sellCategory == 'Food & Beverages' ? _foodConditionOptions : _generalConditionOptions).contains(_sellCondition)
-                          ? _sellCondition
-                          : (_sellCategory == 'Food & Beverages' ? _foodConditionOptions.first : _generalConditionOptions.first),
-                      items: (_sellCategory == 'Food & Beverages' ? _foodConditionOptions : _generalConditionOptions)
-                          .map((val) => DropdownMenuItem(
-                                value: val,
-                                child: Text(
-                                  val,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12.5, fontFamily: 'Inter'),
-                                ),
-                              ))
-                          .toList(),
-                      selectedItemBuilder: (context) {
-                        return (_sellCategory == 'Food & Beverages' ? _foodConditionOptions : _generalConditionOptions).map((val) {
-                          return Text(
-                            val,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12.5, fontFamily: 'Inter'),
-                          );
-                        }).toList();
-                      },
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() => _sellCondition = val);
-                        }
-                      },
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // Available Stock Quantity (Dynamic Shopee/Lazada style)
-          Row(
-            children: [
-              Expanded(
-                child: _hasActiveVariants
-                    ? Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1B1B22) : const Color(0xFFF7F7FA),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: TeknoyTheme.citMaroon.withOpacity(0.2),
+                  ),
+                  const SizedBox(width: 8),
+                  ...(_quickTitleStarters[_sellCategory] ?? []).map((starter) {
+                    final isCurrent = _sellTitleController.text.trim() == starter;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6.0),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () {
+                          setState(() {
+                            _sellTitleController.text = starter;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: isCurrent
+                                ? TeknoyTheme.citMaroon
+                                : (isDark ? const Color(0xFF1E1E26) : const Color(0xFFF1F1F5)),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isCurrent ? TeknoyTheme.citMaroon : Colors.transparent,
+                            ),
+                          ),
+                          child: Text(
+                            starter,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11.5,
+                              fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                              color: isCurrent ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                            ),
                           ),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: TeknoyTheme.citMaroon.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.calculate_outlined, size: 20, color: TeknoyTheme.citMaroon),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Wrap(
-                                    crossAxisAlignment: WrapCrossAlignment.center,
-                                    spacing: 6,
-                                    runSpacing: 4,
-                                    children: [
-                                      const Text(
-                                        'Available Stock Quantity',
-                                        style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF10B981).withOpacity(0.12),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: const Text(
-                                          'Auto-Summed',
-                                          style: TextStyle(
-                                            fontFamily: 'Inter',
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w700,
-                                            color: Color(0xFF059669),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '$_calculatedTotalVariantStock units across ${_variationCombinations.length} combinations',
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 12,
-                                      color: isDark ? Colors.white70 : Colors.black87,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: TeknoyTheme.citMaroon,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '$_calculatedTotalVariantStock',
-                                style: const TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Text(
-                                'Available Stock Quantity *',
-                                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: TeknoyTheme.citMaroon.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text(
-                                  'Total Units',
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: TeknoyTheme.citMaroon,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _sellStockController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              hintText: 'e.g. 10',
-                              prefixIcon: Icon(Icons.inventory_2_outlined, size: 20, color: TeknoyTheme.citMaroon),
-                              suffixText: 'units',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            ),
-                          ),
-                        ],
                       ),
+                    );
+                  }),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // Category
-          const Text('Category *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            isDense: true,
-            value: _sellCategory,
-            items: ref.watch(sellCategoriesProvider)
-                .map((val) => DropdownMenuItem(
-                      value: val,
-                      child: Text(val, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'Inter', fontSize: 13)),
-                    ))
-                .toList(),
-            selectedItemBuilder: (context) {
-              return ref.watch(sellCategoriesProvider).map((val) {
-                return Text(val, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'Inter', fontSize: 13));
-              }).toList();
-            },
-            onChanged: (val) {
-              if (val != null && val != _sellCategory) {
-                // Clear previous attribute controllers when category changes
-                for (final ctrl in _attributeTextControllers.values) {
-                  ctrl.dispose();
-                }
-                _attributeTextControllers.clear();
-                _attributeSelectValues.clear();
-                _attributeMultiSelectValues.clear();
-                _customAttributeOptions.clear();
-                for (final ctrl in _variantStockControllers.values) {
-                  ctrl.dispose();
-                }
-                _variantStockControllers.clear();
-                setState(() {
-                  _sellCategory = val;
-                  if (val == 'Food & Beverages') {
-                    _sellCondition = _foodConditionOptions.first;
-                  } else if (!_generalConditionOptions.contains(_sellCondition)) {
-                    _sellCondition = _generalConditionOptions.first;
-                  }
-                });
-              }
-            },
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
-          ),
+          ],
+          const SizedBox(height: 20),
+
+          // ── 3. Price & Available Stock Section ──
+          _buildPriceAndStockSection(isDark),
+          const SizedBox(height: 20),
+
+          // ── 4. Item Condition / Freshness 1-Tap Chips ──
+          _buildConditionChips(isDark),
           const SizedBox(height: 20),
 
           // ── Dynamic Category Attributes Section ──
@@ -2979,17 +3327,88 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           const SizedBox(height: 20),
 
           // Description
-          const Text('Listing Description *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Listing Description *', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+              if (_sellDescController.text.isNotEmpty)
+                GestureDetector(
+                  onTap: () => setState(() => _sellDescController.clear()),
+                  child: Text(
+                    'Clear',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: 8),
           TextField(
             controller: _sellDescController,
             maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Describe details, sizing, chapters, condition or meeting landmarks...',
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.all(16),
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText: 'Describe details, sizing, condition or meeting landmarks...',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              contentPadding: const EdgeInsets.all(16),
             ),
           ),
+          if ((_quickDescStarters[_sellCategory] ?? []).isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  Text(
+                    'Quick Notes:',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ...(_quickDescStarters[_sellCategory] ?? []).map((note) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6.0),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () {
+                          setState(() {
+                            if (_sellDescController.text.trim().isEmpty) {
+                              _sellDescController.text = note;
+                            } else {
+                              _sellDescController.text = '${_sellDescController.text.trim()} • $note';
+                            }
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E1E26) : const Color(0xFFF1F1F5),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '+ $note',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
 
           // Image uploader — Multi-photo gallery deck (up to 8 photos)
