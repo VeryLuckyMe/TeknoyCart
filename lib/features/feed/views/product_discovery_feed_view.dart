@@ -28,6 +28,8 @@ import 'package:teknoycart/features/feed/views/widgets/feed_trending_banner.dart
 import 'package:teknoycart/features/feed/providers/review_provider.dart';
 import 'package:teknoycart/features/feed/views/widgets/buyer_reviews_sheet.dart';
 import 'package:teknoycart/features/feed/views/manage_listings_view.dart';
+import 'package:teknoycart/features/auth/views/widgets/seller_kyc_verification_view.dart';
+
 
 /// Provider to dynamically count completed orders/deals for a given user ID
 final userCompletedDealsCountProvider = FutureProvider.family<int, String>((ref, userId) async {
@@ -3114,119 +3116,22 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         final role = data?['role'] as String? ?? authState.role;
         final isVerified = data?['is_seller_verified'] as bool? ?? authState.isSellerVerified;
 
-        if (role == 'BUYER') {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.storefront_rounded, size: 80, color: Colors.grey),
-                const SizedBox(height: 24),
-                const Text(
-                  'Campus Vendor Account Required',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'To list and sell pre-loved books, uniforms, or drawing sets, you must register as a Campus Vendor.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey, height: 1.5),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      final token = await SecureTokenService.getBearerToken();
-                      if (token == null) {
-                        throw Exception('Authentication required. Please log in again.');
-                      }
-                      final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/request-seller-upgrade');
-                      final response = await http.post(
-                        url,
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'Authorization': 'Bearer $token',
-                        },
-                      ).timeout(const Duration(seconds: 25));
-
-                      if (response.statusCode == 200) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Seller upgrade request submitted! Admin will review your account.')),
-                        );
-                        _profileFuture = null; // Clear cache to trigger reload
-                        setState(() {}); // Refresh the builder
-                      } else {
-                        String msg = 'Failed to submit request';
-                        try {
-                          final data = jsonDecode(response.body);
-                          if (data is Map && data['message'] != null) {
-                            msg = data['message'];
-                          }
-                        } catch (_) {}
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(msg)),
-                        );
-                      }
-                    } catch (e) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Failed to submit request: $e')),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: TeknoyTheme.citMaroon,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  ),
-                  child: const Text('Apply for Campus Vendor Role', style: TextStyle(fontFamily: 'Outfit', fontSize: 14, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
+        if (role == 'BUYER' || (role == 'SELLER' && !isVerified)) {
+          return SellerKYCVerificationView(
+            userId: authState.id,
+            initialSellerType: (data?['seller_type'] as String?) ?? 'STUDENT',
+            onVerificationSubmitted: () {
+              _profileFuture = null;
+              setState(() {});
+            },
+            onRefreshStatus: () async {
+              _profileFuture = null;
+              await ref.read(authNotifierProvider.notifier).refreshProfile();
+              if (mounted) setState(() {});
+            },
           );
         }
 
-        if (role == 'SELLER' && !isVerified) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.pending_actions_rounded, size: 80, color: TeknoyTheme.citGold),
-                const SizedBox(height: 24),
-                const Text(
-                  'Vendor Verification Pending',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontFamily: 'Outfit', fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Your campus vendor application is currently in the admin verification queue.\nOnce the administrator reviews your CIT student credentials, your store listing tools will open immediately!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey, height: 1.5),
-                ),
-                const SizedBox(height: 24),
-                OutlinedButton(
-                  onPressed: () async {
-                    _profileFuture = null; // Clear cached future to refetch role status
-                    await ref.read(authNotifierProvider.notifier).refreshProfile();
-                    if (mounted) setState(() {});
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: TeknoyTheme.citMaroon,
-                    side: const BorderSide(color: TeknoyTheme.citMaroon),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  ),
-                  child: const Text('Check Review Status', style: TextStyle(fontFamily: 'Outfit', fontSize: 14, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
-          );
-        }
         // Verified seller or admin: Tab selector between List New Item and My Listings
         return Column(
           children: [
