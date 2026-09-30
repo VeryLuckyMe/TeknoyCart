@@ -228,13 +228,15 @@ class ChatService {
             .replaceAll('[PRODUCT]', prodName)
             .replaceAll('[PRICE]', prodPrice.toStringAsFixed(0));
 
-        // Insert initial message as the seller
-        await _client.from('messages').insert({
-          'chat_id': chatId,
-          'sender_id': sellerId,
-          'content': content,
-          'is_read': false,
-        });
+        // Safely post initial seller welcome message via database RPC
+        // without violating client-side RLS constraints
+        await _client.rpc(
+          'send_automated_chat_reply',
+          params: {
+            'p_chat_id': chatId,
+            'p_content': content,
+          },
+        );
       }
     } catch (e) {
       print("SEND_INITIAL_WELCOME_MESSAGE_ERROR: $e");
@@ -526,15 +528,17 @@ class ChatService {
             if (responseText != null) {
               Future.delayed(const Duration(seconds: 2), () async {
                 try {
-                  await _client.from('messages').insert({
-                    'chat_id': roomId,
-                    'sender_id': receiverId, // Sent as the seller
-                    'content': responseText,
-                    'image_url': null,
-                    'is_read': false,
-                  });
+                  // Safely post automated assistant reply via database RPC
+                  // without violating client-side RLS constraints
+                  await _client.rpc(
+                    'send_automated_chat_reply',
+                    params: {
+                      'p_chat_id': roomId,
+                      'p_content': responseText,
+                    },
+                  );
                 } catch (e) {
-                  print("LIVE_AUTO_REPLY_ERROR: $e");
+                  print("LIVE_AUTO_REPLY_RPC_ERROR: $e");
                 }
               });
             }
