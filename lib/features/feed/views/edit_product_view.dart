@@ -1741,7 +1741,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                 if (suggestions.isNotEmpty) ...[
                   const Spacer(),
                   Text(
-                    '1-Tap Suggestions',
+                    'Quick options',
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 10,

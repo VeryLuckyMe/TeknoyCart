@@ -6,6 +6,9 @@ import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/product_details_sheet.dart';
 import 'package:teknoycart/features/feed/views/widgets/feed_product_card.dart';
+import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
+import 'package:teknoycart/features/auth/models/profile.dart';
+import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'mock_http_client.dart';
@@ -420,6 +423,60 @@ void main() {
       // Verify SearchResultsView is pushed with 'Calculus' query
       expect(find.byType(TextField), findsOneWidget);
       expect(find.text('Matching Stores'), findsOneWidget);
+    });
+
+    testWidgets('Sell tab renders professional 2x2 condition card grid without emojis or vibe-coded badges', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final verifiedSellerUser = Profile(
+        id: 'seller-test-id',
+        username: 'Test Seller',
+        email: 'seller@cit.edu',
+        role: 'SELLER',
+        isSellerVerified: true,
+        createdAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream.value(verifiedSellerUser)),
+          ],
+          child: const MaterialApp(
+            home: ProductDiscoveryFeedView(initialTab: 2),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify clean header exists
+      expect(find.text('Item Condition *'), findsOneWidget);
+      expect(find.text('Required'), findsOneWidget);
+
+      // Verify no vibe-coded badges or emoji strings exist
+      expect(find.text('1-Tap Choice'), findsNothing);
+      expect(find.textContaining('✨'), findsNothing);
+      expect(find.textContaining('💎'), findsNothing);
+      expect(find.textContaining('👍'), findsNothing);
+
+      // Verify professional cards exist with titles and sub-descriptions
+      expect(find.text('Brand New'), findsOneWidget);
+      expect(find.text('Unopened or never used'), findsOneWidget);
+      expect(find.text('Like New'), findsOneWidget);
+      expect(find.text('Flawless, barely used'), findsOneWidget);
+      expect(find.text('Gently Used'), findsOneWidget);
+      expect(find.text('Minor wear, fully works'), findsOneWidget);
+      expect(find.text('Well Used'), findsOneWidget);
+      expect(find.text('Visible wear, discounted'), findsOneWidget);
+
+      // Tap 'Like New' card and verify selection
+      await tester.tap(find.text('Like New'));
+      await tester.pumpAndSettle();
     });
   });
 }

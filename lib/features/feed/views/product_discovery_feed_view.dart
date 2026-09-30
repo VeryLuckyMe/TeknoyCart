@@ -62,6 +62,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   String? _cachedProfileUserId;
   Future<Map<String, dynamic>>? _profileFuture;
 
+
   // Form controllers for Sell tab
   final _sellTitleController = TextEditingController();
   final _sellPriceController = TextEditingController();
@@ -1169,7 +1170,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 if (suggestions.isNotEmpty) ...[
                   const Spacer(),
                   Text(
-                    '1-Tap Suggestions',
+                    'Quick options',
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 10,
@@ -1762,26 +1763,85 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     final isFood = _sellCategory == 'Food & Beverages';
     final options = isFood ? _foodConditionOptions : _generalConditionOptions;
 
-    String getDisplayLabel(String raw) {
+    // Structured metadata for high-craft marketplace condition grading
+    ({String title, String subtitle, IconData icon}) getConditionMeta(String raw) {
       switch (raw) {
         case 'Freshly Prepared / Daily Cooked':
-          return '🍲 Freshly Prepared';
+          return (
+            title: 'Freshly Prepared',
+            subtitle: 'Cooked fresh today',
+            icon: Icons.restaurant_rounded,
+          );
         case 'Packaged & Sealed (Brand New)':
-          return '📦 Sealed Pack';
+          return (
+            title: 'Sealed Pack',
+            subtitle: 'Original sealed pack',
+            icon: Icons.inventory_2_outlined,
+          );
         case 'Made to Order':
-          return '🍳 Made to Order';
+          return (
+            title: 'Made to Order',
+            subtitle: 'Prepared on demand',
+            icon: Icons.outdoor_grill_outlined,
+          );
         case 'Frozen / Chilled':
-          return '❄️ Frozen / Chilled';
+          return (
+            title: 'Frozen / Chilled',
+            subtitle: 'Preserved cold storage',
+            icon: Icons.ac_unit_rounded,
+          );
         case 'New':
-          return '✨ Brand New';
+          return (
+            title: 'Brand New',
+            subtitle: 'Unopened or never used',
+            icon: Icons.verified_outlined,
+          );
         case 'Like New':
-          return '💎 Like New';
+          return (
+            title: 'Like New',
+            subtitle: 'Flawless, barely used',
+            icon: Icons.diamond_outlined,
+          );
         case 'Gently Used':
-          return '👍 Gently Used';
+          return (
+            title: 'Gently Used',
+            subtitle: 'Minor wear, fully works',
+            icon: Icons.thumb_up_alt_outlined,
+          );
         case 'Well Used':
-          return '📦 Well Used';
+          return (
+            title: 'Well Used',
+            subtitle: 'Visible wear, discounted',
+            icon: Icons.archive_outlined,
+          );
         default:
-          return raw;
+          return (
+            title: raw,
+            subtitle: 'Standard condition',
+            icon: Icons.check_circle_outline_rounded,
+          );
+      }
+    }
+
+    final rows = <Widget>[];
+    for (int i = 0; i < options.length; i += 2) {
+      final opt1 = options[i];
+      final opt2 = (i + 1 < options.length) ? options[i + 1] : null;
+
+      rows.add(
+        Row(
+          children: [
+            Expanded(child: _buildConditionCard(opt1, getConditionMeta(opt1), isDark)),
+            const SizedBox(width: 10),
+            if (opt2 != null)
+              Expanded(child: _buildConditionCard(opt2, getConditionMeta(opt2), isDark))
+            else
+              const Spacer(),
+          ],
+        ),
+      );
+      if (i + 2 < options.length) {
+        rows.add(const SizedBox(height: 10));
       }
     }
 
@@ -1789,81 +1849,144 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               isFood ? 'Freshness & Preparation *' : 'Item Condition *',
               style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
             ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: TeknoyTheme.citMaroon.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                '1-Tap Choice',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: TeknoyTheme.citMaroon,
-                ),
+            Text(
+              'Required',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white38 : Colors.black38,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: options.map((opt) {
-            final isSelected = _sellCondition == opt;
-            return InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () {
-                setState(() => _sellCondition = opt);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? TeknoyTheme.citMaroon
-                      : (isDark ? const Color(0xFF191922) : const Color(0xFFF3F3F7)),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isSelected
-                        ? TeknoyTheme.citMaroon
-                        : (isDark ? Colors.white12 : Colors.black12),
-                    width: isSelected ? 1.5 : 1.0,
+        const SizedBox(height: 10),
+        ...rows,
+      ],
+    );
+  }
+
+  Widget _buildConditionCard(
+    String opt,
+    ({String title, String subtitle, IconData icon}) meta,
+    bool isDark,
+  ) {
+    final isSelected = _sellCondition == opt;
+    final primaryColor = TeknoyTheme.citMaroon;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          setState(() => _sellCondition = opt);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? (isDark ? primaryColor.withOpacity(0.18) : const Color(0xFFFDF2F2))
+                : (isDark ? const Color(0xFF16161F) : const Color(0xFFFAFAFC)),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? primaryColor
+                  : (isDark ? const Color(0xFF282834) : const Color(0xFFE5E5EB)),
+              width: isSelected ? 1.5 : 1.0,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: primaryColor.withOpacity(0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? primaryColor.withOpacity(0.12)
+                          : (isDark ? const Color(0xFF22222E) : const Color(0xFFF0F0F5)),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Icon(
+                      meta.icon,
+                      size: 15,
+                      color: isSelected
+                          ? primaryColor
+                          : (isDark ? Colors.white70 : const Color(0xFF555562)),
+                    ),
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isSelected) ...[
-                      const Icon(Icons.check_rounded, size: 14, color: Colors.white),
-                      const SizedBox(width: 5),
-                    ],
-                    Text(
-                      getDisplayLabel(opt),
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 12.5,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSelected ? primaryColor : Colors.transparent,
+                      border: Border.all(
                         color: isSelected
-                            ? Colors.white
-                            : (isDark ? Colors.white70 : Colors.black87),
+                            ? primaryColor
+                            : (isDark ? Colors.white24 : const Color(0xFFD1D1D8)),
+                        width: 1.5,
                       ),
                     ),
-                  ],
+                    child: isSelected
+                        ? const Icon(Icons.check, size: 10, color: Colors.white)
+                        : null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                meta.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                  color: isSelected
+                      ? (isDark ? Colors.white : primaryColor)
+                      : (isDark ? Colors.white : const Color(0xFF1C1C1E)),
                 ),
               ),
-            );
-          }).toList(),
+              const SizedBox(height: 2),
+              Text(
+                meta.subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.normal,
+                  color: isSelected
+                      ? (isDark ? Colors.white70 : primaryColor.withOpacity(0.8))
+                      : (isDark ? Colors.white38 : const Color(0xFF8E8E93)),
+                ),
+              ),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 
@@ -1985,8 +2108,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           child: Row(
             children: [
               Text(
-                'Quick ₱:',
-                style: TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? Colors.white54 : Colors.black45),
+                'Presets:',
+                style: TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? Colors.white38 : Colors.black45),
               ),
               const SizedBox(width: 6),
               ...[50, 100, 150, 250, 350, 500].map((pVal) {
@@ -2001,14 +2124,15 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                       });
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: isCurrent
-                            ? TeknoyTheme.citMaroon
+                            ? (isDark ? TeknoyTheme.citMaroon.withOpacity(0.22) : const Color(0xFFFDF2F2))
                             : (isDark ? const Color(0xFF1E1E26) : const Color(0xFFF1F1F5)),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: isCurrent ? TeknoyTheme.citMaroon : Colors.transparent,
+                          width: 1.2,
                         ),
                       ),
                       child: Text(
@@ -2017,7 +2141,9 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                           fontFamily: 'Inter',
                           fontSize: 11,
                           fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
-                          color: isCurrent ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                          color: isCurrent
+                              ? (isDark ? Colors.white : TeknoyTheme.citMaroon)
+                              : (isDark ? Colors.white70 : Colors.black87),
                         ),
                       ),
                     ),
@@ -2985,8 +3111,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         }
 
         final data = snapshot.data;
-        final role = data?['role'] as String? ?? 'BUYER';
-        final isVerified = data?['is_seller_verified'] as bool? ?? false;
+        final role = data?['role'] as String? ?? authState.role;
+        final isVerified = data?['is_seller_verified'] as bool? ?? authState.isSellerVerified;
 
         if (role == 'BUYER') {
           return Padding(
@@ -3264,12 +3390,12 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               child: Row(
                 children: [
                   Text(
-                    '1-Tap Starters:',
+                    'Suggestions:',
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                      color: isDark ? Colors.white38 : Colors.black45,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -3288,11 +3414,12 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
                             color: isCurrent
-                                ? TeknoyTheme.citMaroon
+                                ? (isDark ? TeknoyTheme.citMaroon.withOpacity(0.22) : const Color(0xFFFDF2F2))
                                 : (isDark ? const Color(0xFF1E1E26) : const Color(0xFFF1F1F5)),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: isCurrent ? TeknoyTheme.citMaroon : Colors.transparent,
+                              width: 1.2,
                             ),
                           ),
                           child: Text(
@@ -3301,7 +3428,9 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                               fontFamily: 'Inter',
                               fontSize: 11.5,
                               fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
-                              color: isCurrent ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                              color: isCurrent
+                                  ? (isDark ? Colors.white : TeknoyTheme.citMaroon)
+                                  : (isDark ? Colors.white70 : Colors.black87),
                             ),
                           ),
                         ),
@@ -3369,7 +3498,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                       fontFamily: 'Inter',
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                      color: isDark ? Colors.white38 : Colors.black45,
                     ),
                   ),
                   const SizedBox(width: 8),
