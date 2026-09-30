@@ -58,6 +58,8 @@ class ChatService {
     required String buyerId,
     required String sellerId,
     required String productId,
+    String? productName,
+    double? productPrice,
   }) async {
     try {
       if (buyerId.startsWith('demo-') || sellerId.startsWith('demo-') || buyerId == 'usr-buyer' || sellerId == 'usr-seller') {
@@ -80,6 +82,29 @@ class ChatService {
           'deleted_by_buyer': false,
           'deleted_by_seller': false,
         }).eq('chat_id', chatId).catchError((_) {});
+
+        // If the room has 0 messages, trigger the initial seller welcome message
+        try {
+          final existingMsgs = await _client
+              .from('messages')
+              .select('message_id')
+              .eq('chat_id', chatId)
+              .limit(1);
+
+          if (existingMsgs == null || (existingMsgs as List).isEmpty) {
+            await _sendInitialWelcomeMessage(
+              chatId,
+              sellerId,
+              buyerId,
+              productId,
+              productName: productName,
+              productPrice: productPrice,
+            );
+          }
+        } catch (e) {
+          print("CHECK_EXISTING_ROOM_MESSAGES_ERROR: $e");
+        }
+
         return chatId;
       }
 
@@ -188,7 +213,14 @@ class ChatService {
       final chatId = newChat['chat_id'] as String;
 
       // Automatically post welcome message on chat room creation (FR-15 Shopee style)
-      _sendInitialWelcomeMessage(chatId, sellerId, buyerId, productId).catchError((_) {});
+      await _sendInitialWelcomeMessage(
+        chatId,
+        sellerId,
+        buyerId,
+        productId,
+        productName: productName,
+        productPrice: productPrice,
+      );
 
       return chatId;
     } catch (e) {
@@ -199,45 +231,67 @@ class ChatService {
   }
 
   /// Sends the customizable welcome message containing the product context on chat creation
-  Future<void> _sendInitialWelcomeMessage(String chatId, String sellerId, String buyerId, String productId) async {
+  Future<void> _sendInitialWelcomeMessage(
+    String chatId,
+    String sellerId,
+    String buyerId,
+    String productId, {
+    String? productName,
+    double? productPrice,
+  }) async {
     try {
       // 1. Fetch seller profile settings (welcome template)
-      final profile = await _client
-          .from('store_profiles')
-          .select('welcome_message_template')
-          .eq('seller_id', sellerId)
-          .maybeSingle();
-
-      // 2. Fetch product info (name and price)
-      final prod = await _client
-          .from('products')
-          .select('name, base_price')
-          .eq('product_id', productId)
-          .maybeSingle();
-
-      if (prod != null) {
-        final prodName = prod['name'] as String? ?? 'Product';
-        final prodPrice = double.tryParse(prod['base_price']?.toString() ?? '0') ?? 0.0;
-
-        String template = (profile != null && profile['welcome_message_template'] != null)
-            ? profile['welcome_message_template'] as String
-            : 'Hi! Thank you for inquiring about [PRODUCT]. The price is ₱[PRICE]. How can I help you?';
-
-        // Swap template tokens with live product details
-        String content = template
-            .replaceAll('[PRODUCT]', prodName)
-            .replaceAll('[PRICE]', prodPrice.toStringAsFixed(0));
-
-        // Safely post initial seller welcome message via database RPC
-        // without violating client-side RLS constraints
-        await _client.rpc(
-          'send_automated_chat_reply',
-          params: {
-            'p_chat_id': chatId,
-            'p_content': content,
-          },
-        );
+      String? template;
+      try {
+        final profile = await _client
+            .from('store_profiles')
+            .select('welcome_message_template')
+            .eq('seller_id', sellerId)
+            .maybeSingle();
+        if (profile != null && profile['welcome_message_template'] != null) {
+          template = profile['welcome_message_template'] as String;
+        }
+      } catch (e) {
+        print("WELCOME_PROFILE_FETCH_ERROR: $e");
       }
+
+      template ??= 'Hi! Thank you for inquiring about [PRODUCT]. The price is ₱[PRICE]. How can I help you?';
+
+      // 2. Resolve product info (use passed parameters or fallback to database lookup)
+      String resolvedProdName = productName ?? 'Product';
+      double resolvedProdPrice = productPrice ?? 0.0;
+
+      if (productName == null || productPrice == null) {
+        try {
+          final prod = await _client
+              .from('products')
+              .select('name, base_price')
+              .eq('product_id', productId)
+              .maybeSingle();
+
+          if (prod != null) {
+            resolvedProdName = prod['name'] as String? ?? resolvedProdName;
+            resolvedProdPrice = double.tryParse(prod['base_price']?.toString() ?? '0') ?? resolvedProdPrice;
+          }
+        } catch (e) {
+          print("WELCOME_PRODUCT_FETCH_ERROR: $e");
+        }
+      }
+
+      // Swap template tokens with live product details
+      final content = template
+          .replaceAll('[PRODUCT]', resolvedProdName)
+          .replaceAll('[PRICE]', resolvedProdPrice.toStringAsFixed(0));
+
+      // Safely post initial seller welcome message via database RPC
+      // without violating client-side RLS constraints
+      await _client.rpc(
+        'send_automated_chat_reply',
+        params: {
+          'p_chat_id': chatId,
+          'p_content': content,
+        },
+      );
     } catch (e) {
       print("SEND_INITIAL_WELCOME_MESSAGE_ERROR: $e");
     }

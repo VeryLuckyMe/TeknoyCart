@@ -282,6 +282,8 @@ class FakeChatService extends ChatService {
     required String buyerId,
     required String sellerId,
     required String productId,
+    String? productName,
+    double? productPrice,
   }) async {
     // Add a tiny delay to allow the loading dialog to mount in tests
     await Future.delayed(const Duration(milliseconds: 50));

@@ -566,6 +566,8 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                                   buyerId: currentUser.id,
                                   sellerId: product.sellerId,
                                   productId: product.id,
+                                  productName: product.title,
+                                  productPrice: product.price,
                                 );
 
                                 // Close bottom sheet safely
@@ -761,6 +763,8 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         buyerId: currentUser.id,
         sellerId: product.sellerId,
         productId: product.id,
+        productName: product.title,
+        productPrice: product.price,
       );
 
       if (!mounted) return;
