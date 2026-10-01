@@ -5,22 +5,31 @@ import 'package:teknoycart/core/theme.dart';
 /// Self-contained CustomPainter ensures crisp rendering at any density without asset dependencies.
 class TeknoyCartLogo extends StatelessWidget {
   final double size;
-  final Color color;
+  final Color? color;
 
   const TeknoyCartLogo({
     super.key,
     this.size = 48.0,
-    this.color = TeknoyTheme.citMaroon,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Image.asset(
+      'assets/images/teknoy_cart_logo.png',
       width: size,
       height: size,
-      child: CustomPaint(
-        painter: _TeknoyCartPainter(color: color),
-      ),
+      fit: BoxFit.contain,
+      color: color,
+      errorBuilder: (context, error, stackTrace) {
+        return SizedBox(
+          width: size,
+          height: size,
+          child: CustomPaint(
+            painter: _TeknoyCartPainter(color: color ?? TeknoyTheme.citMaroon),
+          ),
+        );
+      },
     );
   }
 }

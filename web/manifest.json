@@ -1,6 +1,6 @@
 {
-    "name": "teknoycart",
-    "short_name": "teknoycart",
+    "name": "TeknoyCart",
+    "short_name": "TeknoyCart",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

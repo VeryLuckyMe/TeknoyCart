@@ -5,7 +5,7 @@ import 'package:teknoycart/core/widgets/teknoy_cart_logo.dart';
 
 void main() {
   group('TeknoyCartLogo Widget Tests', () {
-    testWidgets('renders CustomPaint with default size and color', (tester) async {
+    testWidgets('renders branded logo Image with default size', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -19,21 +19,15 @@ void main() {
       final logoFinder = find.byType(TeknoyCartLogo);
       expect(logoFinder, findsOneWidget);
 
-      final customPaintFinder = find.descendant(
+      final imageFinder = find.descendant(
         of: logoFinder,
-        matching: find.byType(CustomPaint),
+        matching: find.byType(Image),
       );
-      expect(customPaintFinder, findsOneWidget);
+      expect(imageFinder, findsOneWidget);
 
-      final sizedBoxFinder = find.descendant(
-        of: logoFinder,
-        matching: find.byType(SizedBox),
-      );
-      expect(sizedBoxFinder, findsOneWidget);
-
-      final SizedBox sizedBox = tester.widget(sizedBoxFinder);
-      expect(sizedBox.width, 48.0);
-      expect(sizedBox.height, 48.0);
+      final Image imageWidget = tester.widget(imageFinder);
+      expect(imageWidget.width, 48.0);
+      expect(imageWidget.height, 48.0);
     });
 
     testWidgets('respects custom size and custom color', (tester) async {
@@ -56,6 +50,17 @@ void main() {
       final TeknoyCartLogo logo = tester.widget(logoFinder);
       expect(logo.size, 64.0);
       expect(logo.color, TeknoyTheme.citGold);
+
+      final imageFinder = find.descendant(
+        of: logoFinder,
+        matching: find.byType(Image),
+      );
+      expect(imageFinder, findsOneWidget);
+
+      final Image imageWidget = tester.widget(imageFinder);
+      expect(imageWidget.width, 64.0);
+      expect(imageWidget.height, 64.0);
+      expect(imageWidget.color, TeknoyTheme.citGold);
     });
   });
 }
