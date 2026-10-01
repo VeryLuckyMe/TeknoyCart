@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme.dart';
+import '../../../core/widgets/teknoy_cart_logo.dart';
 import '../providers/auth_provider.dart';
 import '../services/auth_service.dart';
 import 'widgets/email_verification_dialog.dart';
@@ -359,11 +360,10 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: TeknoyTheme.citMaroon.withOpacity(0.1),
+                        color: TeknoyTheme.citMaroon.withOpacity(0.08),
                       ),
-                      child: Icon(
-                        Icons.shopping_cart_outlined,
-                        size: 40,
+                      child: const TeknoyCartLogo(
+                        size: 44,
                         color: TeknoyTheme.citMaroon,
                       ),
                     ),
