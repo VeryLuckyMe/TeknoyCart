@@ -478,6 +478,65 @@ void main() {
       await tester.tap(find.text('Like New'));
       await tester.pumpAndSettle();
     });
+
+    testWidgets('Tapping categories in Sell Items does not flash CircularProgressIndicator and smoothly updates attributes and conditions', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final verifiedSellerUser = Profile(
+        id: 'seller-smooth-test-id',
+        username: 'Smooth Seller',
+        email: 'seller.smooth@cit.edu',
+        role: 'SELLER',
+        isSellerVerified: true,
+        createdAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream.value(verifiedSellerUser)),
+          ],
+          child: const MaterialApp(
+            home: ProductDiscoveryFeedView(initialTab: 2),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Initial state: Books category is selected, no loading spinner
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.text('Select Category *'), findsOneWidget);
+
+      // Tap 'Electronics' category
+      await tester.tap(find.text('Electronics'));
+      // Verify during mid-animation (100ms) that no CircularProgressIndicator or full screen loader appears
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+
+      // Settle animations
+      await tester.pumpAndSettle();
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+
+      // Tap 'Food & Beverages' category
+      await tester.tap(find.text('Food & Beverages'));
+      // Mid-animation check
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+
+      // Settle animations
+      await tester.pumpAndSettle();
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+
+      // Verify that Food condition chips are now shown
+      expect(find.text('Freshness & Preparation *'), findsOneWidget);
+      expect(find.text('Freshly Prepared'), findsOneWidget);
+    });
   });
 }
+
 

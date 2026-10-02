@@ -657,7 +657,7 @@ class ProductListNotifier
         if (catRow != null && catRow['category_id'] != null) {
           categoryId = (catRow['category_id'] as num).toInt();
         }
-      } catch (_) {}
+      } catch (e) { debugPrint('PRODUCT_CATEGORY_LOOKUP: $e'); }
 
       // 1. Insert product (including category_attributes with graceful fallback)
       final insertPayload = <String, dynamic>{
@@ -699,11 +699,24 @@ class ProductListNotifier
       for (int i = 0; i < allImagesToInsert.length; i++) {
         final imgUrl = allImagesToInsert[i];
         if (imgUrl.isNotEmpty) {
-          await _supabase.from('product_images').insert({
-            'product_id': dbProductId,
-            'image_url': imgUrl,
-            'is_primary': i == 0,
-          }).catchError((_) => <String, dynamic>{});
+          // Retry with exponential backoff for unreliable campus WiFi (HIGH-07)
+          bool imageInserted = false;
+          for (int attempt = 0; attempt < 3 && !imageInserted; attempt++) {
+            try {
+              await _supabase.from('product_images').insert({
+                'product_id': dbProductId,
+                'image_url': imgUrl,
+                'is_primary': i == 0,
+              });
+              imageInserted = true;
+            } catch (e) {
+              if (attempt < 2) {
+                await Future.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+              } else {
+                debugPrint('PRODUCT_IMAGE_INSERT: Failed after 3 attempts for image $i: $e');
+              }
+            }
+          }
         }
       }
 

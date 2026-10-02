@@ -900,8 +900,8 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     color: _isDetailsAccordionExpanded
-                                        ? TeknoyTheme.citMaroon.withOpacity(0.35)
-                                        : (isDark ? Colors.white10 : Colors.black.withOpacity(0.08)),
+                                        ? TeknoyTheme.citMaroon.withValues(alpha: 0.35)
+                                        : (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.08)),
                                     width: _isDetailsAccordionExpanded ? 1.4 : 1.0,
                                   ),
                                 ),
@@ -936,7 +936,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                                                 margin: const EdgeInsets.only(right: 8),
                                                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                                 decoration: BoxDecoration(
-                                                  color: TeknoyTheme.citMaroon.withOpacity(0.12),
+                                                  color: TeknoyTheme.citMaroon.withValues(alpha: 0.12),
                                                   borderRadius: BorderRadius.circular(6),
                                                 ),
                                                 child: Text(
@@ -969,7 +969,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Divider(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06), height: 1),
+                                            Divider(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06), height: 1),
                                             const SizedBox(height: 14),
                                             ...effectiveSecondary.map((t) => _buildAttributeField(t, isDark, isPrimary: false)),
                                           ],
@@ -1584,7 +1584,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                    color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -1606,7 +1606,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                       style: TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 11,
-                        color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                        color: TeknoyTheme.citMaroon.withValues(alpha: 0.8),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1676,10 +1676,10 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7.5),
                     decoration: BoxDecoration(
-                      color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.05),
+                      color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.12 : 0.05),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: TeknoyTheme.citMaroon.withOpacity(0.4),
+                        color: TeknoyTheme.citMaroon.withValues(alpha: 0.4),
                         width: 1.2,
                       ),
                     ),
@@ -1725,7 +1725,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                    color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -1746,7 +1746,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                       fontFamily: 'Inter',
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                      color: TeknoyTheme.citMaroon.withValues(alpha: 0.8),
                     ),
                   ),
                 ],

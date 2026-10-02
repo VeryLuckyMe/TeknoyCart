@@ -249,7 +249,7 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                           borderRadius: BorderRadius.circular(18),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
+                              color: Colors.black.withValues(alpha: 0.2),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -302,10 +302,10 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.25),
+                                color: Colors.black.withValues(alpha: 0.25),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                  color: Colors.white.withOpacity(0.25),
+                                  color: Colors.white.withValues(alpha: 0.25),
                                   width: 1,
                                 ),
                               ),
@@ -325,7 +325,7 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                                         fontFamily: 'Inter',
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.white.withOpacity(0.9),
+                                        color: Colors.white.withValues(alpha: 0.9),
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -396,9 +396,9 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                         child: OutlinedButton.icon(
                           onPressed: _navigateToChat,
                           style: OutlinedButton.styleFrom(
-                            backgroundColor: TeknoyTheme.citMaroonDark.withOpacity(0.3),
+                            backgroundColor: TeknoyTheme.citMaroonDark.withValues(alpha: 0.3),
                             foregroundColor: Colors.white,
-                            side: BorderSide(color: Colors.white.withOpacity(0.4), width: 1.2),
+                            side: BorderSide(color: Colors.white.withValues(alpha: 0.4), width: 1.2),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
@@ -470,7 +470,7 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                   boxShadow: [
                     if (!isDark)
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
+                        color: Colors.black.withValues(alpha: 0.03),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -703,7 +703,7 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                             boxShadow: [
                               if (!isDark)
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.04),
+                                  color: Colors.black.withValues(alpha: 0.04),
                                   blurRadius: 8,
                                   offset: const Offset(0, 3),
                                 ),
@@ -801,7 +801,7 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
     return Container(
       height: 24,
       width: 1,
-      color: Colors.white.withOpacity(0.2),
+      color: Colors.white.withValues(alpha: 0.2),
     );
   }
 
@@ -817,12 +817,12 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                     product.imageUrl!,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
-                      color: TeknoyTheme.citMaroon.withOpacity(0.05),
+                      color: TeknoyTheme.citMaroon.withValues(alpha: 0.05),
                       child: const Icon(Icons.broken_image_rounded, color: Colors.grey),
                     ),
                   )
                 : Container(
-                    color: TeknoyTheme.citMaroon.withOpacity(0.05),
+                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.05),
                     child: const Icon(Icons.image_not_supported_rounded, color: Colors.grey),
                   ),
           ),

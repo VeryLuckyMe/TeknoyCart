@@ -607,7 +607,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: TeknoyTheme.citMaroon,
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor: TeknoyTheme.citMaroon.withOpacity(0.6),
+                        disabledBackgroundColor: TeknoyTheme.citMaroon.withValues(alpha: 0.6),
                         disabledForegroundColor: Colors.white70,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(

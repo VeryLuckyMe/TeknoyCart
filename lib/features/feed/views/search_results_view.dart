@@ -192,7 +192,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                               children: [
                                 CircleAvatar(
                                   radius: 18,
-                                  backgroundColor: accentRed.withOpacity(0.12),
+                                  backgroundColor: accentRed.withValues(alpha: 0.12),
                                   child: const Icon(Icons.store_rounded, color: accentRed, size: 20),
                                 ),
                                 const SizedBox(width: 10),
