@@ -58,7 +58,7 @@ class ResponsiveMobileFrame extends StatelessWidget {
                 height: 400,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.08 : 0.04),
+                    color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.08 : 0.04),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -70,7 +70,7 @@ class ResponsiveMobileFrame extends StatelessWidget {
                 height: 500,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: TeknoyTheme.citGold.withOpacity(isDark ? 0.05 : 0.03),
+                    color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.05 : 0.03),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -95,14 +95,14 @@ class ResponsiveMobileFrame extends StatelessWidget {
                     boxShadow: [
                       BoxShadow(
                         color: isDark 
-                            ? Colors.black.withOpacity(0.7) 
-                            : Colors.grey.shade400.withOpacity(0.4),
+                            ? Colors.black.withValues(alpha: 0.7) 
+                            : Colors.grey.shade400.withValues(alpha: 0.4),
                         blurRadius: 40,
                         spreadRadius: 8,
                         offset: const Offset(0, 20),
                       ),
                       BoxShadow(
-                        color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.12 : 0.04),
+                        color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.12 : 0.04),
                         blurRadius: 50,
                         spreadRadius: 2,
                       ),

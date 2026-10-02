@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
+import 'package:teknoycart/core/providers/theme_provider.dart';
 import 'package:teknoycart/core/widgets/responsive_frame.dart';
 import 'package:teknoycart/features/auth/views/auth_gate_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
@@ -45,7 +46,7 @@ class TeknoyCartApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: TeknoyTheme.lightTheme,
       darkTheme: TeknoyTheme.darkTheme,
-      themeMode: ThemeMode.light,
+      themeMode: ref.watch(themeModeProvider),
       scrollBehavior: AppScrollBehavior(), // Inject drag scroll behavior
       builder: (context, child) {
         return InactivityWrapper(
@@ -54,7 +55,7 @@ class TeknoyCartApp extends ConsumerWidget {
             if (user != null) {
               try {
                 await ref.read(authNotifierProvider.notifier).logout();
-              } catch (_) {}
+              } catch (e) { debugPrint('INACTIVITY_LOGOUT: $e'); }
             }
           },
           child: ResponsiveMobileFrame(child: child!),
@@ -106,8 +107,16 @@ class InactivityWrapper extends StatefulWidget {
 
 class _InactivityWrapperState extends State<InactivityWrapper> {
   Timer? _timer;
+  DateTime _lastReset = DateTime.now();
+
+  /// Throttled reset: at most once per 30 seconds to avoid GC pressure
+  /// from hundreds of Timer cancels/creates during scroll gestures (HIGH-08)
+  static const _throttleDuration = Duration(seconds: 30);
 
   void _resetTimer() {
+    final now = DateTime.now();
+    if (now.difference(_lastReset) < _throttleDuration) return;
+    _lastReset = now;
     _timer?.cancel();
     _timer = Timer(const Duration(minutes: 30), widget.onTimeout);
   }
@@ -115,7 +124,7 @@ class _InactivityWrapperState extends State<InactivityWrapper> {
   @override
   void initState() {
     super.initState();
-    _resetTimer();
+    _timer = Timer(const Duration(minutes: 30), widget.onTimeout);
   }
 
   @override
@@ -129,8 +138,6 @@ class _InactivityWrapperState extends State<InactivityWrapper> {
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) => _resetTimer(),
-      onPointerMove: (_) => _resetTimer(),
-      onPointerUp: (_) => _resetTimer(),
       child: widget.child,
     );
   }

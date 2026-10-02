@@ -56,8 +56,8 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        TeknoyTheme.citMaroon.withOpacity(0.9),
-                        TeknoyTheme.citMaroonDark.withOpacity(0.95),
+                        TeknoyTheme.citMaroon.withValues(alpha: 0.9),
+                        TeknoyTheme.citMaroonDark.withValues(alpha: 0.95),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -112,10 +112,10 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                   decoration: BoxDecoration(
-                                    color: TeknoyTheme.citGold.withOpacity(0.15),
+                                    color: TeknoyTheme.citGold.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(100),
                                     border: Border.all(
-                                      color: TeknoyTheme.citGold.withOpacity(0.4),
+                                      color: TeknoyTheme.citGold.withValues(alpha: 0.4),
                                       width: 1,
                                     ),
                                   ),
@@ -164,12 +164,12 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.15),
+                          color: Colors.black.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.school_outlined, size: 16, color: Colors.white.withOpacity(0.6)),
+                            Icon(Icons.school_outlined, size: 16, color: Colors.white.withValues(alpha: 0.6)),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -179,7 +179,7 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                                 style: TextStyle(
                                   fontFamily: 'Inter',
                                   fontSize: 12,
-                                  color: Colors.white.withOpacity(0.7),
+                                  color: Colors.white.withValues(alpha: 0.7),
                                 ),
                               ),
                             ),
@@ -269,7 +269,7 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
 
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        child: Divider(color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06)),
+                        child: Divider(color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06)),
                       ),
                       _buildNavTile(
                         context,
@@ -302,7 +302,7 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                   decoration: BoxDecoration(
                     border: Border(
                       top: BorderSide(
-                        color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04),
+                        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
                         width: 1,
                       ),
                     ),
@@ -317,7 +317,7 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                             Icon(
                               Icons.security_rounded,
                               size: 14,
-                              color: TeknoyTheme.citGold.withOpacity(0.6),
+                              color: TeknoyTheme.citGold.withValues(alpha: 0.6),
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -326,7 +326,7 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                                 fontFamily: 'Outfit',
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.45),
+                                color: isDark ? Colors.white.withValues(alpha: 0.4) : Colors.black.withValues(alpha: 0.45),
                               ),
                             ),
                           ],
@@ -370,14 +370,14 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
             color: isActive
-                ? TeknoyTheme.citGold.withOpacity(0.3)
+                ? TeknoyTheme.citGold.withValues(alpha: 0.3)
                 : Colors.transparent,
             width: 1,
           ),
         ),
         child: ListTile(
           tileColor: isActive
-              ? TeknoyTheme.citMaroon.withOpacity(isDark ? 0.15 : 0.08)
+              ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.15 : 0.08)
               : Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -387,7 +387,7 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
             color: isActive
                 ? TeknoyTheme.citGold
                 : isDanger
-                    ? TeknoyTheme.error.withOpacity(0.8)
+                    ? TeknoyTheme.error.withValues(alpha: 0.8)
                     : (isDark ? Colors.white60 : Colors.black54),
             size: 22,
           ),
@@ -400,15 +400,15 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
               color: isActive
                   ? (isDark ? Colors.white : TeknoyTheme.citMaroon)
                   : isDanger
-                      ? TeknoyTheme.error.withOpacity(0.9)
-                      : (isDark ? Colors.white.withOpacity(0.8) : Colors.black87),
+                      ? TeknoyTheme.error.withValues(alpha: 0.9)
+                      : (isDark ? Colors.white.withValues(alpha: 0.8) : Colors.black87),
             ),
           ),
           trailing: Icon(
             Icons.arrow_forward_ios_rounded,
             size: 12,
             color: isActive
-                ? TeknoyTheme.citGold.withOpacity(0.7)
+                ? TeknoyTheme.citGold.withValues(alpha: 0.7)
                 : (isDark ? Colors.white24 : Colors.black26),
           ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),

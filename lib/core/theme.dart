@@ -31,7 +31,7 @@ class TeknoyTheme {
   // Premium Elevation Shadows for visual depth
   static List<BoxShadow> get kElevationLow => [
         BoxShadow(
-          color: Colors.black.withOpacity(0.03),
+          color: Colors.black.withValues(alpha: 0.03),
           blurRadius: 10,
           offset: const Offset(0, 4),
         ),
@@ -39,12 +39,12 @@ class TeknoyTheme {
 
   static List<BoxShadow> get kElevationHigh => [
         BoxShadow(
-          color: Colors.black.withOpacity(0.06),
+          color: Colors.black.withValues(alpha: 0.06),
           blurRadius: 20,
           offset: const Offset(0, 8),
         ),
         BoxShadow(
-          color: citMaroon.withOpacity(0.04),
+          color: citMaroon.withValues(alpha: 0.04),
           blurRadius: 12,
           offset: const Offset(0, 2),
         ),
