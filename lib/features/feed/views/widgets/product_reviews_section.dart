@@ -113,7 +113,7 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: TeknoyTheme.citGold.withOpacity(isDark ? 0.2 : 0.12),
+                  color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.2 : 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.star_rounded, size: 16, color: TeknoyTheme.citGold),
@@ -131,7 +131,7 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                  color: TeknoyTheme.citMaroon.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -190,7 +190,7 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
                 color: isDark ? const Color(0xFF191922) : const Color(0xFFF9F9FB),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                  color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
                 ),
               ),
               child: Row(
@@ -328,7 +328,7 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
                   color: isDark ? const Color(0xFF181820) : const Color(0xFFFBFBFC),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06),
+                    color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
                   ),
                 ),
                 child: Column(
@@ -373,7 +373,7 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                                     decoration: BoxDecoration(
-                                      color: TeknoyTheme.success.withOpacity(0.12),
+                                      color: TeknoyTheme.success.withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: const Row(
@@ -440,7 +440,7 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: isDark ? Colors.white10 : Colors.black.withOpacity(0.04),
+                          color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.04),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -465,7 +465,7 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
                           return Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                              color: TeknoyTheme.citMaroon.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(

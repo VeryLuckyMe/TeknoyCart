@@ -105,7 +105,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
+                color: Colors.black.withValues(alpha: 0.25),
                 blurRadius: 20,
                 offset: const Offset(0, -5),
               ),
@@ -380,7 +380,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: TeknoyTheme.citMaroon.withOpacity(0.08),
+              color: TeknoyTheme.citMaroon.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -459,7 +459,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
             children: [
               CircleAvatar(
                 radius: 17,
-                backgroundColor: TeknoyTheme.citMaroon.withOpacity(0.12),
+                backgroundColor: TeknoyTheme.citMaroon.withValues(alpha: 0.12),
                 child: Text(
                   buyerInitial,
                   style: const TextStyle(
@@ -494,7 +494,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF22C55E).withOpacity(0.12),
+                            color: const Color(0xFF22C55E).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Row(
@@ -580,10 +580,10 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.2 : 0.08),
+                    color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.2 : 0.08),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: TeknoyTheme.citMaroon.withOpacity(0.2),
+                      color: TeknoyTheme.citMaroon.withValues(alpha: 0.2),
                     ),
                   ),
                   child: Text(
@@ -609,7 +609,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
                 fontFamily: 'Inter',
                 fontSize: 13,
                 height: 1.45,
-                color: isDark ? Colors.white.withOpacity(0.88) : const Color(0xFF2C2C30),
+                color: isDark ? Colors.white.withValues(alpha: 0.88) : const Color(0xFF2C2C30),
               ),
             ),
           ],
