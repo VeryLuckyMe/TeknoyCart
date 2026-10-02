@@ -1,8 +1,11 @@
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
 import '../../../core/supabase_client.dart';
+import '../../../core/services/secure_token_service.dart';
 import '../models/seller_verification.dart';
 
 final sellerVerificationServiceProvider = Provider<SellerVerificationService>((ref) {
@@ -94,15 +97,27 @@ class SellerVerificationService {
         .select()
         .single();
 
-    // 4. Ensure user role is SELLER in users table (with unverified status)
+    // 4. Route role change through server-authoritative backend API (CRIT-02)
+    // Never mutate role/is_seller_verified directly from the client — the RLS
+    // trigger protect_user_security_columns() blocks this by design.
     try {
-      await _client.from('users').update({
-        'role': 'SELLER',
-        'is_seller_verified': false,
-        'seller_type': sellerType,
-      }).eq('user_id', userId);
-    } catch (_) {
-      // RLS or trigger might govern role change; safe to proceed
+      final token = await SecureTokenService.getBearerToken();
+      if (token != null && token.isNotEmpty) {
+        final response = await http.post(
+          Uri.parse('https://teknoycart-backend.onrender.com/api/auth/request-seller-upgrade'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        ).timeout(const Duration(seconds: 15));
+        if (response.statusCode != 200) {
+          debugPrint('SELLER_UPGRADE_API: Backend returned ${response.statusCode}');
+        }
+      } else {
+        debugPrint('SELLER_UPGRADE_API: No bearer token available, skipping backend call');
+      }
+    } catch (e) {
+      debugPrint('SELLER_UPGRADE_API: Backend unreachable ($e), role change pending admin action');
     }
 
     return SellerVerification.fromJson(res);

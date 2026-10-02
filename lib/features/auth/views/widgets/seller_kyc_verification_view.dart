@@ -212,7 +212,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                     height: 4,
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: (isDark ? Colors.white : Colors.black).withOpacity(0.2),
+                      color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -223,7 +223,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                       width: 34,
                       height: 34,
                       decoration: BoxDecoration(
-                        color: TeknoyTheme.citMaroon.withOpacity(0.1),
+                        color: TeknoyTheme.citMaroon.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       alignment: Alignment.center,
@@ -308,10 +308,10 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: TeknoyTheme.citGold.withOpacity(0.12),
+            color: TeknoyTheme.citGold.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: TeknoyTheme.citGold.withOpacity(0.25),
+              color: TeknoyTheme.citGold.withValues(alpha: 0.25),
               width: 1,
             ),
           ),
@@ -376,7 +376,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: TeknoyTheme.citGold.withOpacity(0.12),
+                color: TeknoyTheme.citGold.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -411,7 +411,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: (isDark ? Colors.white : Colors.black).withOpacity(0.04),
+                color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: cardBorder),
               ),
@@ -469,7 +469,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: TeknoyTheme.citMaroon.withOpacity(0.1),
+                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -513,9 +513,9 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444).withOpacity(0.08),
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.3)),
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -770,7 +770,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                 style: ElevatedButton.styleFrom(
                   backgroundColor: TeknoyTheme.citMaroon,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: TeknoyTheme.citMaroon.withOpacity(0.4),
+                  disabledBackgroundColor: TeknoyTheme.citMaroon.withValues(alpha: 0.4),
                   disabledForegroundColor: Colors.white70,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
@@ -838,7 +838,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: (hasFile ? const Color(0xFF10B981) : TeknoyTheme.citMaroon).withOpacity(0.1),
+                  color: (hasFile ? const Color(0xFF10B981) : TeknoyTheme.citMaroon).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 alignment: Alignment.center,
@@ -865,7 +865,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withOpacity(0.12),
+                    color: const Color(0xFF10B981).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Row(
