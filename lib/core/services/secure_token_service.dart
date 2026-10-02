@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 
@@ -33,8 +34,9 @@ class SecureTokenService {
       if (backendToken != null) {
         await _storage.write(key: _keyBackendToken, value: backendToken);
       }
-    } catch (_) {
-      // Fallback: storage failures shouldn't crash the app (e.g. unsupported desktop env)
+    } catch (e) {
+      // Storage failures shouldn't crash the app (e.g. unsupported desktop env)
+      debugPrint('SECURE_TOKEN_SAVE: $e');
     }
   }
 
@@ -46,7 +48,7 @@ class SecureTokenService {
       if (token != null && token.isNotEmpty) {
         return token;
       }
-    } catch (_) {}
+    } catch (e) { debugPrint('SECURE_TOKEN_READ: $e'); }
 
     // Fallback to active Supabase session if secure storage read fails
     return SupabaseConfig.client.auth.currentSession?.accessToken;
@@ -56,7 +58,8 @@ class SecureTokenService {
   static Future<String?> getRefreshToken() async {
     try {
       return await _storage.read(key: _keyRefreshToken);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('SECURE_TOKEN_REFRESH_READ: $e');
       return null;
     }
   }
@@ -65,7 +68,8 @@ class SecureTokenService {
   static Future<String?> getBackendToken() async {
     try {
       return await _storage.read(key: _keyBackendToken);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('SECURE_TOKEN_BACKEND_READ: $e');
       return null;
     }
   }
@@ -76,6 +80,6 @@ class SecureTokenService {
       await _storage.delete(key: _keyAccessToken);
       await _storage.delete(key: _keyRefreshToken);
       await _storage.delete(key: _keyBackendToken);
-    } catch (_) {}
+    } catch (e) { debugPrint('SECURE_TOKEN_CLEAR: $e'); }
   }
 }

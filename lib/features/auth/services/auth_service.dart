@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/services/secure_token_service.dart';
@@ -54,22 +55,25 @@ class AuthService {
     try {
       final res = await _client
           .from('users')
-          .select('full_name, role, is_seller_verified, department, student_id, contact, gcash_number, avatar_url')
+          .select('full_name, role, is_seller_verified, student_id, contact, gcash_number')
           .eq('user_id', profile.id)
           .maybeSingle();
       if (res != null) {
+        final meta = _client.auth.currentUser?.userMetadata;
+        final dept = (meta?['department'] as String?) ?? profile.department;
+        final avatar = (meta?['avatar_url'] as String?) ?? (meta?['avatarUrl'] as String?) ?? profile.avatarUrl;
         return profile.copyWith(
           username: res['full_name'] as String? ?? profile.username,
           role: res['role'] as String? ?? profile.role,
           isSellerVerified: (res['is_seller_verified'] as bool?) ?? profile.isSellerVerified,
-          department: res['department'] as String? ?? profile.department,
+          department: dept,
           studentId: res['student_id'] as String? ?? profile.studentId,
           contact: res['contact'] as String? ?? profile.contact,
           gcashNumber: res['gcash_number'] as String? ?? profile.gcashNumber,
-          avatarUrl: res['avatar_url'] as String? ?? profile.avatarUrl,
+          avatarUrl: avatar,
         );
       }
-    } catch (_) {}
+    } catch (e) { debugPrint('AUTH_ENRICH_PROFILE: $e'); }
     return profile;
   }
 
@@ -116,7 +120,7 @@ class AuthService {
     Map<String, dynamic> body = {};
     try {
       body = jsonDecode(response.body) as Map<String, dynamic>;
-    } catch (_) {}
+    } catch (e) { debugPrint('AUTH_LOGIN_PARSE: $e'); }
 
     if (response.statusCode == 200) {
       // Establish Supabase session using the minted session returned by backend
@@ -318,13 +322,13 @@ class AuthService {
       try {
         final httpResponse = await http.post(url).timeout(const Duration(seconds: 15));
         if (httpResponse.statusCode == 200) {
-          print('✅ SMTP Verification email triggered successfully on attempt $attempts');
+          debugPrint('SMTP Verification email triggered successfully on attempt $attempts');
           return;
         } else {
-          print('SMTP Trigger returned status code: ${httpResponse.statusCode}, attempt $attempts');
+          debugPrint('SMTP Trigger returned status code: ${httpResponse.statusCode}, attempt $attempts');
         }
       } catch (e) {
-        print('Attempt $attempts: Failed to reach Spring Boot backend SMTP trigger ($e)');
+        debugPrint('Attempt $attempts: Failed to reach Spring Boot backend SMTP trigger ($e)');
       }
       if (attempts < 3) {
         await Future.delayed(const Duration(seconds: 2));

@@ -10,7 +10,8 @@ import '../providers/auth_provider.dart';
 import '../services/auth_service.dart';
 import 'widgets/email_verification_dialog.dart';
 import 'widgets/auth_password_sheets.dart';
-import 'widgets/auth_form_fields.dart';
+import 'widgets/auth_login_form.dart';
+import 'widgets/auth_register_form.dart';
 
 class AuthGateView extends ConsumerStatefulWidget {
   const AuthGateView({super.key});
@@ -37,8 +38,6 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
 
   String _selectedRole = 'BUYER';
   String _selectedSellerType = 'STUDENT';
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
@@ -309,9 +308,9 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final titleColor = isDark ? Colors.white : const Color(0xFF1D1D1F);
-    final subtitleColor = isDark ? Colors.white.withOpacity(0.6) : const Color(0xFF8E8E93);
-    final cardBg = isDark ? const Color(0xFF1C1C1E).withOpacity(0.8) : Colors.white.withOpacity(0.85);
-    final cardBorder = isDark ? Colors.white.withOpacity(0.12) : const Color(0xFFE5E5EA);
+    final subtitleColor = isDark ? Colors.white.withValues(alpha: 0.6) : const Color(0xFF8E8E93);
+    final cardBg = isDark ? const Color(0xFF1C1C1E).withValues(alpha: 0.8) : Colors.white.withValues(alpha: 0.85);
+    final cardBorder = isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE5E5EA);
 
     return Scaffold(
       body: Stack(
@@ -330,7 +329,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: TeknoyTheme.citMaroon.withOpacity(isDark ? 0.3 : 0.15),
+                color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.3 : 0.15),
               ),
             ),
           ),
@@ -342,7 +341,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
               height: 250,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: TeknoyTheme.citGold.withOpacity(isDark ? 0.2 : 0.12),
+                color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.2 : 0.12),
               ),
             ),
           ),
@@ -360,7 +359,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                        color: TeknoyTheme.citMaroon.withValues(alpha: 0.08),
                       ),
                       child: const TeknoyCartLogo(
                         size: 44,
@@ -440,781 +439,36 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                     ),
                                     const SizedBox(height: 20),
 
-                                    // Step Progress Indicator
-                                    if (!_isLoginTab) ...[
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            'Step ${_registerStep + 1} of 3',
-                                            style: const TextStyle(
-                                              fontFamily: 'Outfit',
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                              color: TeknoyTheme.citGold,
-                                            ),
-                                          ),
-                                          Text(
-                                            _registerStep == 0
-                                                ? 'Role & Identity'
-                                                : _registerStep == 1
-                                                    ? 'Campus Details'
-                                                    : 'Account Credentials',
-                                            style: TextStyle(
-                                              fontFamily: 'Inter',
-                                              fontSize: 11,
-                                              color: subtitleColor,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: List.generate(3, (index) {
-                                          final active = index <= _registerStep;
-                                          return Expanded(
-                                            child: Container(
-                                              height: 4,
-                                              margin: const EdgeInsets.symmetric(horizontal: 3),
-                                              decoration: BoxDecoration(
-                                                color: active
-                                                    ? TeknoyTheme.citGold
-                                                    : (isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.08)),
-                                                borderRadius: BorderRadius.circular(2),
-                                              ),
-                                            ),
-                                          );
-                                        }),
-                                      ),
-                                      const SizedBox(height: 20),
-                                    ],
 
-                                    // LOGIN FORM
-                                    if (_isLoginTab) ...[
-                                      AuthInputField(
-                                        controller: _emailController,
-                                        label: 'Email Address',
-                                        icon: Icons.email_outlined,
-                                        keyboardType: TextInputType.emailAddress,
-                                        validator: (val) {
-                                          if (val == null || val.trim().isEmpty) {
-                                            return 'Please enter your email';
-                                          }
-                                          final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                                          if (!emailRegex.hasMatch(val.trim())) {
-                                            return 'Please enter a valid email address';
-                                          }
-                                          return null;
-                                        },
+                                    if (_isLoginTab)
+                                      AuthLoginForm(
+                                        emailController: _emailController,
+                                        passwordController: _passwordController,
+                                        onForgotPassword: _showForgotPasswordSheet,
+                                        onSubmit: _submitForm,
+                                        isLoading: authState.isLoading,
+                                      )
+                                    else
+                                      AuthRegisterForm(
+                                        firstNameController: _firstNameController,
+                                        lastNameController: _lastNameController,
+                                        studentIdController: _studentIdController,
+                                        departmentController: _departmentController,
+                                        storeNameController: _storeNameController,
+                                        orgContactController: _orgContactController,
+                                        emailController: _emailController,
+                                        passwordController: _passwordController,
+                                        confirmPasswordController: _confirmPasswordController,
+                                        selectedRole: _selectedRole,
+                                        selectedSellerType: _selectedSellerType,
+                                        onRoleChanged: (role) => setState(() => _selectedRole = role),
+                                        onSellerTypeChanged: (type) => setState(() => _selectedSellerType = type),
+                                        registerStep: _registerStep,
+                                        onStepChanged: (step) => setState(() => _registerStep = step),
+                                        onValidateStep: _validateStep,
+                                        onSubmit: _submitForm,
+                                        isLoading: authState.isLoading,
                                       ),
-                                      const SizedBox(height: 16),
-                                      AuthInputField(
-                                        controller: _passwordController,
-                                        label: 'Password',
-                                        icon: Icons.lock_outline_rounded,
-                                        obscureText: _obscurePassword,
-                                        suffixIcon: IconButton(
-                                          icon: Icon(
-                                            _obscurePassword
-                                                ? Icons.visibility_off_outlined
-                                                : Icons.visibility_outlined,
-                                            color: isDark ? Colors.white60 : Colors.black54,
-                                            size: 20,
-                                          ),
-                                          onPressed: () =>
-                                              setState(() => _obscurePassword = !_obscurePassword),
-                                        ),
-                                        validator: (val) {
-                                          if (val == null || val.isEmpty) {
-                                            return 'Please enter your password';
-                                          }
-                                          return null;
-                                        },
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: TextButton(
-                                          onPressed: _showForgotPasswordSheet,
-                                          style: TextButton.styleFrom(
-                                            padding: EdgeInsets.zero,
-                                            minimumSize: Size.zero,
-                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                          ),
-                                          child: const Text(
-                                            'Forgot Password?',
-                                            style: TextStyle(
-                                              fontFamily: 'Inter',
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: TeknoyTheme.citGold,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 24),
-                                      SizedBox(
-                                        height: 52,
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(16),
-                                            gradient: LinearGradient(
-                                              colors: [
-                                                TeknoyTheme.citMaroonLight,
-                                                TeknoyTheme.citMaroon,
-                                              ],
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: TeknoyTheme.citMaroon.withOpacity(0.4),
-                                                blurRadius: 12,
-                                                offset: const Offset(0, 4),
-                                              ),
-                                            ],
-                                          ),
-                                          child: ElevatedButton(
-                                            key: const Key('auth-submit-btn'),
-                                            onPressed: authState.isLoading ? null : _submitForm,
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.transparent,
-                                              foregroundColor: Colors.white,
-                                              shadowColor: Colors.transparent,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(16),
-                                              ),
-                                            ),
-                                            child: authState.isLoading
-                                                ? const SizedBox(
-                                                    height: 22,
-                                                    width: 22,
-                                                    child: CircularProgressIndicator(
-                                                      color: Colors.white,
-                                                      strokeWidth: 2.5,
-                                                    ),
-                                                  )
-                                                : const Text(
-                                                    'Login',
-                                                    style: TextStyle(
-                                                      fontFamily: 'Outfit',
-                                                      fontSize: 16,
-                                                      fontWeight: FontWeight.bold,
-                                                      letterSpacing: 0.5,
-                                                    ),
-                                                  ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-
-                                    // REGISTER FLOW
-                                    if (!_isLoginTab) ...[
-                                      // Step 0: Identity & Role
-                                      if (_registerStep == 0) ...[
-                                        if (!(_selectedRole == 'SELLER' && _selectedSellerType == 'ORG')) ...[
-                                          AuthInputField(
-                                            controller: _firstNameController,
-                                            label: 'First Name',
-                                            icon: Icons.person_outline_rounded,
-                                          ),
-                                          const SizedBox(height: 16),
-                                          AuthInputField(
-                                            controller: _lastNameController,
-                                            label: 'Last Name',
-                                            icon: Icons.person_outline_rounded,
-                                          ),
-                                          const SizedBox(height: 20),
-                                        ],
-                                        Text(
-                                          'Select Your Campus Role',
-                                          style: TextStyle(
-                                            fontFamily: 'Outfit',
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: isDark ? Colors.white70 : Colors.black87,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: RoleCard(
-                                                role: 'BUYER',
-                                                selectedRole: _selectedRole,
-                                                title: 'Buyer',
-                                                desc: 'Browse & buy (can upgrade anytime)',
-                                                icon: Icons.shopping_bag_outlined,
-                                                onSelected: (val) => setState(() => _selectedRole = val),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: RoleCard(
-                                                role: 'SELLER',
-                                                selectedRole: _selectedRole,
-                                                title: 'Seller',
-                                                desc: 'Sell items, plus browse & buy',
-                                                icon: Icons.storefront_outlined,
-                                                onSelected: (val) => setState(() => _selectedRole = val),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        if (_selectedRole == 'SELLER') ...[
-                                          const SizedBox(height: 16),
-                                          Text(
-                                            'Seller Type',
-                                            style: TextStyle(
-                                              fontFamily: 'Outfit',
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                              color: isDark ? Colors.white70 : Colors.black87,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: SellerTypeCard(
-                                                  type: 'STUDENT',
-                                                  selectedSellerType: _selectedSellerType,
-                                                  title: 'Student / Personal',
-                                                  desc: 'Individual student seller',
-                                                  icon: Icons.school_outlined,
-                                                  onSelected: (val) => setState(() => _selectedSellerType = val),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: SellerTypeCard(
-                                                  type: 'ORG',
-                                                  selectedSellerType: _selectedSellerType,
-                                                  title: 'Org / Shop',
-                                                  desc: 'Organization or big store',
-                                                  icon: Icons.storefront_rounded,
-                                                  onSelected: (val) => setState(() => _selectedSellerType = val),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          AnimatedContainer(
-                                            duration: const Duration(milliseconds: 250),
-                                            curve: Curves.easeInOut,
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                            decoration: BoxDecoration(
-                                              color: (_selectedSellerType == 'ORG'
-                                                  ? const Color(0xFF1565C0)
-                                                  : TeknoyTheme.citGold).withOpacity(0.08),
-                                              borderRadius: BorderRadius.circular(10),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  _selectedSellerType == 'ORG'
-                                                      ? Icons.info_outline_rounded
-                                                      : Icons.badge_outlined,
-                                                  size: 14,
-                                                  color: _selectedSellerType == 'ORG'
-                                                      ? const Color(0xFF1976D2)
-                                                      : TeknoyTheme.citGold,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Expanded(
-                                                  child: Text(
-                                                    _selectedSellerType == 'ORG'
-                                                        ? 'Next step: Contact number & college affiliation'
-                                                        : 'Next step: Student ID & department code',
-                                                    style: TextStyle(
-                                                      fontFamily: 'Inter',
-                                                      fontSize: 11,
-                                                      color: _selectedSellerType == 'ORG'
-                                                          ? const Color(0xFF1976D2)
-                                                          : TeknoyTheme.citGold,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(height: 20),
-                                          AuthInputField(
-                                            controller: _storeNameController,
-                                            label: 'Store Name',
-                                            icon: Icons.store_mall_directory_outlined,
-                                          ),
-                                        ],
-                                        const SizedBox(height: 24),
-                                        SizedBox(
-                                          height: 52,
-                                          child: ElevatedButton(
-                                            onPressed: () {
-                                              if (_validateStep(0)) {
-                                                setState(() => _registerStep = 1);
-                                              }
-                                            },
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: TeknoyTheme.citMaroon,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(16),
-                                              ),
-                                            ),
-                                            child: const Text(
-                                              'Continue',
-                                              style: TextStyle(
-                                                fontFamily: 'Outfit',
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-
-                                      // Step 1: Academic / Org Verification
-                                      if (_registerStep == 1) ...[
-                                        if (_selectedRole == 'SELLER' && _selectedSellerType == 'ORG') ...[
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF1565C0).withOpacity(0.08),
-                                              borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(
-                                                color: const Color(0xFF1976D2).withOpacity(0.3),
-                                              ),
-                                            ),
-                                            child: const Row(
-                                              children: [
-                                                Icon(Icons.storefront_rounded, size: 18, color: Color(0xFF1976D2)),
-                                                SizedBox(width: 8),
-                                                Expanded(
-                                                  child: Text(
-                                                    'Organization / Shop verification',
-                                                    style: TextStyle(
-                                                      fontFamily: 'Outfit',
-                                                      fontSize: 13,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: Color(0xFF1976D2),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(height: 16),
-                                          AuthInputField(
-                                            controller: _orgContactController,
-                                            label: 'Contact Number (09XX-XXX-XXXX)',
-                                            icon: Icons.phone_outlined,
-                                            keyboardType: TextInputType.phone,
-                                          ),
-                                          const SizedBox(height: 16),
-                                          AuthDropdownField<String>(
-                                            value: citDepartmentOptions.any((opt) => opt.code == _departmentController.text.trim())
-                                                ? _departmentController.text.trim()
-                                                : null,
-                                            label: 'College / Dept. Affiliation',
-                                            hint: 'Select Department or School',
-                                            icon: Icons.account_balance_outlined,
-                                            items: citDepartmentOptions.map((opt) {
-                                              return DropdownMenuItem<String>(
-                                                value: opt.code,
-                                                child: Text(
-                                                  opt.fullTitle,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    fontFamily: 'Inter',
-                                                    fontSize: 13,
-                                                    fontWeight: _departmentController.text.trim() == opt.code
-                                                        ? FontWeight.bold
-                                                        : FontWeight.normal,
-                                                  ),
-                                                ),
-                                              );
-                                            }).toList(),
-                                            onChanged: (val) {
-                                              if (val != null) {
-                                                setState(() => _departmentController.text = val);
-                                              }
-                                            },
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Wrap(
-                                            spacing: 6,
-                                            runSpacing: 6,
-                                            children: citDepartmentOptions.map((opt) {
-                                              final isSelected = _departmentController.text.trim().toUpperCase() == opt.code;
-                                              return GestureDetector(
-                                                onTap: () => setState(() => _departmentController.text = opt.code),
-                                                child: AnimatedContainer(
-                                                  duration: const Duration(milliseconds: 150),
-                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                                  decoration: BoxDecoration(
-                                                    color: isSelected
-                                                        ? TeknoyTheme.citMaroon.withValues(alpha: 0.15)
-                                                        : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04)),
-                                                    borderRadius: BorderRadius.circular(8),
-                                                    border: Border.all(
-                                                      color: isSelected
-                                                          ? TeknoyTheme.citMaroon
-                                                          : (isDark ? Colors.white12 : Colors.black12),
-                                                      width: isSelected ? 1.5 : 1,
-                                                    ),
-                                                  ),
-                                                  child: Text(
-                                                    opt.code,
-                                                    style: TextStyle(
-                                                      fontFamily: 'Inter',
-                                                      fontSize: 11,
-                                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                                      color: isSelected
-                                                          ? TeknoyTheme.citMaroon
-                                                          : (isDark ? Colors.white70 : Colors.black87),
-                                                    ),
-                                                  ),
-                                                ),
-                                              );
-                                            }).toList(),
-                                          ),
-                                          if (_departmentController.text.trim().isNotEmpty &&
-                                              citDepartmentOptions.any((opt) => opt.code == _departmentController.text.trim())) ...[
-                                            const SizedBox(height: 8),
-                                            Row(
-                                              children: [
-                                                const Icon(Icons.check_circle_rounded, size: 14, color: Colors.green),
-                                                const SizedBox(width: 6),
-                                                Expanded(
-                                                  child: Text(
-                                                    citDepartmentOptions.firstWhere((o) => o.code == _departmentController.text.trim()).name,
-                                                    style: TextStyle(
-                                                      fontFamily: 'Inter',
-                                                      fontSize: 11.5,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: isDark ? Colors.white70 : Colors.black87,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ] else ...[
-                                          AuthInputField(
-                                            controller: _studentIdController,
-                                            label: 'Student ID (##-####-###)',
-                                            icon: Icons.badge_outlined,
-                                            keyboardType: TextInputType.phone,
-                                            inputFormatters: [
-                                              FilteringTextInputFormatter.digitsOnly,
-                                              StudentIdInputFormatter(),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 16),
-                                          AuthDropdownField<String>(
-                                            value: citDepartmentOptions.any((opt) => opt.code == _departmentController.text.trim())
-                                                ? _departmentController.text.trim()
-                                                : null,
-                                            label: 'Department / Academic Level',
-                                            hint: 'Select Department or School',
-                                            icon: Icons.school_outlined,
-                                            items: citDepartmentOptions.map((opt) {
-                                              return DropdownMenuItem<String>(
-                                                value: opt.code,
-                                                child: Text(
-                                                  opt.fullTitle,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    fontFamily: 'Inter',
-                                                    fontSize: 13,
-                                                    fontWeight: _departmentController.text.trim() == opt.code
-                                                        ? FontWeight.bold
-                                                        : FontWeight.normal,
-                                                  ),
-                                                ),
-                                              );
-                                            }).toList(),
-                                            onChanged: (val) {
-                                              if (val != null) {
-                                                setState(() => _departmentController.text = val);
-                                              }
-                                            },
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Wrap(
-                                            spacing: 6,
-                                            runSpacing: 6,
-                                            children: citDepartmentOptions.map((opt) {
-                                              final isSelected = _departmentController.text.trim().toUpperCase() == opt.code;
-                                              return GestureDetector(
-                                                onTap: () => setState(() => _departmentController.text = opt.code),
-                                                child: AnimatedContainer(
-                                                  duration: const Duration(milliseconds: 150),
-                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                                  decoration: BoxDecoration(
-                                                    color: isSelected
-                                                        ? TeknoyTheme.citMaroon.withValues(alpha: 0.15)
-                                                        : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04)),
-                                                    borderRadius: BorderRadius.circular(8),
-                                                    border: Border.all(
-                                                      color: isSelected
-                                                          ? TeknoyTheme.citMaroon
-                                                          : (isDark ? Colors.white12 : Colors.black12),
-                                                      width: isSelected ? 1.5 : 1,
-                                                    ),
-                                                  ),
-                                                  child: Text(
-                                                    opt.code,
-                                                    style: TextStyle(
-                                                      fontFamily: 'Inter',
-                                                      fontSize: 11,
-                                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                                      color: isSelected
-                                                          ? TeknoyTheme.citMaroon
-                                                          : (isDark ? Colors.white70 : Colors.black87),
-                                                    ),
-                                                  ),
-                                                ),
-                                              );
-                                            }).toList(),
-                                          ),
-                                          if (_departmentController.text.trim().isNotEmpty &&
-                                              citDepartmentOptions.any((opt) => opt.code == _departmentController.text.trim())) ...[
-                                            const SizedBox(height: 8),
-                                            Row(
-                                              children: [
-                                                const Icon(Icons.check_circle_rounded, size: 14, color: Colors.green),
-                                                const SizedBox(width: 6),
-                                                Expanded(
-                                                  child: Text(
-                                                    citDepartmentOptions.firstWhere((o) => o.code == _departmentController.text.trim()).name,
-                                                    style: TextStyle(
-                                                      fontFamily: 'Inter',
-                                                      fontSize: 11.5,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: isDark ? Colors.white70 : Colors.black87,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ],
-                                        const SizedBox(height: 24),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: OutlinedButton(
-                                                onPressed: () => setState(() => _registerStep = 0),
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: isDark ? Colors.white : Colors.black87,
-                                                  side: BorderSide(color: isDark ? Colors.white.withOpacity(0.2) : const Color(0xFFDCDCE0)),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(16),
-                                                  ),
-                                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                                ),
-                                                child: const Text(
-                                                  'Back',
-                                                  style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: ElevatedButton(
-                                                onPressed: () {
-                                                  if (_validateStep(1)) {
-                                                    setState(() => _registerStep = 2);
-                                                  }
-                                                },
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: TeknoyTheme.citMaroon,
-                                                  foregroundColor: Colors.white,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(16),
-                                                  ),
-                                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                                ),
-                                                child: const Text(
-                                                  'Continue',
-                                                  style: TextStyle(
-                                                    fontFamily: 'Outfit',
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-
-                                      // Step 2: Account Credentials
-                                      if (_registerStep == 2) ...[
-                                        AuthInputField(
-                                          controller: _emailController,
-                                          label: _selectedRole == 'SELLER'
-                                              ? 'Store / Contact Email (e.g. Gmail)'
-                                              : 'CIT-U Email (@cit.edu)',
-                                          icon: Icons.email_outlined,
-                                          keyboardType: TextInputType.emailAddress,
-                                          validator: (val) {
-                                            if (val == null || val.trim().isEmpty) {
-                                              return 'Please enter your email';
-                                            }
-                                            final email = val.trim().toLowerCase();
-                                            if (_selectedRole == 'BUYER') {
-                                              if (!email.endsWith('@cit.edu')) {
-                                                return 'Buyers must use an official @cit.edu email';
-                                              }
-                                            } else {
-                                              final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                                              if (!emailRegex.hasMatch(email)) {
-                                                return 'Please enter a valid email address';
-                                              }
-                                            }
-                                            return null;
-                                          },
-                                        ),
-                                        const SizedBox(height: 16),
-                                        AuthInputField(
-                                          controller: _passwordController,
-                                          label: 'Password',
-                                          icon: Icons.lock_outline_rounded,
-                                          obscureText: _obscurePassword,
-                                          suffixIcon: IconButton(
-                                            icon: Icon(
-                                              _obscurePassword
-                                                  ? Icons.visibility_off_outlined
-                                                  : Icons.visibility_outlined,
-                                              color: isDark ? Colors.white60 : Colors.black54,
-                                              size: 20,
-                                            ),
-                                            onPressed: () =>
-                                                setState(() => _obscurePassword = !_obscurePassword),
-                                          ),
-                                          validator: (val) {
-                                            if (val == null || val.isEmpty) {
-                                              return 'Please enter your password';
-                                            }
-                                            if (val.length < 6) {
-                                              return 'Password must be at least 6 characters';
-                                            }
-                                            return null;
-                                          },
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                _passwordController.text.length >= 6
-                                                    ? Icons.check_circle_rounded
-                                                    : Icons.info_outline_rounded,
-                                                size: 13,
-                                                color: _passwordController.text.length >= 6
-                                                    ? Colors.green
-                                                    : (isDark ? Colors.white54 : Colors.black45),
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                'Must be at least 6 characters',
-                                                style: TextStyle(
-                                                  fontFamily: 'Inter',
-                                                  fontSize: 11,
-                                                  color: _passwordController.text.length >= 6
-                                                      ? Colors.green
-                                                      : (isDark ? Colors.white54 : Colors.black45),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(height: 14),
-                                        AuthInputField(
-                                          controller: _confirmPasswordController,
-                                          label: 'Confirm Password',
-                                          icon: Icons.lock_clock_outlined,
-                                          obscureText: _obscureConfirmPassword,
-                                          suffixIcon: IconButton(
-                                            icon: Icon(
-                                              _obscureConfirmPassword
-                                                  ? Icons.visibility_off_outlined
-                                                  : Icons.visibility_outlined,
-                                              color: isDark ? Colors.white60 : Colors.black54,
-                                              size: 20,
-                                            ),
-                                            onPressed: () =>
-                                                setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
-                                          ),
-                                          validator: (val) {
-                                            if (val == null || val.isEmpty) {
-                                              return 'Please confirm your password';
-                                            }
-                                            if (val != _passwordController.text) {
-                                              return 'Passwords do not match';
-                                            }
-                                            return null;
-                                          },
-                                        ),
-                                        const SizedBox(height: 24),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: OutlinedButton(
-                                                onPressed: () => setState(() => _registerStep = 1),
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: isDark ? Colors.white : Colors.black87,
-                                                  side: BorderSide(color: isDark ? Colors.white.withOpacity(0.2) : const Color(0xFFDCDCE0)),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(16),
-                                                  ),
-                                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                                ),
-                                                child: const Text(
-                                                  'Back',
-                                                  style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: ElevatedButton(
-                                                key: const Key('auth-submit-btn'),
-                                                onPressed: authState.isLoading ? null : _submitForm,
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: TeknoyTheme.citMaroon,
-                                                  foregroundColor: Colors.white,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(16),
-                                                  ),
-                                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                                ),
-                                                child: authState.isLoading
-                                                    ? const SizedBox(
-                                                        height: 20,
-                                                        width: 20,
-                                                        child: CircularProgressIndicator(
-                                                          color: Colors.white,
-                                                          strokeWidth: 2,
-                                                        ),
-                                                      )
-                                                    : const Text(
-                                                        'Submit',
-                                                        style: TextStyle(
-                                                          fontFamily: 'Outfit',
-                                                          fontSize: 14,
-                                                          fontWeight: FontWeight.bold,
-                                                        ),
-                                                      ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ],
                                   ],
                                 ),
                               ),
@@ -1237,7 +491,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                             fontFamily: 'Inter',
                             fontSize: 14,
                             fontWeight: FontWeight.w400,
-                            color: isDark ? Colors.white.withOpacity(0.7) : Colors.black54,
+                            color: isDark ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
                           ),
                         ),
                         GestureDetector(

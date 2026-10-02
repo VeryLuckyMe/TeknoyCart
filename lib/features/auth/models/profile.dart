@@ -103,6 +103,8 @@ class Profile {
           id == other.id &&
           username == other.username &&
           email == other.email &&
+          role == other.role &&
+          isSellerVerified == other.isSellerVerified &&
           avatarUrl == other.avatarUrl &&
           department == other.department &&
           contact == other.contact &&
@@ -115,6 +117,8 @@ class Profile {
       id.hashCode ^
       username.hashCode ^
       email.hashCode ^
+      role.hashCode ^
+      isSellerVerified.hashCode ^
       avatarUrl.hashCode ^
       department.hashCode ^
       contact.hashCode ^
