@@ -84,7 +84,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
         });
       }
     } catch (e) {
-      print("CHECK_OTHER_DELETED_ERROR: $e");
+      debugPrint("CHECK_OTHER_DELETED_ERROR: $e");
     }
   }
 
@@ -185,7 +185,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
+                  color: Colors.grey.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -453,17 +453,17 @@ class _ChatViewState extends ConsumerState<ChatView> {
                             gradient: LinearGradient(
                               colors: [
                                 isMe ? TeknoyTheme.citMaroon : (isDark ? const Color(0xFF1B1B1F) : const Color(0xFFF1F1F4)),
-                                isMe ? TeknoyTheme.citMaroonLight.withOpacity(0.9) : (isDark ? const Color(0xFF24242A) : const Color(0xFFE5E5E9)),
+                                isMe ? TeknoyTheme.citMaroonLight.withValues(alpha: 0.9) : (isDark ? const Color(0xFF24242A) : const Color(0xFFE5E5E9)),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: TeknoyTheme.citGold.withOpacity(0.3),
+                              color: TeknoyTheme.citGold.withValues(alpha: 0.3),
                               width: 1.5,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),
@@ -524,7 +524,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                   decoration: BoxDecoration(
                                     border: Border(
                                       top: BorderSide(
-                                        color: isMe ? Colors.white.withOpacity(0.08) : Colors.grey.withOpacity(0.2),
+                                        color: isMe ? Colors.white.withValues(alpha: 0.08) : Colors.grey.withValues(alpha: 0.2),
                                         width: 1,
                                       ),
                                     ),
@@ -561,7 +561,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                       Container(
                                         width: 1,
                                         height: 40,
-                                        color: isMe ? Colors.white.withOpacity(0.08) : Colors.grey.withOpacity(0.2),
+                                        color: isMe ? Colors.white.withValues(alpha: 0.08) : Colors.grey.withValues(alpha: 0.2),
                                       ),
                                       Expanded(
                                         child: TextButton(
@@ -618,14 +618,14 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                  Container(
                                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
                                    decoration: BoxDecoration(
-                                     color: TeknoyTheme.success.withOpacity(0.12),
+                                     color: TeknoyTheme.success.withValues(alpha: 0.12),
                                      borderRadius: const BorderRadius.only(
                                        bottomLeft: Radius.circular(20),
                                        bottomRight: Radius.circular(20),
                                      ),
                                      border: Border(
                                        top: BorderSide(
-                                         color: TeknoyTheme.success.withOpacity(0.2),
+                                         color: TeknoyTheme.success.withValues(alpha: 0.2),
                                          width: 1,
                                        ),
                                      ),
@@ -712,13 +712,13 @@ class _ChatViewState extends ConsumerState<ChatView> {
                             : const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                         decoration: BoxDecoration(
                           color: isMe
-                              ? (isReceipt ? Colors.transparent : (isFailed ? TeknoyTheme.citMaroon.withOpacity(0.85) : TeknoyTheme.citMaroon))
+                              ? (isReceipt ? Colors.transparent : (isFailed ? TeknoyTheme.citMaroon.withValues(alpha: 0.85) : TeknoyTheme.citMaroon))
                               : (isDark ? const Color(0xFF141418) : Colors.white),
                           border: isReceipt
                               ? null
                               : Border.all(
                                   color: isMe 
-                                      ? (isFailed ? Colors.red.withOpacity(0.3) : Colors.transparent) 
+                                      ? (isFailed ? Colors.red.withValues(alpha: 0.3) : Colors.transparent) 
                                       : (isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF)),
                                   width: 1,
                                 ),
@@ -732,7 +732,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                               ? []
                               : [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.02),
+                                    color: Colors.black.withValues(alpha: 0.02),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   )
@@ -801,7 +801,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                       child: Container(
                                         padding: const EdgeInsets.all(4),
                                         decoration: BoxDecoration(
-                                          color: Colors.black.withOpacity(0.45),
+                                          color: Colors.black.withValues(alpha: 0.45),
                                           borderRadius: BorderRadius.circular(6),
                                         ),
                                         child: const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 14),
@@ -981,7 +981,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                     style: TextStyle(
                                       fontFamily: 'Inter',
                                       fontSize: 14.5,
-                                      color: isMe ? Colors.white : (isDark ? Colors.white.withOpacity(0.9) : Colors.black87),
+                                      color: isMe ? Colors.white : (isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
                                       height: 1.35,
                                     ),
                                   ),
@@ -996,7 +996,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                             height: 10,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 1.2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white.withOpacity(0.6)),
+                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white.withValues(alpha: 0.6)),
                                             ),
                                           ),
                                           const SizedBox(width: 4),
@@ -1006,7 +1006,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                               ? Icons.error_outline_rounded
                                               : (isSending ? Icons.access_time_rounded : Icons.done_all_rounded),
                                           size: 11,
-                                          color: isFailed ? Colors.red.shade300 : Colors.white.withOpacity(0.55),
+                                          color: isFailed ? Colors.red.shade300 : Colors.white.withValues(alpha: 0.55),
                                         ),
                                       ],
                                     ),

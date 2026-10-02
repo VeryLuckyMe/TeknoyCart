@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:teknoycart/core/theme.dart';
 
@@ -12,6 +13,14 @@ class ChatInputBar extends StatelessWidget {
   final VoidCallback onClearImage;
   final VoidCallback onShowImageSource;
   final VoidCallback onSendMessage;
+
+  static const List<String> quickInquiryPresets = [
+    'Is this still available?',
+    'Can we meet at Canteen benches?',
+    'Can we meet at CEA lobby?',
+    'Is the price negotiable?',
+    'Can I inspect the condition first?',
+  ];
 
   const ChatInputBar({
     super.key,
@@ -26,6 +35,8 @@ class ChatInputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -33,7 +44,7 @@ class ChatInputBar extends StatelessWidget {
         if (pendingImageFile != null || isUploadingImage)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: TeknoyTheme.citMaroon.withOpacity(0.06),
+            color: TeknoyTheme.citMaroon.withValues(alpha: 0.06),
             child: Row(
               children: [
                 if (pendingImageFile != null)
@@ -88,10 +99,68 @@ class ChatInputBar extends StatelessWidget {
                 ),
                 IconButton(
                   icon: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
-                  onPressed: onClearImage,
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    onClearImage();
+                  },
                 ),
               ],
             ),
+          ),
+
+        // Quick Campus Inquiry Preset Chips
+        if (!isOtherPartyDeleted)
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, value, _) {
+              if (value.text.trim().isNotEmpty) return const SizedBox.shrink();
+              return Container(
+                height: 38,
+                margin: const EdgeInsets.only(top: 6, bottom: 2),
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  itemCount: quickInquiryPresets.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final preset = quickInquiryPresets[index];
+                    return InkWell(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        controller.text = preset;
+                        controller.selection = TextSelection.fromPosition(
+                          TextPosition(offset: controller.text.length),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF3F3F6),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: isDark ? Colors.white12 : const Color(0xFFE2E2E8),
+                            width: 1,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            preset,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white.withValues(alpha: 0.85) : TeknoyTheme.citMaroon,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
           ),
 
         // Input Send Deck
@@ -103,10 +172,10 @@ class ChatInputBar extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                     decoration: BoxDecoration(
-                      color: TeknoyTheme.citMaroon.withOpacity(0.05),
+                      color: TeknoyTheme.citMaroon.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: TeknoyTheme.citMaroon.withOpacity(0.15),
+                        color: TeknoyTheme.citMaroon.withValues(alpha: 0.15),
                       ),
                     ),
                     child: Row(
@@ -121,7 +190,7 @@ class ChatInputBar extends StatelessWidget {
                               fontFamily: 'Outfit',
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: TeknoyTheme.citMaroon.withOpacity(0.8),
+                              color: TeknoyTheme.citMaroon.withValues(alpha: 0.8),
                             ),
                           ),
                         ),
@@ -137,14 +206,22 @@ class ChatInputBar extends StatelessWidget {
                           color: TeknoyTheme.citMaroon,
                           size: 26,
                         ),
-                        onPressed: isUploadingImage ? null : onShowImageSource,
+                        onPressed: isUploadingImage
+                            ? null
+                            : () {
+                                HapticFeedback.lightImpact();
+                                onShowImageSource();
+                              },
                       ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: TextField(
                           controller: controller,
                           textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => onSendMessage(),
+                          onSubmitted: (_) {
+                            HapticFeedback.lightImpact();
+                            onSendMessage();
+                          },
                           decoration: InputDecoration(
                             hintText: 'Type your message...',
                             filled: true,
@@ -156,7 +233,7 @@ class ChatInputBar extends StatelessWidget {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(24),
                               borderSide: BorderSide(
-                                color: Theme.of(context).dividerColor.withOpacity(0.1),
+                                color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
@@ -179,7 +256,10 @@ class ChatInputBar extends StatelessWidget {
                             color: Colors.white,
                             size: 20,
                           ),
-                          onPressed: onSendMessage,
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            onSendMessage();
+                          },
                         ),
                       ),
                     ],

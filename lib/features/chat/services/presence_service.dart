@@ -1,5 +1,16 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
+
+/// Riverpod provider for PresenceService with guaranteed lifecycle disposal cleanup (MED-05).
+final presenceServiceProvider = Provider<PresenceService>((ref) {
+  final service = PresenceService.instance;
+  ref.onDispose(() {
+    service.stopHeartbeat();
+  });
+  return service;
+});
 
 /// Heartbeat-based presence service.
 /// Periodically updates the current user's `last_seen_at` timestamp
@@ -10,10 +21,10 @@ class PresenceService {
   bool _isRunning = false;
   String? _currentUserId;
 
-  /// Heartbeat interval — how often we ping the server
+  /// Heartbeat interval â€” how often we ping the server
   static const Duration _heartbeatInterval = Duration(seconds: 30);
 
-  /// Threshold for considering a user "online" — if their last_seen_at
+  /// Threshold for considering a user "online" â€” if their last_seen_at
   /// is within this duration from now, they are online. (Increased to 10 mins to handle clock drifts).
   static const Duration onlineThreshold = Duration(minutes: 10);
 
@@ -40,7 +51,7 @@ class PresenceService {
       _sendHeartbeat(userId);
     });
 
-    print('PRESENCE: Heartbeat started for user $userId (every ${_heartbeatInterval.inSeconds}s)');
+    debugPrint('PRESENCE: Heartbeat started for user $userId (every ${_heartbeatInterval.inSeconds}s)');
   }
 
   /// Stop the heartbeat timer and immediately mark user as offline.
@@ -57,16 +68,16 @@ class PresenceService {
             .from('users')
             .update({'last_seen_at': null})
             .eq('user_id', _currentUserId!);
-        print('PRESENCE: Cleared last_seen_at for $_currentUserId');
+        debugPrint('PRESENCE: Cleared last_seen_at for $_currentUserId');
       } catch (e) {
-        print('PRESENCE_CLEAR_ERROR: $e');
+        debugPrint('PRESENCE_CLEAR_ERROR: $e');
       }
     }
     _currentUserId = null;
-    print('PRESENCE: Heartbeat stopped');
+    debugPrint('PRESENCE: Heartbeat stopped');
   }
 
-  /// Send a single heartbeat — updates last_seen_at to NOW() on the server.
+  /// Send a single heartbeat â€” updates last_seen_at to NOW() on the server.
   Future<void> _sendHeartbeat(String userId) async {
     try {
       await SupabaseConfig.client
@@ -74,9 +85,9 @@ class PresenceService {
           .update({'last_seen_at': DateTime.now().toUtc().toIso8601String()})
           .eq('user_id', userId);
       // Uncomment for debug:
-      // print('PRESENCE: Heartbeat sent for $userId at ${DateTime.now().toUtc()}');
+      // debugPrint('PRESENCE: Heartbeat sent for $userId at ${DateTime.now().toUtc()}');
     } catch (e) {
-      print('PRESENCE_HEARTBEAT_ERROR: $e');
+      debugPrint('PRESENCE_HEARTBEAT_ERROR: $e');
     }
   }
 
@@ -96,10 +107,10 @@ class PresenceService {
       if (lastSeen == null) return false;
 
       final diff = DateTime.now().toUtc().difference(lastSeen.toUtc());
-      print('PRESENCE: User $userId last seen at: $lastSeen (UTC), local now: ${DateTime.now().toUtc()} (UTC), diff: ${diff.inSeconds}s, threshold: ${onlineThreshold.inSeconds}s');
+      debugPrint('PRESENCE: User $userId last seen at: $lastSeen (UTC), local now: ${DateTime.now().toUtc()} (UTC), diff: ${diff.inSeconds}s, threshold: ${onlineThreshold.inSeconds}s');
       return diff < onlineThreshold;
     } catch (e) {
-      print('PRESENCE_CHECK_ERROR: $e');
+      debugPrint('PRESENCE_CHECK_ERROR: $e');
       return false;
     }
   }

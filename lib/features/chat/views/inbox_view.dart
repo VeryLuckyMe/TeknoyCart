@@ -305,7 +305,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                                               decoration: BoxDecoration(
                                                 shape: BoxShape.circle,
                                                 border: Border.all(
-                                                  color: TeknoyTheme.citMaroon.withOpacity(0.2),
+                                                  color: TeknoyTheme.citMaroon.withValues(alpha: 0.2),
                                                   width: 1.5,
                                                 ),
                                               ),
@@ -331,7 +331,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                                                     ),
                                                     boxShadow: [
                                                       BoxShadow(
-                                                        color: Colors.green.withOpacity(0.4),
+                                                        color: Colors.green.withValues(alpha: 0.4),
                                                         blurRadius: 4,
                                                         spreadRadius: 1,
                                                       ),
@@ -369,13 +369,13 @@ class _InboxViewState extends ConsumerState<InboxView> {
                                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                                 decoration: BoxDecoration(
                                                   color: room['other_user_role'] == 'Seller'
-                                                      ? TeknoyTheme.citMaroon.withOpacity(0.12)
-                                                      : TeknoyTheme.citGold.withOpacity(0.12),
+                                                      ? TeknoyTheme.citMaroon.withValues(alpha: 0.12)
+                                                      : TeknoyTheme.citGold.withValues(alpha: 0.12),
                                                   borderRadius: BorderRadius.circular(20),
                                                   border: Border.all(
                                                     color: room['other_user_role'] == 'Seller'
-                                                        ? TeknoyTheme.citMaroon.withOpacity(0.3)
-                                                        : TeknoyTheme.citGold.withOpacity(0.3),
+                                                        ? TeknoyTheme.citMaroon.withValues(alpha: 0.3)
+                                                        : TeknoyTheme.citGold.withValues(alpha: 0.3),
                                                   ),
                                                 ),
                                                 child: Text(

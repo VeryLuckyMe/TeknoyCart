@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/chat/models/message.dart';
@@ -102,7 +103,7 @@ class ChatService {
             );
           }
         } catch (e) {
-          print("CHECK_EXISTING_ROOM_MESSAGES_ERROR: $e");
+          debugPrint("CHECK_EXISTING_ROOM_MESSAGES_ERROR: $e");
         }
 
         return chatId;
@@ -123,7 +124,7 @@ class ChatService {
           });
         }
       } catch (e) {
-        print("ENSURE_BUYER_ERROR: $e");
+        debugPrint("ENSURE_BUYER_ERROR: $e");
       }
 
       // Ensure seller exists in users table (violates chats_seller_id_fkey otherwise)
@@ -141,7 +142,7 @@ class ChatService {
           });
         }
       } catch (e) {
-        print("ENSURE_SELLER_ERROR: $e");
+        debugPrint("ENSURE_SELLER_ERROR: $e");
       }
 
       // 2. We need an inquiry first. Check for an existing product variant
@@ -172,7 +173,7 @@ class ChatService {
           }).catchError((_) {});
         }
       } catch (e) {
-        print("ENSURE_VARIANT_ERROR: $e");
+        debugPrint("ENSURE_VARIANT_ERROR: $e");
       }
 
       // 3. Find or create inquiry
@@ -200,7 +201,7 @@ class ChatService {
           inquiryId = newInquiry['inquiry_id'] as String;
         }
       } catch (e) {
-        print("ENSURE_INQUIRY_ERROR: $e");
+        debugPrint("ENSURE_INQUIRY_ERROR: $e");
       }
 
       // 4. Create the chat room linking to this inquiry
@@ -224,7 +225,7 @@ class ChatService {
 
       return chatId;
     } catch (e) {
-      print("GET_OR_CREATE_CHAT_ROOM_ERROR: $e");
+      debugPrint("GET_OR_CREATE_CHAT_ROOM_ERROR: $e");
       // Graceful fallback for demo/offline test environments
       return 'room-demo';
     }
@@ -252,7 +253,7 @@ class ChatService {
           template = profile['welcome_message_template'] as String;
         }
       } catch (e) {
-        print("WELCOME_PROFILE_FETCH_ERROR: $e");
+        debugPrint("WELCOME_PROFILE_FETCH_ERROR: $e");
       }
 
       template ??= 'Hi! Thank you for inquiring about [PRODUCT]. The price is ₱[PRICE]. How can I help you?';
@@ -274,7 +275,7 @@ class ChatService {
             resolvedProdPrice = double.tryParse(prod['base_price']?.toString() ?? '0') ?? resolvedProdPrice;
           }
         } catch (e) {
-          print("WELCOME_PRODUCT_FETCH_ERROR: $e");
+          debugPrint("WELCOME_PRODUCT_FETCH_ERROR: $e");
         }
       }
 
@@ -293,7 +294,7 @@ class ChatService {
         },
       );
     } catch (e) {
-      print("SEND_INITIAL_WELCOME_MESSAGE_ERROR: $e");
+      debugPrint("SEND_INITIAL_WELCOME_MESSAGE_ERROR: $e");
     }
   }
 
@@ -317,12 +318,12 @@ class ChatService {
             clearedAt = isBuyer
                 ? roomData['buyer_cleared_at'] as String?
                 : roomData['seller_cleared_at'] as String?;
-            print("WATCH_MESSAGES_DEBUG: roomId=$roomId, userId=${currentUser.id}, isBuyer=$isBuyer, clearedAt=$clearedAt");
+            debugPrint("WATCH_MESSAGES_DEBUG: roomId=$roomId, userId=${currentUser.id}, isBuyer=$isBuyer, clearedAt=$clearedAt");
           } else {
-            print("WATCH_MESSAGES_DEBUG: Room data not found for roomId=$roomId");
+            debugPrint("WATCH_MESSAGES_DEBUG: Room data not found for roomId=$roomId");
           }
         } else {
-          print("WATCH_MESSAGES_DEBUG: Current authenticated user is NULL");
+          debugPrint("WATCH_MESSAGES_DEBUG: Current authenticated user is NULL");
         }
 
         var dbQuery = _client.from('messages').select('*').eq('chat_id', roomId);
@@ -331,7 +332,7 @@ class ChatService {
         }
 
         final response = await dbQuery.order('sent_at', ascending: true);
-        print("WATCH_MESSAGES_DEBUG: Fetched ${response.length} messages after filtering");
+        debugPrint("WATCH_MESSAGES_DEBUG: Fetched ${response.length} messages after filtering");
 
         final rows = response as List<dynamic>;
         final loaded = rows.map((row) => Message(
@@ -357,8 +358,8 @@ class ChatService {
           }
         }
       } catch (e, stackTrace) {
-        print("SUBSCRIBE_ROOM_READ_ERROR for room $roomId: $e");
-        print(stackTrace);
+        debugPrint("SUBSCRIBE_ROOM_READ_ERROR for room $roomId: $e");
+        debugPrint(stackTrace.toString());
       }
 
       // Now yield the loaded database messages for this room
@@ -429,7 +430,7 @@ class ChatService {
         );
         
     _channel!.subscribe((status, [error]) {
-      print("REALTIME_SUBSCRIPTION_STATUS for $chatId: $status, error: $error");
+      debugPrint("REALTIME_SUBSCRIPTION_STATUS for $chatId: $status, error: $error");
     });
   }
 
@@ -525,7 +526,7 @@ class ChatService {
               }
             }
           } catch (e) {
-            print("PRESENCE_CHECK_AUTO_REPLY_ERROR: $e");
+            debugPrint("PRESENCE_CHECK_AUTO_REPLY_ERROR: $e");
           }
 
           // Trigger auto-reply helper ONLY if seller is offline
@@ -567,7 +568,7 @@ class ChatService {
                 latestOrderStatus = orderRecord['status'] as String?;
               }
             } catch (e) {
-              print("AUTO_REPLY_FETCH_PROFILE_ERROR: $e");
+              debugPrint("AUTO_REPLY_FETCH_PROFILE_ERROR: $e");
             }
 
             final responseText = _getAssistantResponse(
@@ -592,7 +593,7 @@ class ChatService {
                     },
                   );
                 } catch (e) {
-                  print("LIVE_AUTO_REPLY_RPC_ERROR: $e");
+                  debugPrint("LIVE_AUTO_REPLY_RPC_ERROR: $e");
                 }
               });
             }
@@ -607,8 +608,8 @@ class ChatService {
           _activeMessages.remove(userMessage);
           _messageController.add(List.from(_activeMessages));
         }
-        print("SEND_MESSAGE_INSERT_ERROR: $e");
-        print(stackTrace);
+        debugPrint("SEND_MESSAGE_INSERT_ERROR: $e");
+        debugPrint(stackTrace.toString());
         rethrow;
       }
       return;
@@ -808,7 +809,7 @@ class ChatService {
         }
       }
     } catch (e) {
-      print("SOFT_DELETE_CHAT_ROOM_ERROR: $e");
+      debugPrint("SOFT_DELETE_CHAT_ROOM_ERROR: $e");
       rethrow;
     }
   }

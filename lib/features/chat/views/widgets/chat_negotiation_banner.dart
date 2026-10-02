@@ -25,17 +25,17 @@ class ChatNegotiationBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: activeState == 'agreed' || activeState == 'completed'
-            ? TeknoyTheme.success.withOpacity(0.08)
+            ? TeknoyTheme.success.withValues(alpha: 0.08)
             : activeState == 'offered'
-                ? TeknoyTheme.citGold.withOpacity(0.08)
-                : TeknoyTheme.citMaroon.withOpacity(0.04),
+                ? TeknoyTheme.citGold.withValues(alpha: 0.08)
+                : TeknoyTheme.citMaroon.withValues(alpha: 0.04),
         border: Border(
           bottom: BorderSide(
             color: activeState == 'agreed' || activeState == 'completed'
-                ? TeknoyTheme.success.withOpacity(0.2)
+                ? TeknoyTheme.success.withValues(alpha: 0.2)
                 : activeState == 'offered'
-                    ? TeknoyTheme.citGold.withOpacity(0.2)
-                    : TeknoyTheme.citMaroon.withOpacity(0.08),
+                    ? TeknoyTheme.citGold.withValues(alpha: 0.2)
+                    : TeknoyTheme.citMaroon.withValues(alpha: 0.08),
           ),
         ),
       ),
@@ -86,7 +86,7 @@ class ChatNegotiationBanner extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: TeknoyTheme.success.withOpacity(0.15),
+                color: TeknoyTheme.success.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Text(
