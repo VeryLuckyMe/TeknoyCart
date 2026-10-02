@@ -1,6 +1,65 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/checkout/models/cart_item.dart';
+
+abstract class CartStorageService {
+  Future<String?> read(String key);
+  Future<void> write(String key, String value);
+  Future<void> delete(String key);
+}
+
+class SecureCartStorageService implements CartStorageService {
+  final FlutterSecureStorage _storage;
+
+  const SecureCartStorageService([
+    this._storage = const FlutterSecureStorage(
+      aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    ),
+  ]);
+
+  bool get _hasBinding {
+    try {
+      return WidgetsBinding.instance != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<String?> read(String key) async {
+    try {
+      if (!_hasBinding) return null;
+      return await _storage.read(key: key);
+    } catch (e) {
+      debugPrint('SECURE_CART_READ: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<void> write(String key, String value) async {
+    try {
+      if (!_hasBinding) return;
+      await _storage.write(key: key, value: value);
+    } catch (e) {
+      debugPrint('SECURE_CART_WRITE: $e');
+    }
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    try {
+      if (!_hasBinding) return;
+      await _storage.delete(key: key);
+    } catch (e) {
+      debugPrint('SECURE_CART_DELETE: $e');
+    }
+  }
+}
 
 class AddToCartResult {
   final bool success;
@@ -19,7 +78,45 @@ class AddToCartResult {
 }
 
 class CartNotifier extends StateNotifier<List<CartItem>> {
-  CartNotifier() : super([]);
+  final CartStorageService? _storage;
+  static const String cartStorageKey = 'teknoycart_saved_cart_items';
+
+  CartNotifier({CartStorageService? storage, bool autoLoad = true})
+      : _storage = storage ?? const SecureCartStorageService(),
+        super([]) {
+    if (autoLoad) {
+      loadFromDisk();
+    }
+  }
+
+  Future<void> loadFromDisk() async {
+    if (_storage == null) return;
+    try {
+      final jsonStr = await _storage!.read(cartStorageKey);
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(jsonStr);
+        state = decoded
+            .map((item) => CartItem.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('CART_LOAD_FROM_DISK_ERROR: $e');
+    }
+  }
+
+  Future<void> _persistToDisk() async {
+    if (_storage == null) return;
+    try {
+      if (state.isEmpty) {
+        await _storage!.delete(cartStorageKey);
+      } else {
+        final jsonStr = jsonEncode(state.map((item) => item.toJson()).toList());
+        await _storage!.write(cartStorageKey, jsonStr);
+      }
+    } catch (e) {
+      debugPrint('CART_PERSIST_TO_DISK_ERROR: $e');
+    }
+  }
 
   bool _matchesItem(CartItem item, String productId, String? variantId, String? variantName) {
     if (item.product.id != productId) return false;
@@ -90,6 +187,7 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
         ),
         ...state.sublist(index + 1),
       ];
+      _persistToDisk();
 
       return AddToCartResult(
         success: true,
@@ -118,6 +216,7 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
           maxStock: maxStock,
         ),
       ];
+      _persistToDisk();
 
       return AddToCartResult(
         success: true,
@@ -133,6 +232,7 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
 
   void removeFromCart(String productId, [String? variantId, String? variantName]) {
     state = state.where((item) => !_matchesItem(item, productId, variantId, variantName)).toList();
+    _persistToDisk();
   }
 
   void updateQuantity(String productId, String? variantId, int newQuantity, [String? variantName]) {
@@ -156,6 +256,7 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
       }
       return item;
     }).toList();
+    _persistToDisk();
   }
 
   void updateVariant(String productId, String? oldVariantName, String newVariantName) {
@@ -203,10 +304,12 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
         ...state.sublist(oldIndex + 1),
       ];
     }
+    _persistToDisk();
   }
 
   void clearCart() {
     state = [];
+    _persistToDisk();
   }
 }
 

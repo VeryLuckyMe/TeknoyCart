@@ -361,11 +361,11 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: isPending
-                  ? Colors.orange.withOpacity(0.4)
+                  ? Colors.orange.withValues(alpha: 0.4)
                   : (isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF)),
               width: isPending ? 1.5 : 1,
             ),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.25 : 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04), blurRadius: 12, offset: const Offset(0, 4))],
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -380,7 +380,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                       borderRadius: BorderRadius.circular(10),
                       child: imageUrl != null
                           ? Image.network(imageUrl, width: 56, height: 56, fit: BoxFit.cover)
-                          : Container(width: 56, height: 56, color: Colors.grey.withOpacity(0.15), child: const Icon(Icons.receipt_long_rounded, color: Colors.grey)),
+                          : Container(width: 56, height: 56, color: Colors.grey.withValues(alpha: 0.15), child: const Icon(Icons.receipt_long_rounded, color: Colors.grey)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -396,9 +396,9 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
+                        color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: statusColor.withOpacity(0.3)),
+                        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                       ),
                       child: Text(_statusLabel(status, order), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: statusColor, letterSpacing: 0.3)),
                     ),
@@ -409,7 +409,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF7F7FA),
+                    color: isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF7F7FA),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(

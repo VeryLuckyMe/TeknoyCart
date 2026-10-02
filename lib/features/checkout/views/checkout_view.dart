@@ -922,7 +922,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: TeknoyTheme.citMaroon.withOpacity(0.08),
+                                        color: TeknoyTheme.citMaroon.withValues(alpha: 0.08),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(

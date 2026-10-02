@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:teknoycart/core/models/product.dart';
+import 'package:teknoycart/features/checkout/models/cart_item.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 
 void main() {
@@ -155,4 +156,98 @@ void main() {
       expect(cartNotifier.state.first.variantName, 'L');
     });
   });
+
+  group('CartNotifier Disk Persistence & Hydration Tests (HIGH-06)', () {
+    late _InMemoryCartStorage mockStorage;
+    late Product testProduct;
+
+    setUp(() {
+      mockStorage = _InMemoryCartStorage();
+      testProduct = Product(
+        id: 'prod-persist-1',
+        title: 'Drafting Compass Set',
+        description: 'CIT-U drafting tools',
+        price: 250.0,
+        category: 'Drawing Tools',
+        condition: 'Like New',
+        sellerId: 'seller-456',
+        createdAt: DateTime.parse('2026-10-01T10:00:00.000Z'),
+      );
+    });
+
+    test('CartItem serialization to and from JSON preserves all fields', () {
+      final original = CartItem(
+        product: testProduct,
+        quantity: 3,
+        variantId: 'var-blue',
+        variantName: 'Blue Set',
+        maxStock: 10,
+      );
+
+      final json = original.toJson();
+      final revived = CartItem.fromJson(json);
+
+      expect(revived.product.id, original.product.id);
+      expect(revived.product.title, original.product.title);
+      expect(revived.quantity, 3);
+      expect(revived.variantId, 'var-blue');
+      expect(revived.variantName, 'Blue Set');
+      expect(revived.maxStock, 10);
+      expect(revived, equals(original));
+    });
+
+    test('Adding to cart persists items to storage', () async {
+      final notifier = CartNotifier(storage: mockStorage, autoLoad: false);
+
+      notifier.addToCart(testProduct, quantity: 2);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(mockStorage.data.containsKey(CartNotifier.cartStorageKey), isTrue);
+      expect(mockStorage.data[CartNotifier.cartStorageKey], contains('prod-persist-1'));
+    });
+
+    test('New CartNotifier auto-hydrates saved items from storage', () async {
+      final notifier1 = CartNotifier(storage: mockStorage, autoLoad: false);
+      notifier1.addToCart(testProduct, quantity: 4, variantName: 'Silver');
+      await Future<void>.delayed(Duration.zero);
+
+      // Create a second notifier referencing the same storage
+      final notifier2 = CartNotifier(storage: mockStorage, autoLoad: true);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(notifier2.state.length, 1);
+      expect(notifier2.state.first.product.id, 'prod-persist-1');
+      expect(notifier2.state.first.quantity, 4);
+      expect(notifier2.state.first.variantName, 'Silver');
+    });
+
+    test('clearCart deletes persisted cart data from storage', () async {
+      final notifier = CartNotifier(storage: mockStorage, autoLoad: false);
+      notifier.addToCart(testProduct, quantity: 2);
+      await Future<void>.delayed(Duration.zero);
+
+      notifier.clearCart();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(mockStorage.data.containsKey(CartNotifier.cartStorageKey), isFalse);
+    });
+  });
 }
+
+class _InMemoryCartStorage implements CartStorageService {
+  final Map<String, String> data = {};
+
+  @override
+  Future<String?> read(String key) async => data[key];
+
+  @override
+  Future<void> write(String key, String value) async {
+    data[key] = value;
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    data.remove(key);
+  }
+}
+

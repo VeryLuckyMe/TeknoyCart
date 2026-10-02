@@ -741,7 +741,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 20,
                   offset: const Offset(0, -4),
                 ),
@@ -771,7 +771,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: TeknoyTheme.citMaroon.withOpacity(0.12),
+                          color: TeknoyTheme.citMaroon.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
@@ -815,9 +815,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: TeknoyTheme.citGold.withOpacity(isDark ? 0.12 : 0.08),
+                      color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.12 : 0.08),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: TeknoyTheme.citGold.withOpacity(0.3)),
+                      border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [
@@ -844,9 +844,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(0.1),
+                        color: Colors.amber.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.amber.withOpacity(0.35)),
+                        border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
                       ),
                       child: const Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1052,9 +1052,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.indigo.withOpacity(0.08),
+                color: Colors.indigo.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.indigo.withOpacity(0.2)),
+                border: Border.all(color: Colors.indigo.withValues(alpha: 0.2)),
               ),
               child: Text(
                 'Total to send: ₱ ${_order['total_amount']}',
@@ -1212,10 +1212,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isExpiringSoon ? Colors.red.withOpacity(0.08) : Colors.green.withOpacity(0.08),
+        color: isExpiringSoon ? Colors.red.withValues(alpha: 0.08) : Colors.green.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isExpiringSoon ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+          color: isExpiringSoon ? Colors.red.withValues(alpha: 0.3) : Colors.green.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -1304,7 +1304,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                   borderRadius: BorderRadius.circular(12),
                   child: imageUrl != null
                       ? Image.network(imageUrl, width: 72, height: 72, fit: BoxFit.cover)
-                      : Container(width: 72, height: 72, color: Colors.grey.withOpacity(0.15), child: const Icon(Icons.image_not_supported, color: Colors.grey)),
+                      : Container(width: 72, height: 72, color: Colors.grey.withValues(alpha: 0.15), child: const Icon(Icons.image_not_supported, color: Colors.grey)),
                 ),
                 const SizedBox(width: 14),
                 Expanded(child: Column(
@@ -1353,9 +1353,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                     ),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      backgroundColor: (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon).withOpacity(0.06),
+                      backgroundColor: (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon).withValues(alpha: 0.06),
                       side: BorderSide(
-                        color: (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon).withOpacity(0.4),
+                        color: (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon).withValues(alpha: 0.4),
                         width: 1.2,
                       ),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1380,7 +1380,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.blue.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.withOpacity(0.2))),
+                    decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.withValues(alpha: 0.2))),
                     child: Row(children: [
                       const Icon(Icons.info_outline, color: Colors.blue, size: 16),
                       const SizedBox(width: 8),
@@ -1404,9 +1404,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.indigo.withOpacity(0.08),
+                        color: Colors.indigo.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.indigo.withOpacity(0.2)),
+                        border: Border.all(color: Colors.indigo.withValues(alpha: 0.2)),
                       ),
                       child: Row(children: [
                         const Icon(Icons.hourglass_top_rounded, color: Colors.indigo, size: 16),
@@ -1481,7 +1481,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: TeknoyTheme.citMaroon.withOpacity(0.35),
+                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.35),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -1587,7 +1587,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF1B2332) : const Color(0xFFF0F6FF),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.blue.withOpacity(0.35), width: 1.5),
+              border: Border.all(color: Colors.blue.withValues(alpha: 0.35), width: 1.5),
             ),
             child: Column(
               children: [
@@ -1626,7 +1626,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                       borderRadius: BorderRadius.circular(18),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
+                          color: Colors.black.withValues(alpha: 0.08),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -1693,7 +1693,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: TeknoyTheme.citMaroon.withOpacity(0.3),
+                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -1727,7 +1727,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1E1E28) : const Color(0xFFF7F7FA),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: TeknoyTheme.citGold.withOpacity(0.4)),
+                border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.4)),
               ),
               child: Row(
                 children: [
@@ -1791,7 +1791,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF142B28) : const Color(0xFFE6F7F5),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.teal.withOpacity(0.35), width: 1.5),
+              border: Border.all(color: Colors.teal.withValues(alpha: 0.35), width: 1.5),
             ),
             child: Column(
               children: [
@@ -1821,7 +1821,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                       borderRadius: BorderRadius.circular(18),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
+                          color: Colors.black.withValues(alpha: 0.08),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -1906,7 +1906,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         color: isDark ? const Color(0xFF141418) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 3))],
       ),
       child: child,
     );

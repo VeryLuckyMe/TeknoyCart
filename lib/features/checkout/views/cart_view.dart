@@ -364,7 +364,7 @@ class _CartViewState extends ConsumerState<CartView> {
                                           color: isDark ? const Color(0xFF23232B) : const Color(0xFFF4F4F7),
                                           borderRadius: BorderRadius.circular(8),
                                           border: Border.all(
-                                            color: TeknoyTheme.citMaroon.withOpacity(0.2),
+                                            color: TeknoyTheme.citMaroon.withValues(alpha: 0.2),
                                             width: 1,
                                           ),
                                         ),
@@ -374,7 +374,7 @@ class _CartViewState extends ConsumerState<CartView> {
                                             Container(
                                               padding: const EdgeInsets.all(2),
                                               decoration: BoxDecoration(
-                                                color: TeknoyTheme.citMaroon.withOpacity(0.12),
+                                                color: TeknoyTheme.citMaroon.withValues(alpha: 0.12),
                                                 borderRadius: BorderRadius.circular(4),
                                               ),
                                               child: const Icon(Icons.straighten_rounded, size: 10, color: TeknoyTheme.citMaroon),

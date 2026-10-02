@@ -62,7 +62,7 @@ class OrderStatusStepper extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -90,9 +90,9 @@ class OrderStatusStepper extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.08),
+                color: Colors.red.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.red.withOpacity(0.2)),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
               ),
               child: Row(
                 children: [
@@ -115,9 +115,9 @@ class OrderStatusStepper extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.purple.withOpacity(0.08),
+                color: Colors.purple.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                border: Border.all(color: Colors.purple.withValues(alpha: 0.3)),
               ),
               child: const Row(
                 children: [
@@ -140,9 +140,9 @@ class OrderStatusStepper extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.12),
+                color: Colors.amber.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.amber.withOpacity(0.4)),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
               ),
               child: const Row(
                 children: [
@@ -165,9 +165,9 @@ class OrderStatusStepper extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.08),
+                color: Colors.orange.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.withOpacity(0.25))),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.25))),
               child: const Row(
                 children: [
                   Icon(Icons.assignment_return_rounded, color: Colors.orange, size: 16),
@@ -189,9 +189,9 @@ class OrderStatusStepper extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.teal.withOpacity(0.08),
+                color: Colors.teal.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.teal.withOpacity(0.25))),
+                border: Border.all(color: Colors.teal.withValues(alpha: 0.25))),
               child: const Row(
                 children: [
                   Icon(Icons.check_circle_outline_rounded, color: Colors.teal, size: 16),
@@ -213,9 +213,9 @@ class OrderStatusStepper extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.08),
+                color: Colors.green.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.green.withOpacity(0.25))),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.25))),
               child: const Row(
                 children: [
                   Icon(Icons.verified_rounded, color: Colors.green, size: 16),
@@ -237,9 +237,9 @@ class OrderStatusStepper extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.08),
+                color: Colors.green.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.green.withOpacity(0.25))),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.25))),
               child: const Row(
                 children: [
                   Icon(Icons.verified_rounded, color: Colors.green, size: 16),
@@ -261,9 +261,9 @@ class OrderStatusStepper extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.indigo.withOpacity(0.08),
+                color: Colors.indigo.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.indigo.withOpacity(0.25))),
+                border: Border.all(color: Colors.indigo.withValues(alpha: 0.25))),
               child: const Row(
                 children: [
                   Icon(Icons.currency_exchange_rounded, color: Colors.indigo, size: 16),
@@ -349,9 +349,9 @@ class OrderStatusStepper extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: TeknoyTheme.citGold.withOpacity(isDark ? 0.12 : 0.08),
+                color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.12 : 0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: TeknoyTheme.citGold.withOpacity(0.35)),
+                border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.35)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -380,9 +380,9 @@ class OrderStatusStepper extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.08),
+                color: Colors.green.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
               ),
               child: const Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
