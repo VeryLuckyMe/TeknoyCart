@@ -130,13 +130,14 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-            return Container(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.85,
-              ),
+            return Padding(
               padding: EdgeInsets.only(bottom: bottomInset),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF16161A) : Colors.white,
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.90,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF16161A) : Colors.white,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                 boxShadow: TeknoyTheme.kElevationHigh,
                 border: Border(
@@ -396,6 +397,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                     ],
                   ),
                 ),
+              ),
               ),
             );
           },

@@ -78,9 +78,9 @@ class _AuthLoginFormState extends State<AuthLoginForm> {
           child: TextButton(
             onPressed: widget.onForgotPassword,
             style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              minimumSize: const Size(44, 40),
+              tapTargetSize: MaterialTapTargetSize.padded,
             ),
             child: const Text(
               'Forgot Password?',

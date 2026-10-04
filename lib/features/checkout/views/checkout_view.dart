@@ -1855,10 +1855,53 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               ),
               const SizedBox(height: 14),
               _buildPriceFinalizer(isDark),
-              const SizedBox(height: 36),
-
-              // Submit button with signature CIT-U Maroon gradient
-              Container(
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: Container(
+        padding: EdgeInsets.fromLTRB(20, 12, 20, 12 + MediaQuery.of(context).padding.bottom),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF141418) : Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+          border: Border(
+            top: BorderSide(
+              color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+              width: 1,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Total Payable',
+                  style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey),
+                ),
+                Text(
+                  '₱${_totalPrice.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Container(
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
@@ -1869,18 +1912,19 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                   boxShadow: [
                     BoxShadow(
                       color: TeknoyTheme.citMaroon.withValues(alpha: 0.35),
-                      blurRadius: 12,
+                      blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: ElevatedButton.icon(
+                  key: const Key('checkout-confirm-deal-btn'),
                   onPressed: (_isSubmitting || isPageLoading) ? null : _submitCheckout,
                   icon: (_isSubmitting || isPageLoading)
                       ? const SizedBox.shrink()
                       : Icon(
                           widget.isPreorder ? Icons.assignment_turned_in_rounded : Icons.handshake_rounded,
-                          size: 20,
+                          size: 18,
                           color: TeknoyTheme.citGold,
                         ),
                   label: (_isSubmitting || isPageLoading)
@@ -1890,10 +1934,10 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                           child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                         )
                       : Text(
-                          widget.isPreorder ? 'Confirm Pre-Order Request' : 'Confirm Meetup Deal',
+                          widget.isPreorder ? 'Confirm Pre-Order' : 'Confirm Meetup Deal',
                           style: const TextStyle(
                             fontFamily: 'Outfit',
-                            fontSize: 16,
+                            fontSize: 15,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.3,
                             color: Colors.white,
@@ -1904,16 +1948,15 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                     shadowColor: Colors.transparent,
                     foregroundColor: Colors.white,
                     disabledBackgroundColor: Colors.transparent,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

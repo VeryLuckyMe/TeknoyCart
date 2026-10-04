@@ -2315,9 +2315,12 @@ class _SellTabState extends ConsumerState<SellTab> {
                   child: child,
                 ),
                 child: _sellSubTab == 0
-                    ? SingleChildScrollView(
-                        key: const ValueKey('sell_subtab_list_item'),
-          physics: const BouncingScrollPhysics(),
+                    ? GestureDetector(
+                        onTap: () => FocusScope.of(context).unfocus(),
+                        behavior: HitTestBehavior.translucent,
+                        child: SingleChildScrollView(
+                            key: const ValueKey('sell_subtab_list_item'),
+              physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2748,23 +2751,29 @@ class _SellTabState extends ConsumerState<SellTab> {
                             ),
                           ),
                         ),
-                      // Remove Button
+                      // Remove Button (36dp hit target)
                       Positioned(
-                        top: 4,
-                        right: 4,
+                        top: 2,
+                        right: 2,
                         child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
                           onTap: () {
                             setState(() {
                               _selectedImageFiles.removeAt(index);
                             });
                           },
                           child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.65),
-                              shape: BoxShape.circle,
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.75),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.close_rounded, size: 16, color: Colors.white),
                             ),
-                            child: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
                           ),
                         ),
                       ),
@@ -2801,7 +2810,8 @@ class _SellTabState extends ConsumerState<SellTab> {
           ),
         ],
       ),
-    )
+    ),
+  )
                   : const ManageListingsView(
                       key: ValueKey('sell_subtab_my_listings'),
                       embedded: true,

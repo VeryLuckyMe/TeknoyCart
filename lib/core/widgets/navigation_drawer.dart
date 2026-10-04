@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
@@ -12,10 +11,12 @@ import 'package:teknoycart/features/checkout/views/order_history_view.dart';
 /// Upgraded sliding Navigation Drawer reflecting a multi-billion-dollar brand layout.
 class TeknoyNavigationDrawer extends ConsumerWidget {
   final void Function(int tabIndex)? onSelectTab;
+  final int currentTabIndex;
 
   const TeknoyNavigationDrawer({
     super.key,
     this.onSelectTab,
+    this.currentTabIndex = 0,
   });
 
   @override
@@ -202,7 +203,7 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                         context,
                         icon: Icons.storefront_rounded,
                         title: 'Marketplace Feed',
-                        isActive: true,
+                        isActive: currentTabIndex == 0,
                         onTap: () {
                           Navigator.pop(context);
                           onSelectTab?.call(0);
@@ -212,6 +213,7 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                         context,
                         icon: Icons.forum_outlined,
                         title: 'Negotiation Chats',
+                        isActive: currentTabIndex == 1,
                         onTap: () {
                           Navigator.pop(context);
                           if (onSelectTab != null) {
@@ -226,8 +228,19 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                       ),
                       _buildNavTile(
                         context,
+                        icon: Icons.add_circle_outline_rounded,
+                        title: 'Sell Campus Items',
+                        isActive: currentTabIndex == 2,
+                        onTap: () {
+                          Navigator.pop(context);
+                          onSelectTab?.call(2);
+                        },
+                      ),
+                      _buildNavTile(
+                        context,
                         icon: Icons.receipt_long_rounded,
                         title: 'My Orders / Purchases',
+                        isActive: currentTabIndex == 3,
                         onTap: () {
                           Navigator.pop(context);
                           if (onSelectTab != null) {
@@ -275,6 +288,7 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                         context,
                         icon: Icons.manage_accounts_rounded,
                         title: 'Settings & Profile',
+                        isActive: currentTabIndex == 4,
                         onTap: () {
                           Navigator.pop(context);
                           if (onSelectTab != null) {

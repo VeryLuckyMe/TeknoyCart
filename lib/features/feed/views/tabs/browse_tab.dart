@@ -52,10 +52,12 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                   // Handle indicator
                   Center(
                     child: Container(
@@ -216,6 +218,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                     ),
                   ),
                 ],
+              ),
               ),
             );
           },

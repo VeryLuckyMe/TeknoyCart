@@ -7,6 +7,7 @@ import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
+import 'package:teknoycart/features/checkout/views/cart_view.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
 import 'package:teknoycart/features/feed/views/widgets/product_reviews_section.dart';
@@ -333,10 +334,12 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                   boxShadow: TeknoyTheme.kElevationHigh,
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                     // Handle Bar
                     Center(
                       child: Container(
@@ -675,6 +678,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                     ),
                   ],
                 ),
+                ),
               ),
             );
           },
@@ -816,9 +820,34 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
             Expanded(child: Text('Added "${product.title}" to cart!')),
           ],
         ),
+        action: SnackBarAction(
+          label: 'View Cart',
+          textColor: TeknoyTheme.citGold,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CartView()),
+            );
+          },
+        ),
         backgroundColor: TeknoyTheme.citMaroon,
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _openImageLightbox(BuildContext context, List<String> images, int initialIndex) {
+    if (images.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (ctx) => _ProductImageLightbox(
+          images: images,
+          initialIndex: initialIndex,
+          productTitle: product.title,
+        ),
       ),
     );
   }
@@ -925,18 +954,21 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                               itemCount: images.length,
                               onPageChanged: (idx) => setState(() => _currentImageIndex = idx),
                               itemBuilder: (context, index) {
-                                return Hero(
-                                  tag: index == 0 ? 'product_image_${product.id}' : 'product_image_${product.id}_$index',
-                                  child: Image.network(
-                                    images[index],
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    errorBuilder: (_, __, ___) => Center(
-                                      child: Icon(
-                                        Icons.image_not_supported_rounded,
-                                        size: 64,
-                                        color: isDark ? Colors.white24 : Colors.grey.shade400,
+                                return GestureDetector(
+                                  onTap: () => _openImageLightbox(context, images, index),
+                                  child: Hero(
+                                    tag: index == 0 ? 'product_image_${product.id}' : 'product_image_${product.id}_$index',
+                                    child: Image.network(
+                                      images[index],
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      errorBuilder: (_, __, ___) => Center(
+                                        child: Icon(
+                                          Icons.image_not_supported_rounded,
+                                          size: 64,
+                                          color: isDark ? Colors.white24 : Colors.grey.shade400,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -972,6 +1004,39 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                                 color: Colors.white,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                      // Tap to zoom hint badge
+                      if (images.isNotEmpty)
+                        Positioned(
+                          bottom: 16,
+                          left: 16,
+                          child: GestureDetector(
+                            onTap: () => _openImageLightbox(context, images, _currentImageIndex),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.65),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.zoom_in_rounded, size: 14, color: Colors.white),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Pinch / Tap to zoom',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -1804,18 +1869,17 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   }
 
   Widget _buildStickyActionBar(bool isDark) {
+    final cartCount = ref.watch(cartProvider).length;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isSmallScreen = constraints.maxWidth < 360;
-        final iconPadding = isSmallScreen
-            ? const EdgeInsets.symmetric(horizontal: 6, vertical: 4)
-            : const EdgeInsets.symmetric(horizontal: 10, vertical: 4);
 
         return Container(
           padding: EdgeInsets.fromLTRB(
-            isSmallScreen ? 8 : 12,
+            isSmallScreen ? 10 : 16,
             10,
-            isSmallScreen ? 8 : 12,
+            isSmallScreen ? 10 : 16,
             MediaQuery.of(context).padding.bottom + 8,
           ),
           decoration: BoxDecoration(
@@ -1827,7 +1891,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
+                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
                 blurRadius: 10,
                 offset: const Offset(0, -3),
               ),
@@ -1835,128 +1899,145 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
           ),
           child: Row(
             children: [
-              // Left Action: Chat
+              // Chat Quick Action (48dp target)
               InkWell(
                 onTap: _isInitializingChat ? null : () => _openStandardChat(context),
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: iconPadding,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _isInitializingChat
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: TeknoyTheme.citMaroon,
-                              ),
-                            )
-                          : const Icon(Icons.chat_bubble_outline_rounded, color: TeknoyTheme.citMaroon, size: 20),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Chat',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w600,
-                          color: TeknoyTheme.citMaroon,
-                        ),
-                      ),
-                    ],
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF202028) : const Color(0xFFF5F5F9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF2E2E38) : const Color(0xFFE4E4EB),
+                    ),
+                  ),
+                  child: Center(
+                    child: _isInitializingChat
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: TeknoyTheme.citMaroon,
+                            ),
+                          )
+                        : Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            color: isDark ? Colors.white70 : TeknoyTheme.citMaroon,
+                            size: 20,
+                          ),
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
 
-              // Left Action: Add to Cart
+              // Cart Quick Action with Badge (48dp target)
               InkWell(
                 onTap: _addToCart,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: iconPadding,
-                  child: const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.add_shopping_cart_rounded, color: TeknoyTheme.citMaroon, size: 20),
-                      SizedBox(height: 2),
-                      Text(
-                        'Cart',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w600,
-                          color: TeknoyTheme.citMaroon,
-                        ),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF202028) : const Color(0xFFF5F5F9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF2E2E38) : const Color(0xFFE4E4EB),
+                    ),
+                  ),
+                  child: Center(
+                    child: Badge(
+                      isLabelVisible: cartCount > 0,
+                      label: Text(
+                        '$cartCount',
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
                       ),
-                    ],
+                      backgroundColor: TeknoyTheme.citMaroon,
+                      child: Icon(
+                        Icons.shopping_bag_outlined,
+                        color: isDark ? Colors.white70 : TeknoyTheme.citMaroon,
+                        size: 21,
+                      ),
+                    ),
                   ),
                 ),
               ),
-              SizedBox(width: isSmallScreen ? 4 : 8),
+              const SizedBox(width: 10),
 
-              // Right Button 1: Make an Offer (Tawad)
+              // Make an Offer (Tawad) Action Button
               Expanded(
-                child: ElevatedButton(
-                  onPressed: () => _showMakeAnOfferDialog(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: TeknoyTheme.citGold,
-                    foregroundColor: const Color(0xFF4A3800),
-                    elevation: 0,
-                    padding: EdgeInsets.symmetric(vertical: 12, horizontal: isSmallScreen ? 4 : 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (!isSmallScreen) ...[
-                        const Icon(Icons.handshake_outlined, size: 15),
-                        const SizedBox(width: 4),
-                      ],
-                      const Flexible(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            'Make Offer',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                flex: 1,
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () => _showMakeAnOfferDialog(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: TeknoyTheme.citGold,
+                      foregroundColor: const Color(0xFF4A3800),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.handshake_outlined, size: 16),
+                        SizedBox(width: 5),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Make Offer',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-              SizedBox(width: isSmallScreen ? 4 : 8),
+              const SizedBox(width: 8),
 
-              // Right Button 2: Buy Now / Pre-Order / Out of Stock
+              // Buy Now / Pre-Order Action Button
               Expanded(
-                child: ElevatedButton(
-                  onPressed: (_availableStock > 0 || product.isPreorderEnabled) ? _buyNow : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _availableStock > 0
-                        ? TeknoyTheme.citMaroon
-                        : (product.isPreorderEnabled ? const Color(0xFFD97706) : (isDark ? Colors.white12 : Colors.grey.shade300)),
-                    disabledBackgroundColor: isDark ? Colors.white12 : Colors.grey.shade300,
-                    foregroundColor: (_availableStock > 0 || product.isPreorderEnabled) ? Colors.white : (isDark ? Colors.white38 : Colors.grey.shade600),
-                    disabledForegroundColor: isDark ? Colors.white38 : Colors.grey.shade600,
-                    elevation: 0,
-                    padding: EdgeInsets.symmetric(vertical: 12, horizontal: isSmallScreen ? 4 : 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      _availableStock > 0
-                          ? 'Buy Now'
-                          : (product.isPreorderEnabled ? 'Pre-Order Now' : 'Out of Stock'),
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
+                flex: 1,
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: (_availableStock > 0 || product.isPreorderEnabled) ? _buyNow : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _availableStock > 0
+                          ? TeknoyTheme.citMaroon
+                          : (product.isPreorderEnabled
+                              ? const Color(0xFFD97706)
+                              : (isDark ? Colors.white12 : Colors.grey.shade300)),
+                      disabledBackgroundColor: isDark ? Colors.white12 : Colors.grey.shade300,
+                      foregroundColor: (_availableStock > 0 || product.isPreorderEnabled)
+                          ? Colors.white
+                          : (isDark ? Colors.white38 : Colors.grey.shade600),
+                      disabledForegroundColor: isDark ? Colors.white38 : Colors.grey.shade600,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        _availableStock > 0
+                            ? 'Buy Now'
+                            : (product.isPreorderEnabled ? 'Pre-Order Now' : 'Out of Stock'),
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -1966,6 +2047,162 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ProductImageLightbox extends StatefulWidget {
+  final List<String> images;
+  final int initialIndex;
+  final String productTitle;
+
+  const _ProductImageLightbox({
+    required this.images,
+    required this.initialIndex,
+    required this.productTitle,
+  });
+
+  @override
+  State<_ProductImageLightbox> createState() => _ProductImageLightboxState();
+}
+
+class _ProductImageLightboxState extends State<_ProductImageLightbox> {
+  late final PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Interactive zoomable image viewer
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.images.length,
+            onPageChanged: (index) {
+              setState(() => _currentIndex = index);
+            },
+            itemBuilder: (context, index) {
+              return InteractiveViewer(
+                minScale: 1.0,
+                maxScale: 4.0,
+                child: Center(
+                  child: Image.network(
+                    widget.images[index],
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Center(
+                      child: Icon(Icons.image_not_supported_rounded, color: Colors.white54, size: 64),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          // Top Bar with Close Button, Title, and Counter
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 8, 16, 16),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.black87, Colors.transparent],
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.white24,
+                    radius: 20,
+                    child: IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      widget.productTitle,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${_currentIndex + 1} / ${widget.images.length}',
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Bottom hint
+          Positioned(
+            bottom: MediaQuery.of(context).padding.bottom + 16,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.pinch_rounded, size: 14, color: Colors.white70),
+                    SizedBox(width: 6),
+                    Text(
+                      'Pinch to zoom / double tap',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

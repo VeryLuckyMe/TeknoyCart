@@ -449,23 +449,24 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
             ),
             const SizedBox(height: 8),
             Wrap(
-              spacing: 6,
-              runSpacing: 6,
+              spacing: 8,
+              runSpacing: 8,
               children: citDepartmentOptions.map((opt) {
                 final isSelected = widget.departmentController.text.trim().toUpperCase() == opt.code;
                 return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onTap: () {
                     widget.departmentController.text = opt.code;
                     setState(() {});
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? TeknoyTheme.citMaroon.withValues(alpha: 0.15)
                           : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04)),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: isSelected
                             ? TeknoyTheme.citMaroon
@@ -477,7 +478,7 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
                       opt.code,
                       style: TextStyle(
                         fontFamily: 'Inter',
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                         color: isSelected
                             ? TeknoyTheme.citMaroon

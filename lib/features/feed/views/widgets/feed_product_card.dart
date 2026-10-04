@@ -114,11 +114,12 @@ class _FeedProductCardState extends State<FeedProductCard> {
                     ),
                   ),
 
-                  // Wishlist / Favorite Button (top-right) - interactive glassmorphic button
+                  // Wishlist / Favorite Button (top-right) - 44dp touch target
                   Positioned(
-                    top: 10,
-                    right: 10,
+                    top: 4,
+                    right: 4,
                     child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
                       onTap: () {
                         setState(() => _isFavorite = !_isFavorite);
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -135,26 +136,31 @@ class _FeedProductCardState extends State<FeedProductCard> {
                         );
                       },
                       child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.08),
-                              blurRadius: 8,
-                              spreadRadius: 1,
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Icon(
+                              _isFavorite
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              size: 16,
+                              color: TeknoyTheme.citMaroon,
                             ),
-                          ],
-                        ),
-                        child: Center(
-                          child: Icon(
-                            _isFavorite
-                                ? Icons.favorite_rounded
-                                : Icons.favorite_border_rounded,
-                            size: 16,
-                            color: TeknoyTheme.citMaroon,
                           ),
                         ),
                       ),
@@ -291,13 +297,13 @@ class _FeedProductCardState extends State<FeedProductCard> {
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.verified_rounded, size: 8, color: TeknoyTheme.citMaroon),
-                                      SizedBox(width: 1.5),
+                                      Icon(Icons.verified_rounded, size: 9.5, color: TeknoyTheme.citMaroon),
+                                      SizedBox(width: 2),
                                       Text(
                                         'CIT-U',
                                         style: TextStyle(
                                           fontFamily: 'Inter',
-                                          fontSize: 7,
+                                          fontSize: 9,
                                           fontWeight: FontWeight.w800,
                                           color: TeknoyTheme.citMaroon,
                                         ),
@@ -357,7 +363,7 @@ class _FeedProductCardState extends State<FeedProductCard> {
                                               '${attr.name}: ${attr.value}',
                                               style: TextStyle(
                                                 fontFamily: 'Inter',
-                                                fontSize: 8.5,
+                                                fontSize: 9.5,
                                                 fontWeight: FontWeight.w600,
                                                 color: isDark ? Colors.white54 : const Color(0xFF5A4978),
                                               ),
@@ -403,7 +409,7 @@ class _FeedProductCardState extends State<FeedProductCard> {
                           },
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 1.5),
+                          padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.5),
                           decoration: BoxDecoration(
                             color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF1F1F5),
                             borderRadius: BorderRadius.circular(10),
@@ -413,7 +419,7 @@ class _FeedProductCardState extends State<FeedProductCard> {
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontWeight: FontWeight.bold,
-                              fontSize: 8,
+                              fontSize: 9.5,
                               color: isDark ? Colors.white70 : const Color(0xFF5A413D),
                             ),
                           ),

@@ -268,6 +268,47 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     }
   }
 
+  Future<void> _confirmAndDeclineOrder(String orderId, [String? itemName]) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Decline Order?',
+              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to decline this order${itemName != null ? " for \"$itemName\"" : ""}? The buyer will be notified and this action cannot be undone.',
+          style: const TextStyle(fontFamily: 'Inter', fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep Order', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600, color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Decline Order', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      _declineOrder(orderId);
+    }
+  }
+
   Future<void> _declineOrder(String orderId) async {
     try {
       await SupabaseConfig.client
@@ -472,7 +513,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => _declineOrder(order['order_id']),
+                          onPressed: () => _confirmAndDeclineOrder(order['order_id'], productName),
                           icon: const Icon(Icons.close_rounded, size: 16),
                           label: const Text('Decline', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
                           style: OutlinedButton.styleFrom(

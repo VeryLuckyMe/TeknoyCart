@@ -577,6 +577,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       ),
       drawer: TeknoyNavigationDrawer(
         onSelectTab: _onTabSelected,
+        currentTabIndex: _activeTab,
       ),
       body: _buildActiveTabBody(context),
       bottomNavigationBar: SafeArea(
