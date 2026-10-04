@@ -18,6 +18,11 @@ class OrderHistoryView extends ConsumerStatefulWidget {
 class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     with SingleTickerProviderStateMixin {
   TabController? _tabController;
+  static List<Map<String, dynamic>>? _cachedBuyerOrders;
+  static String? _cachedBuyerUserId;
+  static List<Map<String, dynamic>>? _cachedSellerOrders;
+  static String? _cachedSellerUserId;
+
   bool _isLoadingBuyer = true;
   bool _isLoadingSeller = false;
   List<Map<String, dynamic>> _buyerOrders = [];
@@ -33,8 +38,10 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
 
   Future<void> _resolveUserRole() async {
     final user = ref.read(authStateProvider).valueOrNull;
-    if (user != null && user.isSeller) {
-      _initSellerMode();
+    if (user != null) {
+      if (user.isSeller) {
+        _initSellerMode();
+      }
       return;
     }
 
@@ -79,12 +86,21 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     super.dispose();
   }
 
-  Future<void> _fetchBuyerOrders() async {
-    setState(() => _isLoadingBuyer = true);
-    try {
-      final user = ref.read(authStateProvider).valueOrNull;
-      if (user == null) { setState(() => _isLoadingBuyer = false); return; }
+  Future<void> _fetchBuyerOrders({bool forceRefresh = false}) async {
+    final user = ref.read(authStateProvider).valueOrNull;
+    if (user == null) { setState(() => _isLoadingBuyer = false); return; }
 
+    // Instant zero-latency render from memory cache
+    if (!forceRefresh && _cachedBuyerOrders != null && _cachedBuyerUserId == user.id) {
+      setState(() {
+        _buyerOrders = _cachedBuyerOrders!;
+        _isLoadingBuyer = false;
+      });
+      return;
+    }
+
+    setState(() => _isLoadingBuyer = _buyerOrders.isEmpty);
+    try {
       final response = await SupabaseConfig.client
           .from('orders')
           .select('''
@@ -147,18 +163,29 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         _buyerOrders = enriched;
         _isLoadingBuyer = false;
       });
+      _cachedBuyerOrders = enriched;
+      _cachedBuyerUserId = user.id;
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load purchases: $e')));
       setState(() => _isLoadingBuyer = false);
     }
   }
 
-  Future<void> _fetchSellerOrders() async {
-    setState(() => _isLoadingSeller = true);
-    try {
-      final user = ref.read(authStateProvider).valueOrNull;
-      if (user == null) { setState(() => _isLoadingSeller = false); return; }
+  Future<void> _fetchSellerOrders({bool forceRefresh = false}) async {
+    final user = ref.read(authStateProvider).valueOrNull;
+    if (user == null) { setState(() => _isLoadingSeller = false); return; }
 
+    // Instant zero-latency render from memory cache
+    if (!forceRefresh && _cachedSellerOrders != null && _cachedSellerUserId == user.id) {
+      setState(() {
+        _sellerOrders = _cachedSellerOrders!;
+        _isLoadingSeller = false;
+      });
+      return;
+    }
+
+    setState(() => _isLoadingSeller = _sellerOrders.isEmpty);
+    try {
       final response = await SupabaseConfig.client
           .from('orders')
           .select('''
@@ -220,6 +247,8 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         _sellerOrders = enriched;
         _isLoadingSeller = false;
       });
+      _cachedSellerOrders = enriched;
+      _cachedSellerUserId = user.id;
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load incoming orders: $e')));
       setState(() => _isLoadingSeller = false);
@@ -607,7 +636,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
 
   Widget _buildBuyerPurchasesList(bool isDark) {
     return RefreshIndicator(
-      onRefresh: _fetchBuyerOrders,
+      onRefresh: () => _fetchBuyerOrders(forceRefresh: true),
       color: TeknoyTheme.citMaroon,
       child: _isLoadingBuyer
           ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
@@ -632,7 +661,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
 
   Widget _buildSellerOrdersList(bool isDark) {
     return RefreshIndicator(
-      onRefresh: _fetchSellerOrders,
+      onRefresh: () => _fetchSellerOrders(forceRefresh: true),
       color: TeknoyTheme.citMaroon,
       child: _isLoadingSeller
           ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))

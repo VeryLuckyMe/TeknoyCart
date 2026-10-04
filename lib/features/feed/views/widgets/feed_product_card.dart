@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/product.dart';
@@ -66,10 +67,13 @@ class _FeedProductCardState extends State<FeedProductCard> {
                       child: Container(
                         color: isDark ? const Color(0xFF1C1C22) : const Color(0xFFF3F3F5),
                         child: product.imageUrl != null && product.imageUrl!.isNotEmpty
-                            ? Image.network(
-                                product.imageUrl!,
+                            ? CachedNetworkImage(
+                                imageUrl: product.imageUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => const Center(
+                                placeholder: (context, url) => Container(
+                                  color: isDark ? const Color(0xFF1C1C22) : const Color(0xFFF3F3F5),
+                                ),
+                                errorWidget: (context, url, error) => const Center(
                                   child: Icon(Icons.image_not_supported_rounded, color: Colors.grey, size: 28),
                                 ),
                               )

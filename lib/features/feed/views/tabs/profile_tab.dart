@@ -16,12 +16,13 @@ import 'package:teknoycart/features/feed/views/widgets/buyer_reviews_sheet.dart'
 /// Provider to dynamically count completed orders/deals for a given user ID
 final userCompletedDealsCountProvider = FutureProvider.family<int, String>((ref, userId) async {
   if (userId.isEmpty) return 0;
+  ref.keepAlive();
   try {
     final client = SupabaseConfig.client;
     final res = await client
         .from('orders')
         .select('order_id')
-        .or('buyer_id.eq.,seller_id.eq.')
+        .or('buyer_id.eq.$userId,seller_id.eq.$userId')
         .eq('status', 'completed');
     return (res as List).length;
   } catch (_) {
@@ -39,22 +40,6 @@ class ProfileTab extends ConsumerStatefulWidget {
   ConsumerState<ProfileTab> createState() => _ProfileTabState();
 }
 class _ProfileTabState extends ConsumerState<ProfileTab> {
-  Map<String, dynamic>? _cachedProfileData;
-  String? _cachedProfileUserId;
-  Future<Map<String, dynamic>>? _profileFuture;
-
-  Future<Map<String, dynamic>?> _getUserRoleAndStatus(String userId) async {
-    try {
-      final res = await SupabaseConfig.client
-          .from('users')
-          .select('role, is_seller_verified, student_id')
-          .eq('user_id', userId)
-          .single();
-      return res;
-    } catch (e) {
-      return null;
-    }
-  }
 
   Future<void> _updateProfileMetadata(String dept, String contact, String gcashNumber, {String? storeName}) async {
     try {
@@ -874,30 +859,13 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     final dealsAsync = ref.watch(userCompletedDealsCountProvider(rawId));
     final dealsCount = dealsAsync.valueOrNull ?? 0;
 
-    // Cache the future so it doesn't re-run on every tab switch
-    if (rawId.isNotEmpty && _cachedProfileUserId != rawId) {
-      _cachedProfileUserId = rawId;
-      _profileFuture = _getUserRoleAndStatus(rawId)
-          .then((v) => v ?? {'role': 'BUYER', 'is_seller_verified': false});
-    }
+    final String role = user?.role ?? 'BUYER';
+    final bool isVerified = user?.isSellerVerified ?? false;
+    final isSeller = user?.isSeller ?? false;
+    final String studentId = user?.studentId ?? 'Pending';
 
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _profileFuture ?? Future.value({'role': 'BUYER', 'is_seller_verified': false}),
-      builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          _cachedProfileData = snapshot.data;
-        }
-        final roleInfo = _cachedProfileData ?? {'role': 'BUYER', 'is_seller_verified': false};
-        final String role = roleInfo['role'] as String;
-        final bool isVerified = roleInfo['is_seller_verified'] as bool;
-        final isSeller = role == 'SELLER';
-        final String studentId = user?.studentId 
-            ?? (roleInfo['student_id'] as String?)
-            ?? 'Pending';
-
-        final String rawStoreName = (SupabaseConfig.client.auth.currentUser?.userMetadata?['store_name'] as String?)
-            ?? (roleInfo['store_name'] as String? ?? '');
-        final String storeName = rawStoreName.trim().isNotEmpty ? rawStoreName.trim() : 'Not Configured';
+    final String rawStoreName = (SupabaseConfig.client.auth.currentUser?.userMetadata?['store_name'] as String?) ?? '';
+    final String storeName = rawStoreName.trim().isNotEmpty ? rawStoreName.trim() : 'Not Configured';
 
         return Container(
           color: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF7F7FA),
@@ -1254,8 +1222,6 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
             ),
           ),
         );
-      },
-    );
   }
 
   Widget _buildWildcatIdPassCard({

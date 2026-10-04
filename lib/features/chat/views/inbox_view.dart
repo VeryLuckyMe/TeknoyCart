@@ -20,6 +20,9 @@ class InboxView extends ConsumerStatefulWidget {
 }
 
 class _InboxViewState extends ConsumerState<InboxView> {
+  static List<Map<String, dynamic>>? _cachedChatRooms;
+  static String? _cachedChatUserId;
+
   bool _isLoading = true;
   List<Map<String, dynamic>> _chatRooms = [];
   String? _errorMessage;
@@ -50,7 +53,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
     super.dispose();
   }
 
-  Future<void> _loadChatRooms() async {
+  Future<void> _loadChatRooms({bool forceRefresh = false}) async {
     final currentUser = ref.read(authStateProvider).valueOrNull;
     if (currentUser == null) {
       setState(() {
@@ -60,8 +63,18 @@ class _InboxViewState extends ConsumerState<InboxView> {
       return;
     }
 
+    // Instant zero-latency render from memory cache
+    if (!forceRefresh && _cachedChatRooms != null && _cachedChatUserId == currentUser.id) {
+      setState(() {
+        _chatRooms = _cachedChatRooms!;
+        _isLoading = false;
+        _errorMessage = null;
+      });
+      return;
+    }
+
     setState(() {
-      _isLoading = true;
+      _isLoading = _chatRooms.isEmpty;
       _errorMessage = null;
     });
 
@@ -201,6 +214,8 @@ class _InboxViewState extends ConsumerState<InboxView> {
       }
 
       if (mounted) {
+        _cachedChatRooms = rooms;
+        _cachedChatUserId = currentUser.id;
         setState(() {
           _chatRooms = rooms;
           _isLoading = false;

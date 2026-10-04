@@ -36,11 +36,54 @@ class ProductDiscoveryFeedView extends ConsumerStatefulWidget {
 class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedView> {
   late int _activeTab;
   StreamSubscription<AuthState>? _recoverySub;
+  late final Set<int> _loadedTabs = {_activeTab};
+  final Map<int, Widget> _cachedTabs = {};
+
+  void _onTabSelected(int index) {
+    HapticFeedback.selectionClick();
+    if (_activeTab == index) {
+      if (index == 0) {
+        ref.read(productsListNotifierProvider.notifier).refresh();
+      }
+      return;
+    }
+    setState(() {
+      _activeTab = index;
+      _loadedTabs.add(index);
+    });
+  }
+
+  Widget _getTabWidget(int index) {
+    if (_cachedTabs.containsKey(index)) return _cachedTabs[index]!;
+    Widget tab;
+    switch (index) {
+      case 0:
+        tab = const BrowseTab();
+        break;
+      case 1:
+        tab = const InboxView(embedded: true);
+        break;
+      case 2:
+        tab = SellTab(onNavigateTab: _onTabSelected);
+        break;
+      case 3:
+        tab = const OrderHistoryView(embedded: true);
+        break;
+      case 4:
+        tab = ProfileTab(onNavigateTab: _onTabSelected);
+        break;
+      default:
+        tab = const SizedBox.shrink();
+    }
+    _cachedTabs[index] = tab;
+    return tab;
+  }
 
   @override
   void initState() {
     super.initState();
     _activeTab = widget.initialTab;
+    _loadedTabs.add(_activeTab);
 
     _recoverySub = SupabaseConfig.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.passwordRecovery) {
@@ -243,24 +286,15 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   }
 
   Widget _buildActiveTabBody(BuildContext context) {
-    switch (_activeTab) {
-      case 0:
-        return const BrowseTab();
-      case 1:
-        return const InboxView(embedded: true);
-      case 2:
-        return SellTab(onNavigateTab: (tabIndex) => setState(() => _activeTab = tabIndex));
-      case 3:
-        return const OrderHistoryView(embedded: true);
-      case 4:
-        return ProfileTab(
-          onNavigateTab: (tabIndex) {
-            setState(() => _activeTab = tabIndex);
-          },
-        );
-      default:
-        return const BrowseTab();
-    }
+    return IndexedStack(
+      index: _activeTab,
+      children: List.generate(5, (index) {
+        if (!_loadedTabs.contains(index)) {
+          return const SizedBox.shrink();
+        }
+        return _getTabWidget(index);
+      }),
+    );
   }
 
   Widget _buildBottomNavItem(
@@ -274,116 +308,128 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     VoidCallback? onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const activeColor = TeknoyTheme.citMaroon;
+    final activeColor = isDark ? const Color(0xFFFF8585) : TeknoyTheme.citMaroon;
     final inactiveColor = isDark ? Colors.white54 : const Color(0xFF757575);
-
-    if (isActionFocus) {
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 10.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 44,
-                height: 28,
-                decoration: BoxDecoration(
-                  gradient: isActive
-                      ? const LinearGradient(
-                          colors: [TeknoyTheme.citMaroon, Color(0xFF8B0000)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : LinearGradient(
-                          colors: isDark
-                              ? [const Color(0xFF202026), const Color(0xFF141418)]
-                              : [const Color(0xFF2E2628), const Color(0xFF1A1416)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: isActive
-                          ? TeknoyTheme.citMaroon.withValues(alpha: 0.4)
-                          : Colors.black.withValues(alpha: isDark ? 0.35 : 0.22),
-                      blurRadius: isActive ? 8 : 5,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.add_rounded,
-                  size: 20,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 10,
-                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                  color: isActive
-                      ? activeColor
-                      : (isDark ? Colors.white70 : const Color(0xFF2E2628)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     final currentIcon = (isActive && activeIcon != null) ? activeIcon : icon;
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 12.0),
-        child: Column(
+      borderRadius: BorderRadius.circular(24),
+      splashColor: TeknoyTheme.citMaroon.withValues(alpha: 0.12),
+      highlightColor: Colors.transparent,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.symmetric(
+          horizontal: isActive ? 13 : 9,
+          vertical: 7,
+        ),
+        decoration: BoxDecoration(
+          color: isActive
+              ? (isDark
+                  ? const Color(0xFF350E14)
+                  : TeknoyTheme.citMaroon.withValues(alpha: 0.10))
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+          border: isActive
+              ? Border.all(
+                  color: isDark
+                      ? TeknoyTheme.citMaroon.withValues(alpha: 0.70)
+                      : TeknoyTheme.citMaroon.withValues(alpha: 0.22),
+                  width: 1.2,
+                )
+              : null,
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.45 : 0.18),
+                    blurRadius: 14,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(
-                  currentIcon,
-                  size: 23,
-                  color: isActive ? activeColor : inactiveColor,
-                ),
-                if (hasBadge)
-                  Positioned(
-                    top: -2,
-                    right: -2,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD90429),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: isDark ? const Color(0xFF0F0F12) : Colors.white,
-                          width: 1.5,
+            AnimatedScale(
+              scale: isActive ? 1.12 : 1.0,
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeOutBack,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    currentIcon,
+                    size: 21,
+                    color: isActive ? activeColor : inactiveColor,
+                  ),
+                  if (hasBadge)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD90429),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF0F0F12) : Colors.white,
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 10,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                color: isActive ? activeColor : inactiveColor,
+                ],
               ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.centerLeft,
+              child: isActive
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(width: 6),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.2,
+                                color: activeColor,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            // TikTok-inspired animated accent bar
+                            Container(
+                              height: 2,
+                              width: 14,
+                              decoration: BoxDecoration(
+                                color: activeColor,
+                                borderRadius: BorderRadius.circular(1),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.6),
+                                    blurRadius: 3,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
             ),
           ],
         ),
@@ -530,37 +576,33 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         ],
       ),
       drawer: TeknoyNavigationDrawer(
-        onSelectTab: (index) {
-          HapticFeedback.selectionClick();
-          setState(() => _activeTab = index);
-        },
+        onSelectTab: _onTabSelected,
       ),
       body: _buildActiveTabBody(context),
-      bottomNavigationBar: Container(
-        height: 64,
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0F0F12) : Colors.white,
-          border: Border(
-            top: BorderSide(
-              color: isDark ? const Color(0xFF282830) : Colors.grey.withValues(alpha: 0.2),
-              width: 1,
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          height: 66,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F0F12) : Colors.white,
+            border: Border(
+              top: BorderSide(
+                color: isDark ? const Color(0xFF282830) : Colors.grey.withValues(alpha: 0.2),
+                width: 1,
+              ),
             ),
           ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
             _buildBottomNavItem(
               context,
               icon: Icons.home_outlined,
               activeIcon: Icons.home_rounded,
               label: 'Home',
               isActive: _activeTab == 0,
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _activeTab = 0);
-                ref.read(productsListNotifierProvider.notifier).refresh();
-              },
+              onTap: () => _onTabSelected(0),
             ),
             _buildBottomNavItem(
               context,
@@ -569,10 +611,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               label: 'Messages',
               isActive: _activeTab == 1,
               hasBadge: false,
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _activeTab = 1);
-              },
+              onTap: () => _onTabSelected(1),
             ),
             _buildBottomNavItem(
               context,
@@ -581,10 +620,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               label: 'Sell',
               isActive: _activeTab == 2,
               isActionFocus: true,
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _activeTab = 2);
-              },
+              onTap: () => _onTabSelected(2),
             ),
             _buildBottomNavItem(
               context,
@@ -593,10 +629,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               label: 'Orders',
               isActive: _activeTab == 3,
               hasBadge: false,
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _activeTab = 3);
-              },
+              onTap: () => _onTabSelected(3),
             ),
             _buildBottomNavItem(
               context,
@@ -604,14 +637,12 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               activeIcon: Icons.person_rounded,
               label: 'Profile',
               isActive: _activeTab == 4,
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _activeTab = 4);
-              },
+              onTap: () => _onTabSelected(4),
             ),
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

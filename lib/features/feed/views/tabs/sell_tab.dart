@@ -26,10 +26,6 @@ class SellTab extends ConsumerStatefulWidget {
 class _SellTabState extends ConsumerState<SellTab> {
   int _sellSubTab = 0; // 0: List New Item, 1: My Listings
 
-  // Cached sell tab user role and category horizontal scroll controller
-  Map<String, dynamic>? _cachedSellUserData;
-  String? _cachedSellUserId;
-  Future<Map<String, dynamic>?>? _sellRoleFuture;
   final ScrollController _categoryScrollController = ScrollController();
 
 
@@ -2177,28 +2173,12 @@ class _SellTabState extends ConsumerState<SellTab> {
   }
 
 
-  Future<Map<String, dynamic>?> _getUserRoleAndStatus(String userId) async {
-    try {
-      final res = await SupabaseConfig.client
-          .from('users')
-          .select('role, is_seller_verified, student_id')
-          .eq('user_id', userId)
-          .single();
-      return res;
-    } catch (e) {
-      return null;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final authState = ref.watch(authStateProvider).valueOrNull;
 
     if (authState == null) {
-      _cachedSellUserData = null;
-      _cachedSellUserId = null;
-      _sellRoleFuture = null;
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24.0),
@@ -2210,51 +2190,20 @@ class _SellTabState extends ConsumerState<SellTab> {
       );
     }
 
-    // Cache future and user role data to prevent full-screen loader flashes on form updates (e.g., category selection)
-    if (_cachedSellUserId != authState.id || _sellRoleFuture == null) {
-      _cachedSellUserId = authState.id;
-      _sellRoleFuture = _getUserRoleAndStatus(authState.id);
+    if (!authState.isSeller) {
+      return SellerKYCVerificationView(
+        userId: authState.id,
+        initialSellerType: 'STUDENT',
+        onVerificationSubmitted: () => setState(() {}),
+        onRefreshStatus: () async {
+          await ref.read(authNotifierProvider.notifier).refreshProfile();
+          if (mounted) setState(() {});
+        },
+      );
     }
 
-    return FutureBuilder<Map<String, dynamic>?>(
-      future: _sellRoleFuture,
-      initialData: _cachedSellUserData ?? {
-        'role': authState.role,
-        'is_seller_verified': authState.isSellerVerified,
-      },
-      builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data != null) {
-          _cachedSellUserData = snapshot.data;
-        }
-
-        final data = _cachedSellUserData ?? snapshot.data;
-        if (data == null && snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon));
-        }
-
-        final role = data?['role'] as String? ?? authState.role;
-        final isVerified = data?['is_seller_verified'] as bool? ?? authState.isSellerVerified;
-
-        if (role == 'BUYER' || (role == 'SELLER' && !isVerified)) {
-          return SellerKYCVerificationView(
-            userId: authState.id,
-            initialSellerType: (data?['seller_type'] as String?) ?? 'STUDENT',
-            onVerificationSubmitted: () {
-              _sellRoleFuture = null;
-              _cachedSellUserData = null;
-                            setState(() {});
-            },
-            onRefreshStatus: () async {
-              _sellRoleFuture = null;
-              _cachedSellUserData = null;
-                            await ref.read(authNotifierProvider.notifier).refreshProfile();
-              if (mounted) setState(() {});
-            },
-          );
-        }
-
-        // Verified seller or admin: Tab selector between List New Item and My Listings
-        return Column(
+    // Verified seller or admin: Tab selector between List New Item and My Listings
+    return Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -2861,8 +2810,6 @@ class _SellTabState extends ConsumerState<SellTab> {
             ),
           ],
         );
-      },
-    );
   }
 
 

@@ -39,6 +39,8 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
   XFile? _idCardFile;
   XFile? _selfieFile;
 
+  static final Map<String, SellerVerification?> _cachedVerificationMap = {};
+
   bool _agreedToTerms = false;
   bool _isSubmitting = false;
   bool _isLoadingHistory = true;
@@ -60,10 +62,30 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
     super.dispose();
   }
 
-  Future<void> _fetchVerificationHistory() async {
-    setState(() => _isLoadingHistory = true);
+  Future<void> _fetchVerificationHistory({bool forceRefresh = false}) async {
+    // Instantaneous 0ms load from memory cache
+    if (!forceRefresh && _cachedVerificationMap.containsKey(widget.userId)) {
+      final cached = _cachedVerificationMap[widget.userId];
+      setState(() {
+        _existingVerification = cached;
+        if (cached != null) {
+          _sellerType = cached.sellerType;
+          if (cached.officerName != null) {
+            _officerNameController.text = cached.officerName!;
+          }
+          if (cached.officerPosition != null) {
+            _officerPositionController.text = cached.officerPosition!;
+          }
+        }
+        _isLoadingHistory = false;
+      });
+      return;
+    }
+
+    setState(() => _isLoadingHistory = _existingVerification == null);
     final service = ref.read(sellerVerificationServiceProvider);
     final record = await service.getLatestVerification(widget.userId);
+    _cachedVerificationMap[widget.userId] = record;
     if (mounted) {
       setState(() {
         _existingVerification = record;
@@ -159,6 +181,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
       );
 
       if (mounted) {
+        _cachedVerificationMap[widget.userId] = submitted;
         setState(() {
           _existingVerification = submitted;
           _isSubmitting = false;
