@@ -254,21 +254,29 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
 
   Color _statusColor(String status, [Map<String, dynamic>? order]) {
     final bool isOos = order != null && _isItemOutOfStock(order);
-    if (isOos) return Colors.deepOrange;
+    if (isOos) return const Color(0xFFEA580C);
     switch (status) {
-      case 'COMPLETED': return Colors.green;
-      case 'PAYMENT_VERIFIED': return Colors.blue;
+      case 'COMPLETED':
+        return TeknoyTheme.success; // Emerald #10B981
+      case 'PAYMENT_VERIFIED':
+        return const Color(0xFF2563EB); // Cobalt #2563EB
       case 'SELLER_ACCEPTED':
-      case 'APPROVED': return Colors.orange.shade800;
-      case 'PAYMENT_SUBMITTED': return Colors.indigo;
-      case 'RETURN_REQUESTED': return Colors.orange;
-      case 'RETURN_APPROVED': return Colors.teal;
+      case 'APPROVED':
+        return const Color(0xFFD97706); // Warm Amber
+      case 'PAYMENT_SUBMITTED':
+        return const Color(0xFF4F46E5); // Indigo Accent
+      case 'RETURN_REQUESTED':
+        return TeknoyTheme.warning;
+      case 'RETURN_APPROVED':
+        return const Color(0xFF0D9488); // Teal
       case 'RETURN_DECLINED':
       case 'DECLINED':
-      case 'CANCELLED': return Colors.red;
+      case 'CANCELLED':
+        return TeknoyTheme.error; // Crimson #EF4444
       case 'PENDING_SELLER_ACCEPT':
       case 'INQUIRY_SENT':
-      default: return Colors.orange;
+      default:
+        return TeknoyTheme.warning;
     }
   }
 

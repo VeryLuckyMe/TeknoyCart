@@ -290,15 +290,31 @@ class _CartViewState extends ConsumerState<CartView> {
                                 });
                               },
                             ),
-                            Container(
-                              width: 70,
-                              height: 70,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                image: DecorationImage(
-                                  image: NetworkImage(item.product.imageUrl ?? ''),
-                                  fit: BoxFit.cover,
-                                ),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: 70,
+                                height: 70,
+                                color: isDark ? const Color(0xFF22222A) : const Color(0xFFF1F1F5),
+                                child: (item.product.imageUrl != null && item.product.imageUrl!.isNotEmpty)
+                                    ? Image.network(
+                                        item.product.imageUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Center(
+                                          child: Icon(
+                                            Icons.inventory_2_outlined,
+                                            size: 24,
+                                            color: isDark ? Colors.white30 : Colors.black26,
+                                          ),
+                                        ),
+                                      )
+                                    : Center(
+                                        child: Icon(
+                                          Icons.inventory_2_outlined,
+                                          size: 24,
+                                          color: isDark ? Colors.white30 : Colors.black26,
+                                        ),
+                                      ),
                               ),
                             ),
                             const SizedBox(width: 12),

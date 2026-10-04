@@ -513,17 +513,74 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
           child: productsAsync.when(
             data: (_) {
               if (filteredProducts.isEmpty) {
-                return const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.inbox_rounded, size: 64, color: Colors.grey),
-                      SizedBox(height: 12),
-                      Text(
-                        'No items match your search.',
-                        style: TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.grey),
-                      ),
-                    ],
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF1F1F5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.search_off_rounded,
+                            size: 36,
+                            color: isDark ? Colors.white38 : Colors.black38,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No items match your search.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : const Color(0xFF191C1D),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Try clearing your search terms or selecting another category.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 13,
+                            color: isDark ? Colors.white54 : Colors.black54,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            ref.read(searchQueryProvider.notifier).state = '';
+                            ref.read(selectedCategoryProvider.notifier).state = 'All';
+                            ref.read(selectedConditionProvider.notifier).state = 'All';
+                            ref.read(minPriceProvider.notifier).state = null;
+                            ref.read(maxPriceProvider.notifier).state = null;
+                          },
+                          icon: const Icon(Icons.refresh_rounded, size: 16),
+                          label: const Text(
+                            'Reset All Filters',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: TeknoyTheme.citMaroon,
+                            side: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.2),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
@@ -568,16 +625,54 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
             loading: () => const ProductGridSkeleton(),
             error: (err, _) => Center(
               child: Padding(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.cloud_off_rounded, size: 64, color: TeknoyTheme.error),
-                    const SizedBox(height: 12),
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: TeknoyTheme.error.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.cloud_off_rounded, size: 36, color: TeknoyTheme.error),
+                    ),
+                    const SizedBox(height: 16),
                     Text(
-                      'Offline: ${err.toString()}',
+                      'Connection Interrupted',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF191C1D),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Unable to load campus listings right now. Please check your network connection.',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontFamily: 'Inter', color: Colors.grey),
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 13,
+                        color: isDark ? Colors.white54 : Colors.black54,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    ElevatedButton.icon(
+                      onPressed: () => ref.read(productsListNotifierProvider.notifier).refresh(),
+                      icon: const Icon(Icons.refresh_rounded, size: 16),
+                      label: const Text(
+                        'Retry Connection',
+                        style: TextStyle(fontFamily: 'Outfit', fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: TeknoyTheme.citMaroon,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                     ),
                   ],
                 ),

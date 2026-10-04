@@ -12,9 +12,9 @@ import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
 import 'package:teknoycart/features/feed/views/widgets/product_reviews_section.dart';
 import 'package:teknoycart/features/feed/providers/review_provider.dart';
 
-/// Full-screen, immersive Product Details Page (PDP) inspired by Shopee and Lazada.
-/// Replaces cramped modal sheets with an edge-to-edge gallery, social proof badges,
-/// a student guarantee trust shield, and a sticky bottom purchase & bargaining bar.
+/// Immersive TeknoyCart Wildcat Product Details Page (PDP).
+/// Features high-resolution media gallery, student trust badges, verified seller
+/// credentials, direct campus meetup scheduling, and responsive action bar.
 class ProductDetailView extends ConsumerStatefulWidget {
   final Product product;
 
@@ -954,7 +954,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                               ),
                             ),
 
-                      // Image Index Pill (Shopee Signature Bottom-Right)
+                      // Image Gallery Index Pill
                       if (images.isNotEmpty)
                         Positioned(
                           bottom: 16,
@@ -1252,6 +1252,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 10),
+
+                    // Campus Fulfillment & Meetup Zones (Answers PDP Question 6)
+                    _buildCampusMeetupCard(isDark),
                     const SizedBox(height: 10),
 
                     // Seller Store Profile Card
@@ -1686,139 +1690,282 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
     );
   }
 
-  Widget _buildStickyActionBar(bool isDark) {
+  Widget _buildCampusMeetupCard(bool isDark) {
     return Container(
-      padding: EdgeInsets.fromLTRB(12, 10, 12, MediaQuery.of(context).padding.bottom + 8),
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF141418) : Colors.white,
         border: Border(
-          top: BorderSide(
+          bottom: BorderSide(
             color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
           ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, -3),
-          ),
-        ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Left Action: Chat
-          InkWell(
-            onTap: _isInitializingChat ? null : () => _openStandardChat(context),
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _isInitializingChat
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: TeknoyTheme.citMaroon,
-                          ),
-                        )
-                      : const Icon(Icons.chat_bubble_outline_rounded, color: TeknoyTheme.citMaroon, size: 22),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Chat',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: TeknoyTheme.citMaroon,
-                    ),
-                  ),
-                ],
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: TeknoyTheme.citMaroon.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.place_rounded,
+                  size: 18,
+                  color: TeknoyTheme.citMaroon,
+                ),
               ),
-            ),
-          ),
-
-          // Left Action: Add to Cart
-          InkWell(
-            onTap: _addToCart,
-            borderRadius: BorderRadius.circular(8),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.add_shopping_cart_rounded, color: TeknoyTheme.citMaroon, size: 22),
-                  SizedBox(height: 2),
-                  Text(
-                    'Cart',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: TeknoyTheme.citMaroon,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // Right Button 1: Make an Offer (Tawad)
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () => _showMakeAnOfferDialog(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: TeknoyTheme.citGold,
-                foregroundColor: const Color(0xFF4A3800),
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.handshake_outlined, size: 16),
-              label: const Text(
-                'Make Offer',
+              const SizedBox(width: 10),
+              const Text(
+                'Campus Fulfillment & Meetup',
                 style: TextStyle(
                   fontFamily: 'Outfit',
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1B1B22) : const Color(0xFFF9F9FB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isDark ? const Color(0xFF252530) : const Color(0xFFE5E5EB),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-
-          // Right Button 2: Buy Now / Pre-Order / Out of Stock
-          Expanded(
-            child: ElevatedButton(
-              onPressed: (_availableStock > 0 || product.isPreorderEnabled) ? _buyNow : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _availableStock > 0
-                    ? TeknoyTheme.citMaroon
-                    : (product.isPreorderEnabled ? const Color(0xFFD97706) : (isDark ? Colors.white12 : Colors.grey.shade300)),
-                disabledBackgroundColor: isDark ? Colors.white12 : Colors.grey.shade300,
-                foregroundColor: (_availableStock > 0 || product.isPreorderEnabled) ? Colors.white : (isDark ? Colors.white38 : Colors.grey.shade600),
-                disabledForegroundColor: isDark ? Colors.white38 : Colors.grey.shade600,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(
-                _availableStock > 0
-                    ? 'Buy Now'
-                    : (product.isPreorderEnabled ? 'Pre-Order Now' : 'Out of Stock'),
-                style: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.school_outlined, size: 16, color: TeknoyTheme.citMaroon),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Designated CIT-U Meetup Zones',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Main Campus Grounds • Library Lobby • Wildcat Canteen • Academic Complex',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11.5,
+                              color: isDark ? Colors.white60 : Colors.black54,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ),
+                const SizedBox(height: 10),
+                const Divider(height: 1),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.verified_outlined, size: 15, color: TeknoyTheme.success),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '₱0.00 Campus Delivery Fee • Inspect item before confirming OTP release.',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white70 : const Color(0xFF2C2C2C),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStickyActionBar(bool isDark) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isSmallScreen = constraints.maxWidth < 360;
+        final iconPadding = isSmallScreen
+            ? const EdgeInsets.symmetric(horizontal: 6, vertical: 4)
+            : const EdgeInsets.symmetric(horizontal: 10, vertical: 4);
+
+        return Container(
+          padding: EdgeInsets.fromLTRB(
+            isSmallScreen ? 8 : 12,
+            10,
+            isSmallScreen ? 8 : 12,
+            MediaQuery.of(context).padding.bottom + 8,
+          ),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF141418) : Colors.white,
+            border: Border(
+              top: BorderSide(
+                color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+              ),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, -3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Left Action: Chat
+              InkWell(
+                onTap: _isInitializingChat ? null : () => _openStandardChat(context),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: iconPadding,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _isInitializingChat
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: TeknoyTheme.citMaroon,
+                              ),
+                            )
+                          : const Icon(Icons.chat_bubble_outline_rounded, color: TeknoyTheme.citMaroon, size: 20),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Chat',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          color: TeknoyTheme.citMaroon,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Left Action: Add to Cart
+              InkWell(
+                onTap: _addToCart,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: iconPadding,
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add_shopping_cart_rounded, color: TeknoyTheme.citMaroon, size: 20),
+                      SizedBox(height: 2),
+                      Text(
+                        'Cart',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          color: TeknoyTheme.citMaroon,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(width: isSmallScreen ? 4 : 8),
+
+              // Right Button 1: Make an Offer (Tawad)
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _showMakeAnOfferDialog(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: TeknoyTheme.citGold,
+                    foregroundColor: const Color(0xFF4A3800),
+                    elevation: 0,
+                    padding: EdgeInsets.symmetric(vertical: 12, horizontal: isSmallScreen ? 4 : 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (!isSmallScreen) ...[
+                        const Icon(Icons.handshake_outlined, size: 15),
+                        const SizedBox(width: 4),
+                      ],
+                      const Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Make Offer',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(width: isSmallScreen ? 4 : 8),
+
+              // Right Button 2: Buy Now / Pre-Order / Out of Stock
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: (_availableStock > 0 || product.isPreorderEnabled) ? _buyNow : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _availableStock > 0
+                        ? TeknoyTheme.citMaroon
+                        : (product.isPreorderEnabled ? const Color(0xFFD97706) : (isDark ? Colors.white12 : Colors.grey.shade300)),
+                    disabledBackgroundColor: isDark ? Colors.white12 : Colors.grey.shade300,
+                    foregroundColor: (_availableStock > 0 || product.isPreorderEnabled) ? Colors.white : (isDark ? Colors.white38 : Colors.grey.shade600),
+                    disabledForegroundColor: isDark ? Colors.white38 : Colors.grey.shade600,
+                    elevation: 0,
+                    padding: EdgeInsets.symmetric(vertical: 12, horizontal: isSmallScreen ? 4 : 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      _availableStock > 0
+                          ? 'Buy Now'
+                          : (product.isPreorderEnabled ? 'Pre-Order Now' : 'Out of Stock'),
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

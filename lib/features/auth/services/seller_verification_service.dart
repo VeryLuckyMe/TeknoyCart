@@ -17,8 +17,8 @@ class SellerVerificationService {
 
   SellerVerificationService(this._client);
 
-  /// Bucket used for secure KYC document uploads
-  static const String _storageBucket = 'product-images';
+  /// Private bucket used for secure KYC document uploads under RA 10173 Zero-Retention
+  static const String _storageBucket = 'seller-kyc-documents';
 
   /// Fetches the latest verification submission for a user
   Future<SellerVerification?> getLatestVerification(String userId) async {
@@ -61,7 +61,12 @@ class SellerVerificationService {
             upsert: true,
           ),
         );
-    final String idCardUrl = _client.storage.from(_storageBucket).getPublicUrl(idCardStoragePath);
+    String idCardUrl;
+    try {
+      idCardUrl = await _client.storage.from(_storageBucket).createSignedUrl(idCardStoragePath, 604800);
+    } catch (_) {
+      idCardUrl = _client.storage.from(_storageBucket).getPublicUrl(idCardStoragePath);
+    }
 
     // 2. Upload Selfie with ID image
     final Uint8List selfieBytes = await selfieFile.readAsBytes();
@@ -73,7 +78,12 @@ class SellerVerificationService {
             upsert: true,
           ),
         );
-    final String selfieUrl = _client.storage.from(_storageBucket).getPublicUrl(selfieStoragePath);
+    String selfieUrl;
+    try {
+      selfieUrl = await _client.storage.from(_storageBucket).createSignedUrl(selfieStoragePath, 604800);
+    } catch (_) {
+      selfieUrl = _client.storage.from(_storageBucket).getPublicUrl(selfieStoragePath);
+    }
 
     // 3. Insert new verification record
     final insertData = {
