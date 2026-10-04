@@ -22,6 +22,9 @@ class ResponsiveMobileFrame extends StatelessWidget {
 
         final isDark = Theme.of(context).brightness == Brightness.dark;
         
+        const phoneWidth = 420.0 - 24.0;
+        final phoneHeight = (constraints.maxHeight - 48.0).clamp(600.0, 900.0) - 24.0;
+
         return Scaffold(
           backgroundColor: isDark ? const Color(0xFF0C0C0F) : const Color(0xFFF1F1F5),
           body: Stack(
@@ -117,6 +120,7 @@ class ResponsiveMobileFrame extends StatelessWidget {
                         Positioned.fill(
                           child: MediaQuery(
                             data: MediaQuery.of(context).copyWith(
+                              size: Size(phoneWidth, phoneHeight),
                               padding: EdgeInsets.only(
                                 top: 28,
                                 bottom: MediaQuery.of(context).padding.bottom,

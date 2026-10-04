@@ -881,7 +881,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
             slivers: [
               // Edge-to-Edge Image Carousel App Bar
               SliverAppBar(
-                expandedHeight: MediaQuery.of(context).size.width,
+                expandedHeight: 320,
                 pinned: true,
                 backgroundColor: isDark ? const Color(0xFF141418) : Colors.white,
                 elevation: 0,
@@ -956,18 +956,23 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                               itemBuilder: (context, index) {
                                 return GestureDetector(
                                   onTap: () => _openImageLightbox(context, images, index),
-                                  child: Hero(
-                                    tag: index == 0 ? 'product_image_${product.id}' : 'product_image_${product.id}_$index',
-                                    child: Image.network(
-                                      images[index],
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                      errorBuilder: (_, __, ___) => Center(
-                                        child: Icon(
-                                          Icons.image_not_supported_rounded,
-                                          size: 64,
-                                          color: isDark ? Colors.white24 : Colors.grey.shade400,
+                                  child: Container(
+                                    color: isDark ? const Color(0xFF141418) : const Color(0xFFF7F7FA),
+                                    child: Center(
+                                      child: Hero(
+                                        tag: index == 0 ? 'product_image_${product.id}' : 'product_image_${product.id}_$index',
+                                        child: Image.network(
+                                          images[index],
+                                          fit: BoxFit.contain,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          errorBuilder: (_, __, ___) => Center(
+                                            child: Icon(
+                                              Icons.image_not_supported_rounded,
+                                              size: 64,
+                                              color: isDark ? Colors.white24 : Colors.grey.shade400,
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),
