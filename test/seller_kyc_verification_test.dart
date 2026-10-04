@@ -119,6 +119,7 @@ void main() {
     Widget createTestApp({
       required String userId,
       String initialSellerType = 'STUDENT',
+      int initialStep = 0,
     }) {
       return ProviderScope(
         overrides: [
@@ -129,36 +130,40 @@ void main() {
             body: SellerKYCVerificationView(
               userId: userId,
               initialSellerType: initialSellerType,
+              initialStep: initialStep,
             ),
           ),
         ),
       );
     }
 
-    testWidgets('Renders KYC form with card upload options and honor code agreement', (tester) async {
+    testWidgets('Renders seller introduction with benefits and starts wizard application', (tester) async {
       await tester.pumpWidget(createTestApp(userId: 'test-user-1'));
       await tester.pumpAndSettle();
 
-      // Verify Header
-      expect(find.text('Campus Seller Verification'), findsOneWidget);
-      expect(find.text('Verify student status to start listing items'), findsOneWidget);
+      // Verify Intro Step Headline & Benefits
+      expect(find.text('Become a Campus Vendor'), findsOneWidget);
+      expect(find.text('100% Student-Only Community'), findsOneWidget);
+      expect(find.text('Zero Commission Fees'), findsOneWidget);
+      expect(find.text('Start Seller Application'), findsOneWidget);
 
-      // Verify Card 1 & Card 2
-      expect(find.text('1. CIT Student ID Card (Front)'), findsOneWidget);
-      expect(find.text('2. Selfie Holding CIT ID Card'), findsOneWidget);
-
-      // Verify Honor Code Agreement
-      expect(find.text('CIT-U Campus Vendor Honor Code'), findsOneWidget);
-      expect(find.text('I have read and agree to the Campus Vendor Honor Code and Privacy Consent.'), findsOneWidget);
-
-      // Verify Submit Button exists
-      expect(find.text('Submit Verification for Review'), findsOneWidget);
-    });
-
-    testWidgets('Renders Lead Officer fields when sellerType is ORG', (tester) async {
-      await tester.pumpWidget(createTestApp(userId: 'org-user-1', initialSellerType: 'ORG'));
+      // Drag up to reveal button and tap 'Start Seller Application' to advance to Step 1
+      await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -300));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Start Seller Application'));
       await tester.pumpAndSettle();
 
+      // Verify Step 1: ID Card Upload
+      expect(find.text('1. CIT Student ID Card (Front)'), findsOneWidget);
+      expect(find.text('Front of CIT Student ID'), findsOneWidget);
+      expect(find.text('Attach ID Card to Continue'), findsOneWidget);
+    });
+
+    testWidgets('Renders Lead Officer fields on Step 2 when sellerType is ORG', (tester) async {
+      await tester.pumpWidget(createTestApp(userId: 'org-user-1', initialSellerType: 'ORG', initialStep: 2));
+      await tester.pumpAndSettle();
+
+      expect(find.text('2. Selfie Holding CIT ID Card'), findsOneWidget);
       expect(find.text('Lead Officer Custodian (Shopee Model)'), findsOneWidget);
       expect(find.text('Lead Officer Full Name'), findsOneWidget);
       expect(find.text('Officer Position (e.g. President, Treasurer)'), findsOneWidget);
@@ -181,7 +186,7 @@ void main() {
       expect(find.text('Zero-Retention KYC: Photos will be purged upon decision.'), findsOneWidget);
     });
 
-    testWidgets('Renders rejection alert banner when previous submission was REJECTED', (tester) async {
+    testWidgets('Renders rejection alert banner on intro step when previous submission was REJECTED', (tester) async {
       mockService.mockVerification = const SellerVerification(
         id: 'verif-rejected-1',
         userId: 'rejected-user',
@@ -196,7 +201,17 @@ void main() {
 
       expect(find.text('Resubmission Required'), findsOneWidget);
       expect(find.text('ID card was too blurry to read the student ID number.'), findsOneWidget);
-      // Still shows form so user can resubmit
+      // Still shows Start Seller Application so user can resubmit
+      expect(find.text('Start Seller Application'), findsOneWidget);
+    });
+
+    testWidgets('Renders Step 3 with document review and honor code agreement', (tester) async {
+      await tester.pumpWidget(createTestApp(userId: 'test-user-review', initialStep: 3));
+      await tester.pumpAndSettle();
+
+      expect(find.text('3. Review & Honor Code Agreement'), findsOneWidget);
+      expect(find.text('CIT-U Campus Vendor Honor Code'), findsOneWidget);
+      expect(find.text('I have read and agree to the Campus Vendor Honor Code and Privacy Consent.'), findsOneWidget);
       expect(find.text('Submit Verification for Review'), findsOneWidget);
     });
   });

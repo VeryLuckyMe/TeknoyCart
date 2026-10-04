@@ -1013,39 +1013,6 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                             ),
                           ),
                         ),
-
-                      // Tap to zoom hint badge
-                      if (images.isNotEmpty)
-                        Positioned(
-                          bottom: 16,
-                          left: 16,
-                          child: GestureDetector(
-                            onTap: () => _openImageLightbox(context, images, _currentImageIndex),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.65),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.zoom_in_rounded, size: 14, color: Colors.white),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Pinch / Tap to zoom',
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),

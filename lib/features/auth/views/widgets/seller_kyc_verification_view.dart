@@ -15,6 +15,7 @@ class SellerKYCVerificationView extends ConsumerStatefulWidget {
   final VoidCallback? onVerificationSubmitted;
   final VoidCallback? onRefreshStatus;
   final bool embedded;
+  final int initialStep;
 
   const SellerKYCVerificationView({
     super.key,
@@ -23,6 +24,7 @@ class SellerKYCVerificationView extends ConsumerStatefulWidget {
     this.onVerificationSubmitted,
     this.onRefreshStatus,
     this.embedded = true,
+    this.initialStep = 0,
   });
 
   @override
@@ -47,19 +49,46 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
 
   SellerVerification? _existingVerification;
   late String _sellerType;
+  late final PageController _pageController;
+  int _currentStep = 0; // 0: Intro, 1: ID Card, 2: Selfie (+ Org), 3: Review & Honor Code
 
   @override
   void initState() {
     super.initState();
     _sellerType = widget.initialSellerType;
+    _currentStep = widget.initialStep;
+    _pageController = PageController(initialPage: widget.initialStep);
     _fetchVerificationHistory();
   }
 
   @override
   void dispose() {
+    _pageController.dispose();
     _officerNameController.dispose();
     _officerPositionController.dispose();
     super.dispose();
+  }
+
+  void _nextStep() {
+    if (_currentStep < 3) {
+      setState(() => _currentStep++);
+      _pageController.animateToPage(
+        _currentStep,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOutCubic,
+      );
+    }
+  }
+
+  void _previousStep() {
+    if (_currentStep > 0) {
+      setState(() => _currentStep--);
+      _pageController.animateToPage(
+        _currentStep,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOutCubic,
+      );
+    }
   }
 
   Future<void> _fetchVerificationHistory({bool forceRefresh = false}) async {
@@ -228,7 +257,6 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Top drag pill handle
                 Center(
                   child: Container(
                     width: 38,
@@ -372,12 +400,9 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF16161A) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB);
 
     if (_isLoadingHistory) {
       return const Center(
@@ -436,7 +461,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
               decoration: BoxDecoration(
                 color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: cardBorder),
+                border: Border.all(color: isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -477,210 +502,527 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
       );
     }
 
-    // ── CASE 2: Inline KYC Form (First time or Resubmission)
-    return Form(
-      key: _formKey,
-      child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+    // ── CASE 2: Multi-Step Guided Verification Wizard (Step 0 to Step 3)
+    return PopScope(
+      canPop: _currentStep == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _currentStep > 0) {
+          _previousStep();
+        }
+      },
+      child: Form(
+        key: _formKey,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Banner
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.verified_user_outlined,
-                    color: TeknoyTheme.citMaroon,
-                    size: 26,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Campus Seller Verification',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Verify student status to start listing items',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 12,
-                          color: isDark ? Colors.white60 : Colors.black54,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            // Top Stepper Indicator (shown on steps 1, 2, 3)
+            if (_currentStep > 0) _buildWizardHeader(isDark),
 
-            // Rejection Banner (if previously rejected)
-            if (_existingVerification != null && _existingVerification!.isRejected) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444).withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+            // Wizard Pages
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(), // Only navigate via Next/Back buttons
+                children: [
+                  _buildIntroStep(isDark),
+                  _buildIdCardStep(isDark),
+                  _buildSelfieStep(isDark),
+                  _buildReviewAndSubmitStep(isDark),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // WIZARD STEP HEADER & PROGRESS BAR
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildWizardHeader(bool isDark) {
+    final stepLabels = ['Student ID', 'ID Selfie', 'Review & Agreement'];
+    final activeIndex = _currentStep - 1; // 0, 1, 2
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF141418) : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: _previousStep,
+                icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                style: IconButton.styleFrom(
+                  backgroundColor: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  minimumSize: const Size(36, 36),
+                  padding: EdgeInsets.zero,
                 ),
-                child: Row(
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Resubmission Required',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFEF4444),
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            _existingVerification!.rejectionReason?.isNotEmpty == true
-                                ? _existingVerification!.rejectionReason!
-                                : 'Previous submission was declined. Please re-capture clearer photos under adequate lighting.',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 11.5,
-                              color: isDark ? Colors.white70 : Colors.black87,
-                              height: 1.35,
-                            ),
-                          ),
-                        ],
+                    Text(
+                      'Step $_currentStep of 3: ${stepLabels[activeIndex]}',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Campus Seller Verification',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 11,
+                        color: isDark ? Colors.white54 : Colors.black45,
                       ),
                     ),
                   ],
                 ),
               ),
             ],
-
-            const SizedBox(height: 20),
-
-            // Card 1: CIT Student ID
-            _buildPhotoPickerCard(
-              title: '1. CIT Student ID Card (Front)',
-              subtitle: 'Ensure your Student ID number, full name, and card photo are clearly legible.',
-              icon: Icons.badge_outlined,
-              selectedFile: _idCardFile,
-              isIdCard: true,
-              isDark: isDark,
-              cardBg: cardBg,
-              cardBorder: cardBorder,
-            ),
-
-            const SizedBox(height: 16),
-
-            // Card 2: Selfie Holding CIT ID
-            _buildPhotoPickerCard(
-              title: '2. Selfie Holding CIT ID Card',
-              subtitle: 'Hold your physical card chest-high beside your face to confirm identity.',
-              icon: Icons.face_retouching_natural_rounded,
-              selectedFile: _selfieFile,
-              isIdCard: false,
-              isDark: isDark,
-              cardBg: cardBg,
-              cardBorder: cardBorder,
-            ),
-
-            // Organization Lead Officer Fields
-            if (_sellerType == 'ORG') ...[
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: cardBg,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: cardBorder),
+          ),
+          const SizedBox(height: 10),
+          // 3-Segment Progress Bar
+          Row(
+            children: List.generate(3, (index) {
+              final isCompleted = index < activeIndex;
+              final isCurrent = index == activeIndex;
+              return Expanded(
+                child: Container(
+                  height: 4,
+                  margin: EdgeInsets.only(right: index < 2 ? 6 : 0),
+                  decoration: BoxDecoration(
+                    color: isCompleted || isCurrent
+                        ? TeknoyTheme.citMaroon
+                        : (isDark ? Colors.white12 : const Color(0xFFE5E7EB)),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // STEP 0: VALUE PROPOSITION & ONBOARDING ("WHY BECOME A SELLER")
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildIntroStep(bool isDark) {
+    final cardBg = isDark ? const Color(0xFF1A1A20) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB);
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Rejection Banner (if previously rejected)
+          if (_existingVerification != null && _existingVerification!.isRejected) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.storefront_rounded, size: 18, color: TeknoyTheme.citMaroon),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Lead Officer Custodian (Shopee Model)',
+                        const Text(
+                          'Resubmission Required',
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
+                            color: Color(0xFFEF4444),
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          _existingVerification!.rejectionReason?.isNotEmpty == true
+                              ? _existingVerification!.rejectionReason!
+                              : 'Previous submission was declined. Please re-capture clearer photos under adequate lighting.',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11.5,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                            height: 1.35,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Designate the student officer holding organizational responsibility for this store.',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 11.5,
-                        color: isDark ? Colors.white60 : Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _officerNameController,
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 13,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Lead Officer Full Name',
-                        prefixIcon: const Icon(Icons.person_outline_rounded, size: 18),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _officerPositionController,
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 13,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Officer Position (e.g. President, Treasurer)',
-                        prefixIcon: const Icon(Icons.work_outline_rounded, size: 18),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                    ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Hero Icon & Headline
+          Center(
+            child: Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                color: TeknoyTheme.citMaroon.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: TeknoyTheme.citMaroon.withValues(alpha: 0.2),
+                  width: 2,
                 ),
               ),
-            ],
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.storefront_rounded,
+                size: 34,
+                color: TeknoyTheme.citMaroon,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: Text(
+              'Become a Campus Vendor',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+                letterSpacing: -0.3,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Turn your textbooks, uniforms, tech gear, and school supplies into cash right here on campus.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 13,
+                  color: isDark ? Colors.white60 : Colors.black54,
+                  height: 1.45,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
 
-            const SizedBox(height: 20),
+          // Benefits List
+          _buildBenefitRow(
+            icon: Icons.school_rounded,
+            iconColor: TeknoyTheme.citGold,
+            title: '100% Student-Only Community',
+            desc: 'Every buyer and seller is verified with their CIT-U Student ID. Zero random strangers.',
+            isDark: isDark,
+            cardBg: cardBg,
+            cardBorder: cardBorder,
+          ),
+          const SizedBox(height: 12),
+          _buildBenefitRow(
+            icon: Icons.savings_outlined,
+            iconColor: const Color(0xFF10B981),
+            title: 'Zero Commission Fees',
+            desc: 'You keep 100% of your earnings. No listing fees, no middleman cuts.',
+            isDark: isDark,
+            cardBg: cardBg,
+            cardBorder: cardBorder,
+          ),
+          const SizedBox(height: 12),
+          _buildBenefitRow(
+            icon: Icons.location_on_outlined,
+            iconColor: TeknoyTheme.citMaroon,
+            title: 'Safe Campus Meetups',
+            desc: 'Meet fellow Wildcats during breaks at the Canteen, SAL Lobby, or Library Gate.',
+            isDark: isDark,
+            cardBg: cardBg,
+            cardBorder: cardBorder,
+          ),
+          const SizedBox(height: 12),
+          _buildBenefitRow(
+            icon: Icons.shield_outlined,
+            iconColor: const Color(0xFF3B82F6),
+            title: 'Zero-Retention Privacy (RA 10173)',
+            desc: 'Your ID and verification selfie are strictly wiped from storage once reviewed.',
+            isDark: isDark,
+            cardBg: cardBg,
+            cardBorder: cardBorder,
+          ),
 
-            // Campus Vendor Honor Code & Agreement Card
+          const SizedBox(height: 32),
+
+          // Big "Apply to Become a Seller" CTA Button
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _nextStep,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TeknoyTheme.citMaroon,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Start Seller Application',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Icon(Icons.arrow_forward_rounded, size: 20),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBenefitRow({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String desc,
+    required bool isDark,
+    required Color cardBg,
+    required Color cardBorder,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cardBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  desc,
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 11.5,
+                    color: isDark ? Colors.white60 : Colors.black54,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // STEP 1: CIT STUDENT ID CARD (FRONT)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildIdCardStep(bool isDark) {
+    final hasFile = _idCardFile != null;
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '1. CIT Student ID Card (Front)',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Ensure your Student ID number, full name, and card photo are clearly legible.',
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 12.5,
+              color: isDark ? Colors.white60 : Colors.black54,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Interactive Upload Dropzone Card
+          _buildInteractiveDropzone(
+            title: 'Front of CIT Student ID',
+            subtitle: 'Place card on a flat surface under good lighting',
+            icon: Icons.badge_outlined,
+            file: _idCardFile,
+            isIdCard: true,
+            isDark: isDark,
+          ),
+
+          const SizedBox(height: 20),
+
+          // Guidelines Checklist
+          _buildChecklistGuideline('Ensure all 4 corners of the ID card are visible.', isDark),
+          const SizedBox(height: 6),
+          _buildChecklistGuideline('Avoid reflections or camera flash glares.', isDark),
+          const SizedBox(height: 6),
+          _buildChecklistGuideline('ID number and full name must match your profile.', isDark),
+
+          const SizedBox(height: 32),
+
+          // Next Step Button
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: hasFile ? _nextStep : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TeknoyTheme.citMaroon,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: (isDark ? Colors.white12 : Colors.black12),
+                disabledForegroundColor: (isDark ? Colors.white38 : Colors.black38),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    hasFile ? 'Continue to Selfie' : 'Attach ID Card to Continue',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (hasFile) ...[
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded, size: 18),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // STEP 2: BIOMETRIC SELFIE HOLDING ID CARD
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildSelfieStep(bool isDark) {
+    final hasFile = _selfieFile != null;
+    final cardBg = isDark ? const Color(0xFF16161A) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB);
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '2. Selfie Holding CIT ID Card',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Hold your physical card chest-high beside your face to confirm identity.',
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 12.5,
+              color: isDark ? Colors.white60 : Colors.black54,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Interactive Upload Dropzone Card
+          _buildInteractiveDropzone(
+            title: 'Live Selfie Holding ID',
+            subtitle: 'Hold ID card beside your face in frame',
+            icon: Icons.face_retouching_natural_rounded,
+            file: _selfieFile,
+            isIdCard: false,
+            isDark: isDark,
+          ),
+
+          const SizedBox(height: 20),
+
+          // Guidelines Checklist
+          _buildChecklistGuideline('Hold physical card chest-high next to your face.', isDark),
+          const SizedBox(height: 6),
+          _buildChecklistGuideline('Do not obscure your face with hats, glasses, or masks.', isDark),
+          const SizedBox(height: 6),
+          _buildChecklistGuideline('Both face and card information must be in clear focus.', isDark),
+
+          // Organization Fields if sellerType is ORG
+          if (_sellerType == 'ORG') ...[
+            const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -693,116 +1035,600 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.gavel_rounded, size: 18, color: TeknoyTheme.citGold),
+                      const Icon(Icons.storefront_rounded, size: 18, color: TeknoyTheme.citMaroon),
                       const SizedBox(width: 8),
                       Text(
-                        'CIT-U Campus Vendor Honor Code',
+                        'Lead Officer Custodian (Shopee Model)',
                         style: TextStyle(
                           fontFamily: 'Outfit',
-                          fontSize: 13.5,
+                          fontSize: 13,
                           fontWeight: FontWeight.bold,
                           color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  _buildMicroCommitment(Icons.verified_outlined, 'Honest condition descriptions; zero prohibited goods', isDark),
                   const SizedBox(height: 6),
-                  _buildMicroCommitment(Icons.location_on_outlined, 'Peer exchanges inside designated CIT-U campus grounds', isDark),
-                  const SizedBox(height: 6),
-                  _buildMicroCommitment(Icons.privacy_tip_outlined, 'Zero-Retention: ID and selfie wiped from storage upon review', isDark),
+                  Text(
+                    'Designate the student officer holding organizational responsibility for this store.',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 11.5,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _officerNameController,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 13,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Lead Officer Full Name',
+                      prefixIcon: const Icon(Icons.person_outline_rounded, size: 18),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
                   const SizedBox(height: 12),
-                  InkWell(
-                    onTap: () => _showHonorCodeBottomSheet(context, isDark),
-                    borderRadius: BorderRadius.circular(6),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                        'Read Complete Vendor Terms & Guidelines',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: TeknoyTheme.citMaroon,
-                          decoration: TextDecoration.underline,
-                        ),
+                  TextFormField(
+                    controller: _officerPositionController,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 13,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Officer Position (e.g. President, Treasurer)',
+                      prefixIcon: const Icon(Icons.work_outline_rounded, size: 18),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 32),
+
+          // Next Step Button
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: hasFile ? _nextStep : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TeknoyTheme.citMaroon,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: (isDark ? Colors.white12 : Colors.black12),
+                disabledForegroundColor: (isDark ? Colors.white38 : Colors.black38),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    hasFile ? 'Continue to Final Review' : 'Take Selfie to Continue',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (hasFile) ...[
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded, size: 18),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // STEP 3: REVIEW DOCUMENTS & HONOR CODE AGREEMENT
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildReviewAndSubmitStep(bool isDark) {
+    final cardBg = isDark ? const Color(0xFF16161A) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB);
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '3. Review & Honor Code Agreement',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Confirm your submitted documents and accept the campus vendor code.',
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 12.5,
+              color: isDark ? Colors.white60 : Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // Uploaded Documents Summary
+          Text(
+            'Attached Verification Documents',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildDocumentReviewPill(
+                  title: 'Student ID',
+                  file: _idCardFile,
+                  onTapChange: () {
+                    setState(() => _currentStep = 1);
+                    _pageController.animateToPage(1, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                  },
+                  isDark: isDark,
+                  cardBg: cardBg,
+                  cardBorder: cardBorder,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildDocumentReviewPill(
+                  title: 'Selfie with ID',
+                  file: _selfieFile,
+                  onTapChange: () {
+                    setState(() => _currentStep = 2);
+                    _pageController.animateToPage(2, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                  },
+                  isDark: isDark,
+                  cardBg: cardBg,
+                  cardBorder: cardBorder,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Campus Vendor Honor Code & Agreement Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.gavel_rounded, size: 18, color: TeknoyTheme.citGold),
+                    const SizedBox(width: 8),
+                    Text(
+                      'CIT-U Campus Vendor Honor Code',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _buildMicroCommitment(Icons.verified_outlined, 'Honest condition descriptions; zero prohibited goods', isDark),
+                const SizedBox(height: 6),
+                _buildMicroCommitment(Icons.location_on_outlined, 'Peer exchanges inside designated CIT-U campus grounds', isDark),
+                const SizedBox(height: 6),
+                _buildMicroCommitment(Icons.privacy_tip_outlined, 'Zero-Retention: ID and selfie wiped from storage upon review', isDark),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () => _showHonorCodeBottomSheet(context, isDark),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      'Read Complete Vendor Terms & Guidelines',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: TeknoyTheme.citMaroon,
+                        decoration: TextDecoration.underline,
                       ),
                     ),
                   ),
-                  const Divider(height: 20),
-                  GestureDetector(
-                    onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
-                    behavior: HitTestBehavior.opaque,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: Checkbox(
-                            value: _agreedToTerms,
-                            onChanged: (val) => setState(() => _agreedToTerms = val ?? false),
-                            activeColor: TeknoyTheme.citMaroon,
+                ),
+                const Divider(height: 20),
+                GestureDetector(
+                  onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: _agreedToTerms,
+                          onChanged: (val) => setState(() => _agreedToTerms = val ?? false),
+                          activeColor: TeknoyTheme.citMaroon,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'I have read and agree to the Campus Vendor Honor Code and Privacy Consent.',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                            height: 1.35,
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'I have read and agree to the Campus Vendor Honor Code and Privacy Consent.',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? Colors.white70 : Colors.black87,
-                              height: 1.35,
-                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Final Submit Button
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: (_isSubmitting || !_agreedToTerms) ? null : _submitVerification,
+              icon: _isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Icon(Icons.arrow_upward_rounded, size: 20),
+              label: Text(
+                _isSubmitting ? 'Uploading Documents...' : 'Submit Verification for Review',
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TeknoyTheme.citMaroon,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: (isDark ? Colors.white12 : Colors.black12),
+                disabledForegroundColor: (isDark ? Colors.white38 : Colors.black38),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // REUSABLE INTERACTIVE UPLOAD DROPZONE
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildInteractiveDropzone({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required XFile? file,
+    required bool isIdCard,
+    required bool isDark,
+  }) {
+    final hasFile = file != null;
+    final cardBg = isDark ? const Color(0xFF16161A) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB);
+
+    if (hasFile) {
+      return Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF10B981), width: 1.5),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                SizedBox(
+                  height: 200,
+                  width: double.infinity,
+                  child: FutureBuilder<Uint8List>(
+                    future: file.readAsBytes(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon));
+                      }
+                      if (snapshot.hasData) {
+                        return Image.memory(
+                          snapshot.data!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: 200,
+                        );
+                      }
+                      return const Center(child: Icon(Icons.broken_image_outlined, size: 30));
+                    },
+                  ),
+                ),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.check_circle_rounded, size: 14, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'Attached',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
                       ],
                     ),
                   ),
-
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _pickImage(isIdCard: isIdCard, source: ImageSource.camera),
+                      icon: const Icon(Icons.camera_alt_outlined, size: 16),
+                      label: const Text('Retake Photo', style: TextStyle(fontFamily: 'Inter', fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: TeknoyTheme.citMaroon,
+                        side: const BorderSide(color: TeknoyTheme.citMaroon),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _pickImage(isIdCard: isIdCard, source: ImageSource.gallery),
+                      icon: const Icon(Icons.photo_library_outlined, size: 16),
+                      label: const Text('From Gallery', style: TextStyle(fontFamily: 'Inter', fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: isDark ? Colors.white70 : Colors.black87,
+                        side: BorderSide(color: cardBorder),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-
-            const SizedBox(height: 24),
-
-            // Submit Button
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: _isSubmitting ? null : _submitVerification,
-                icon: _isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Icon(Icons.arrow_upward_rounded, size: 20),
-                label: Text(
-                  _isSubmitting ? 'Uploading Documents...' : 'Submit Verification for Review',
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: TeknoyTheme.citMaroon,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: TeknoyTheme.citMaroon.withValues(alpha: 0.4),
-                  disabledForegroundColor: Colors.white70,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 40),
           ],
         ),
+      );
+    }
+
+    // Empty Dropzone
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: TeknoyTheme.citMaroon.withValues(alpha: 0.25),
+          width: 1.5,
+        ),
       ),
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: TeknoyTheme.citMaroon.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 30, color: TeknoyTheme.citMaroon),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 12,
+              color: isDark ? Colors.white54 : Colors.black45,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _pickImage(isIdCard: isIdCard, source: ImageSource.camera),
+                  icon: const Icon(Icons.camera_alt_outlined, size: 16),
+                  label: Text(
+                    isIdCard ? 'Open Camera' : 'Take Live Selfie',
+                    style: const TextStyle(fontFamily: 'Inter', fontSize: 12.5, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: TeknoyTheme.citMaroon,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _pickImage(isIdCard: isIdCard, source: ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library_outlined, size: 16),
+                  label: const Text(
+                    'From Gallery',
+                    style: TextStyle(fontFamily: 'Inter', fontSize: 12.5, fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isDark ? Colors.white70 : Colors.black87,
+                    side: BorderSide(color: cardBorder),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentReviewPill({
+    required String title,
+    required XFile? file,
+    required VoidCallback onTapChange,
+    required bool isDark,
+    required Color cardBg,
+    required Color cardBorder,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              height: 80,
+              width: double.infinity,
+              child: file != null
+                  ? FutureBuilder<Uint8List>(
+                      future: file.readAsBytes(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData) {
+                          return Image.memory(snapshot.data!, fit: BoxFit.cover);
+                        }
+                        return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                      },
+                    )
+                  : Container(
+                      color: isDark ? Colors.white10 : Colors.grey.shade100,
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.broken_image_outlined, size: 24),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              InkWell(
+                onTap: onTapChange,
+                child: const Text(
+                  'Change',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: TeknoyTheme.citMaroon,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChecklistGuideline(String text, bool isDark) {
+    return Row(
+      children: [
+        const Icon(Icons.check_circle_outline_rounded, size: 14, color: Color(0xFF10B981)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 11.5,
+              color: isDark ? Colors.white60 : Colors.black54,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -829,185 +1655,5 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
       ],
     );
   }
-
-  Widget _buildPhotoPickerCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required XFile? selectedFile,
-    required bool isIdCard,
-    required bool isDark,
-    required Color cardBg,
-    required Color cardBorder,
-  }) {
-    final hasFile = selectedFile != null;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: hasFile ? const Color(0xFF10B981) : cardBorder,
-          width: hasFile ? 1.5 : 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: (hasFile ? const Color(0xFF10B981) : TeknoyTheme.citMaroon).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  icon,
-                  size: 18,
-                  color: hasFile ? const Color(0xFF10B981) : TeknoyTheme.citMaroon,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                ),
-              ),
-
-              if (hasFile)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.check_circle_rounded, size: 13, color: Color(0xFF10B981)),
-                      SizedBox(width: 4),
-                      Text(
-                        'Attached',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF10B981),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 11.5,
-              color: isDark ? Colors.white60 : Colors.black54,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Preview or Action Buttons
-          if (hasFile) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                height: 140,
-                width: double.infinity,
-                color: isDark ? Colors.black26 : Colors.grey.shade100,
-                child: FutureBuilder<Uint8List>(
-                  future: selectedFile.readAsBytes(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon));
-                    }
-                    if (snapshot.hasData) {
-                      return Image.memory(
-                        snapshot.data!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: 140,
-                      );
-                    }
-                    return const Center(child: Icon(Icons.broken_image_outlined, size: 30));
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton.icon(
-                  onPressed: () => _pickImage(isIdCard: isIdCard, source: ImageSource.camera),
-                  icon: const Icon(Icons.cached_rounded, size: 16),
-                  label: const Text('Retake with Camera', style: TextStyle(fontFamily: 'Inter', fontSize: 11.5)),
-                  style: TextButton.styleFrom(foregroundColor: TeknoyTheme.citMaroon),
-                ),
-                TextButton.icon(
-                  onPressed: () => _pickImage(isIdCard: isIdCard, source: ImageSource.gallery),
-                  icon: const Icon(Icons.photo_library_outlined, size: 16),
-                  label: const Text('Choose File', style: TextStyle(fontFamily: 'Inter', fontSize: 11.5)),
-                  style: TextButton.styleFrom(foregroundColor: isDark ? Colors.white70 : Colors.black54),
-                ),
-              ],
-            ),
-          ] else ...[
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _pickImage(isIdCard: isIdCard, source: ImageSource.camera),
-                    icon: const Icon(Icons.camera_alt_outlined, size: 16),
-                    label: Text(
-                      isIdCard ? 'Open Camera' : 'Take Live Selfie',
-                      style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: TeknoyTheme.citMaroon,
-                      side: const BorderSide(color: TeknoyTheme.citMaroon),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(vertical: 11),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _pickImage(isIdCard: isIdCard, source: ImageSource.gallery),
-                    icon: const Icon(Icons.photo_library_outlined, size: 16),
-                    label: const Text(
-                      'From Gallery',
-                      style: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: isDark ? Colors.white70 : Colors.black87,
-                      side: BorderSide(color: isDark ? Colors.white24 : Colors.black26),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(vertical: 11),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 }
+
