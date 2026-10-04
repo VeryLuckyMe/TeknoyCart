@@ -108,6 +108,9 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
         }
         _isLoadingHistory = false;
       });
+      if (cached != null && cached.isApproved) {
+        widget.onRefreshStatus?.call();
+      }
       return;
     }
 
@@ -129,6 +132,9 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
         }
         _isLoadingHistory = false;
       });
+      if (record != null && record.isApproved) {
+        widget.onRefreshStatus?.call();
+      }
     }
   }
 
@@ -409,6 +415,70 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
         child: Padding(
           padding: EdgeInsets.all(40.0),
           child: CircularProgressIndicator(color: TeknoyTheme.citMaroon),
+        ),
+      );
+    }
+
+    // ── CASE 0: Approved Seller Verification State
+    if (_existingVerification != null && _existingVerification!.isApproved) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.verified_rounded,
+                size: 56,
+                color: Color(0xFF10B981),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Seller Account Approved',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Your campus vendor credentials have been approved by the University Moderation Hub.\nYou can now list products and manage your student store.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 13,
+                color: isDark ? Colors.white70 : Colors.black54,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 28),
+            ElevatedButton.icon(
+              onPressed: () {
+                widget.onRefreshStatus?.call();
+              },
+              icon: const Icon(Icons.storefront_rounded, size: 18),
+              label: const Text(
+                'Open Seller Hub',
+                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TeknoyTheme.citMaroon,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              ),
+            ),
+          ],
         ),
       );
     }

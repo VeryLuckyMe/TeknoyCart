@@ -62,10 +62,31 @@ class AuthService {
         final meta = _client.auth.currentUser?.userMetadata;
         final dept = (meta?['department'] as String?) ?? profile.department;
         final avatar = (meta?['avatar_url'] as String?) ?? (meta?['avatarUrl'] as String?) ?? profile.avatarUrl;
+
+        bool isVerified = (res['is_seller_verified'] as bool?) ?? profile.isSellerVerified;
+        String userRole = res['role'] as String? ?? profile.role;
+
+        // Check latest seller_verifications status to ensure instant sync upon admin approval
+        if (!isVerified || userRole.toUpperCase() != 'SELLER') {
+          try {
+            final verif = await _client
+                .from('seller_verifications')
+                .select('status')
+                .eq('user_id', profile.id)
+                .order('created_at', ascending: false)
+                .limit(1)
+                .maybeSingle();
+            if (verif != null && verif['status'] == 'APPROVED') {
+              isVerified = true;
+              userRole = 'SELLER';
+            }
+          } catch (_) {}
+        }
+
         return profile.copyWith(
           username: res['full_name'] as String? ?? profile.username,
-          role: res['role'] as String? ?? profile.role,
-          isSellerVerified: (res['is_seller_verified'] as bool?) ?? profile.isSellerVerified,
+          role: userRole,
+          isSellerVerified: isVerified,
           department: dept,
           studentId: res['student_id'] as String? ?? profile.studentId,
           contact: res['contact'] as String? ?? profile.contact,

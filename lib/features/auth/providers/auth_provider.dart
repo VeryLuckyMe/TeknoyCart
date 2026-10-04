@@ -11,10 +11,8 @@ final authServiceProvider = Provider<AuthService>((ref) {
   return service;
 });
 
-final authStateProvider = StreamProvider<Profile?>((ref) async* {
-  final service = ref.watch(authServiceProvider);
-  yield service.currentUser;
-  yield* service.authStateChanges;
+final authStateProvider = Provider<AsyncValue<Profile?>>((ref) {
+  return ref.watch(authNotifierProvider);
 });
 
 class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
