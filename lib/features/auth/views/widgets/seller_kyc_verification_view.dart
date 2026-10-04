@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/theme.dart';
+import '../../../../core/supabase_client.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/seller_verification.dart';
 import '../../services/seller_verification_service.dart';
 
@@ -51,6 +53,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
   late String _sellerType;
   late final PageController _pageController;
   int _currentStep = 0; // 0: Intro, 1: ID Card, 2: Selfie (+ Org), 3: Review & Honor Code
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
@@ -58,11 +61,35 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
     _sellerType = widget.initialSellerType;
     _currentStep = widget.initialStep;
     _pageController = PageController(initialPage: widget.initialStep);
+    _subscribeToVerificationRealtime();
     _fetchVerificationHistory();
+  }
+
+  void _subscribeToVerificationRealtime() {
+    try {
+      _realtimeChannel = SupabaseConfig.client
+          .channel('kyc_status_${widget.userId}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'seller_verifications',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'user_id',
+              value: widget.userId,
+            ),
+            callback: (payload) async {
+              await _fetchVerificationHistory(forceRefresh: true);
+              widget.onRefreshStatus?.call();
+            },
+          )
+          .subscribe();
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    _realtimeChannel?.unsubscribe();
     _pageController.dispose();
     _officerNameController.dispose();
     _officerPositionController.dispose();

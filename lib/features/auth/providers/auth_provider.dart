@@ -4,6 +4,10 @@ import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/services/auth_service.dart';
 import 'package:teknoycart/features/chat/services/presence_service.dart';
 
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:teknoycart/core/supabase_client.dart';
+
 /// Provider exposing the single instance of AuthService.
 final authServiceProvider = Provider<AuthService>((ref) {
   final service = AuthService();
@@ -18,6 +22,7 @@ final authStateProvider = Provider<AsyncValue<Profile?>>((ref) {
 class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
   final AuthService _authService;
   StreamSubscription<Profile?>? _authSubscription;
+  RealtimeChannel? _verifChannel;
 
   AuthNotifier(this._authService) : super(const AsyncValue.data(null)) {
     // Sync initial state
@@ -25,6 +30,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
     state = AsyncValue.data(existingUser);
     if (existingUser != null) {
       PresenceService.instance.startHeartbeat(existingUser.id);
+      _subscribeToVerificationChanges(existingUser.id);
       _authService.getEnrichedProfile(existingUser).then((enriched) {
         if (mounted) {
           state = AsyncValue.data(enriched);
@@ -37,15 +43,42 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
       if (user != null) {
         state = AsyncValue.data(user);
         PresenceService.instance.startHeartbeat(user.id);
+        _subscribeToVerificationChanges(user.id);
         final enriched = await _authService.getEnrichedProfile(user);
         if (mounted) {
           state = AsyncValue.data(enriched);
         }
       } else {
+        _verifChannel?.unsubscribe();
+        _verifChannel = null;
         state = const AsyncValue.data(null);
         PresenceService.instance.stopHeartbeat();
       }
     });
+  }
+
+  void _subscribeToVerificationChanges(String userId) {
+    _verifChannel?.unsubscribe();
+    try {
+      _verifChannel = SupabaseConfig.client
+          .channel('user_verif_$userId')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'seller_verifications',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'user_id',
+              value: userId,
+            ),
+            callback: (payload) {
+              refreshProfile();
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('VERIF_REALTIME_ERROR: $e');
+    }
   }
 
   /// Refreshes the user's role and verification status from the database.
@@ -117,6 +150,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
 
   @override
   void dispose() {
+    _verifChannel?.unsubscribe();
     _authSubscription?.cancel();
     super.dispose();
   }
