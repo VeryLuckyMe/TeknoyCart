@@ -329,14 +329,19 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       case 'COMPLETED':
         return TeknoyTheme.success; // Emerald #10B981
       case 'PAYMENT_VERIFIED':
+      case 'ESCROWED':
         return const Color(0xFF2563EB); // Cobalt #2563EB
       case 'SELLER_ACCEPTED':
       case 'APPROVED':
         return const Color(0xFFD97706); // Warm Amber
+      case 'AWAITING_PAYMENT':
       case 'PAYMENT_SUBMITTED':
         return const Color(0xFF4F46E5); // Indigo Accent
+      case 'REFUND_PENDING':
       case 'RETURN_REQUESTED':
         return TeknoyTheme.warning;
+      case 'REFUNDED':
+      case 'REFUND_COMPLETED':
       case 'RETURN_APPROVED':
         return const Color(0xFF0D9488); // Teal
       case 'RETURN_DECLINED':
@@ -370,8 +375,13 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       case 'PENDING_SELLER_ACCEPT': return 'Awaiting Seller';
       case 'SELLER_ACCEPTED':
       case 'APPROVED': return isOos ? 'RESERVED (OUT OF STOCK)' : 'RESERVED';
+      case 'AWAITING_PAYMENT': return 'Awaiting Payment';
+      case 'ESCROWED': return 'Payment in Escrow';
       case 'PAYMENT_SUBMITTED': return 'Payment Sent';
       case 'PAYMENT_VERIFIED': return 'Payment Verified';
+      case 'REFUND_PENDING': return 'Refund Pending';
+      case 'REFUNDED':
+      case 'REFUND_COMPLETED': return 'Refunded';
       case 'COMPLETED': return 'Completed';
       case 'DECLINED': return 'Declined';
       case 'CANCELLED': return 'Cancelled';

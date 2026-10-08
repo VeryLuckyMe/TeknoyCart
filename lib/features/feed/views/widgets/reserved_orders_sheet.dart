@@ -51,8 +51,8 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
           .select('order_id, quantity, status, created_at, buyer_id, total_amount')
           .eq('variant_id', widget.variantId)
           .inFilter('status', [
-            'PLACED', 'ACCEPTED', 'PAYMENT_SUBMITTED', 'PAYMENT_VERIFIED',
-            'MEETUP_SCHEDULED', 'NEEDS_REVIEW', 'REFUND_REQUESTED'
+            'PLACED', 'ACCEPTED', 'AWAITING_PAYMENT', 'ESCROWED', 'PAYMENT_SUBMITTED', 'PAYMENT_VERIFIED',
+            'MEETUP_SCHEDULED', 'NEEDS_REVIEW', 'REFUND_REQUESTED', 'REFUND_PENDING'
           ])
           .order('created_at', ascending: false);
 

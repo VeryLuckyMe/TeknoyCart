@@ -54,15 +54,17 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
     _fadeController.forward();
 
     // Listen for password recovery events (when user clicks reset password link in email)
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      if (data.event == AuthChangeEvent.passwordRecovery) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _showSetNewPasswordSheet();
-          }
-        });
-      }
-    });
+    try {
+      _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+        if (data.event == AuthChangeEvent.passwordRecovery) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _showSetNewPasswordSheet();
+            }
+          });
+        }
+      });
+    } catch (_) {}
 
     // Check if web URL contains recovery fragment/query
     WidgetsBinding.instance.addPostFrameCallback((_) {

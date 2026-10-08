@@ -46,7 +46,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            authStateProvider.overrideWith((ref) => Stream.value(mockSeller)),
+            authStateProvider.overrideWith((ref) => AsyncValue.data(mockSeller)),
           ],
           child: const MaterialApp(
             home: FinancialReportsView(),

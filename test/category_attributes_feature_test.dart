@@ -445,7 +445,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            authStateProvider.overrideWith((ref) => Stream.value(verifiedSellerUser)),
+            authStateProvider.overrideWith((ref) => AsyncValue.data(verifiedSellerUser)),
           ],
           child: const MaterialApp(
             home: ProductDiscoveryFeedView(initialTab: 2),
@@ -499,7 +499,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            authStateProvider.overrideWith((ref) => Stream.value(verifiedSellerUser)),
+            authStateProvider.overrideWith((ref) => AsyncValue.data(verifiedSellerUser)),
           ],
           child: const MaterialApp(
             home: ProductDiscoveryFeedView(initialTab: 2),

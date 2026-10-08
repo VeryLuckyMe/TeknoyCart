@@ -24,6 +24,8 @@ class OrderStatusStepper extends StatelessWidget {
     final statusToStep = {
       'PLACED': 0,
       'ACCEPTED': 1,
+      'AWAITING_PAYMENT': 1,
+      'ESCROWED': 2,
       'PAYMENT_SUBMITTED': 1,
       'PAYMENT_VERIFIED': 1,
       'MEETUP_SCHEDULED': 2,
@@ -32,8 +34,10 @@ class OrderStatusStepper extends StatelessWidget {
       'COMPLETED': 4,
       'RETURN_COMPLETED': 4,
       'REFUND_COMPLETED': 4,
+      'REFUNDED': 4,
       'CANCELLED': -1,
       'DISPUTED': -1,
+      'REFUND_PENDING': -1,
       'RETURN_REQUESTED': 3,
       'RETURN_APPROVED': 3,
       'REFUND_REQUESTED': 1,
@@ -47,8 +51,9 @@ class OrderStatusStepper extends StatelessWidget {
     final isReturnRequested = status == 'RETURN_REQUESTED';
     final isReturnApproved = status == 'RETURN_APPROVED';
     final isReturnCompleted = status == 'RETURN_COMPLETED';
-    final isRefundCompleted = status == 'REFUND_COMPLETED';
+    final isRefundCompleted = status == 'REFUND_COMPLETED' || status == 'REFUNDED';
     final isRefundRequested = status == 'REFUND_REQUESTED';
+    final isRefundPending = status == 'REFUND_PENDING';
 
     return Container(
       width: double.infinity,
@@ -71,11 +76,11 @@ class OrderStatusStepper extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
               Icon(Icons.timeline_rounded, size: 18, color: TeknoyTheme.citGold),
-              const SizedBox(width: 8),
-              const Text(
+              SizedBox(width: 8),
+              Text(
                 'Order Status',
                 style: TextStyle(
                   fontFamily: 'Outfit',
@@ -275,6 +280,30 @@ class OrderStatusStepper extends StatelessWidget {
                         fontFamily: 'Inter',
                         fontSize: 12,
                         color: Colors.indigo,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (isRefundPending)
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.25))),
+              child: const Row(
+                children: [
+                  Icon(Icons.currency_exchange_rounded, color: Colors.orange, size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Refund Pending. An administrator is processing the PayMongo refund.',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        color: Colors.orange,
                       ),
                     ),
                   ),

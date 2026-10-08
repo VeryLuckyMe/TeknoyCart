@@ -6,9 +6,9 @@ import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/chat/services/chat_service.dart';
 import 'package:teknoycart/core/models/product.dart';
@@ -31,7 +31,7 @@ class OrderDetailView extends ConsumerStatefulWidget {
   ConsumerState<OrderDetailView> createState() => _OrderDetailViewState();
 }
 
-class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
+class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsBindingObserver {
   late Map<String, dynamic> _order;
   bool _isActing = false;
   RealtimeChannel? _realtimeChannel;
@@ -39,6 +39,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _order = Map<String, dynamic>.from(widget.order);
     _subscribeToOrderUpdates();
     _refreshOrder();
@@ -71,8 +72,16 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _realtimeChannel?.unsubscribe();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshOrder();
+    }
   }
 
   Future<void> _callSpringApi(String action, Map<String, dynamic> body) async {
@@ -105,6 +114,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               if (data['disputeReason'] != null) _order['dispute_reason'] = data['disputeReason'];
               if (data['disputeRuling'] != null) _order['dispute_ruling'] = data['disputeRuling'];
               if (data['returnCompletedAt'] != null) _order['return_completed_at'] = data['returnCompletedAt'];
+              if (data['paymongoCheckoutUrl'] != null) _order['paymongo_checkout_url'] = data['paymongoCheckoutUrl'];
+              if (data['paymongoCheckoutSessionId'] != null) _order['paymongo_checkout_session_id'] = data['paymongoCheckoutSessionId'];
+              if (data['paymentExpiresAt'] != null) _order['payment_expires_at'] = data['paymentExpiresAt'];
+              if (data['amountCentavos'] != null) _order['amount_centavos'] = data['amountCentavos'];
             });
           }
         }
@@ -198,6 +211,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             handoff_otp, seller_handed_off, buyer_confirmed_receipt,
             handoff_completed_at, return_otp, refund_reference,
             dispute_reason, dispute_ruling, return_completed_at, is_preorder,
+            paymongo_checkout_session_id, paymongo_checkout_url, payment_expires_at, amount_centavos, payout_released,
             product_variants (
               variant_id,
               variant_value,
@@ -212,6 +226,49 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         });
       }
     } catch (_) {}
+  }
+
+  Future<void> _initiateGcashPayment() async {
+    setState(() => _isActing = true);
+    try {
+      final token = await SecureTokenService.getBearerToken();
+      final url = Uri.parse('$backendUrl/${_order['order_id']}/initiate-payment');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({}),
+      );
+      if (response.statusCode >= 400) {
+        throw Exception('Payment initiation failed: ${response.statusCode} - ${response.body}');
+      }
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        final checkoutUrl = data['checkoutUrl'] as String?;
+        if (checkoutUrl != null && checkoutUrl.isNotEmpty) {
+          final uri = Uri.parse(checkoutUrl);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          } else {
+            throw Exception('Could not open payment link: $checkoutUrl');
+          }
+        }
+      }
+      await _refreshOrder();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not start GCash checkout: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isActing = false);
+    }
   }
 
   Future<void> _handleSpringAction(String action, Map<String, dynamic> body, String successMsg) async {
@@ -1031,80 +1088,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     );
   }
 
-  void _showGCashSubmitDialog() {
-    final refController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Row(
-          children: [
-            Icon(Icons.send_to_mobile_rounded, color: Colors.indigo),
-            SizedBox(width: 8),
-            Text('GCash Payment Sent', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.indigo.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.indigo.withValues(alpha: 0.2)),
-              ),
-              child: Text(
-                'Total to send: ₱ ${_order['total_amount']}',
-                style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: Colors.indigo),
-              ),
-            ),
-            const SizedBox(height: 14),
-            const Text('Enter your GCash reference number:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: refController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                hintText: 'e.g. 1234567890',
-                hintStyle: const TextStyle(fontFamily: 'Inter', fontSize: 12),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                prefixIcon: const Icon(Icons.tag_rounded, color: Colors.indigo),
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'The seller will verify your reference number and confirm payment.',
-              style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.black54),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              final referenceNumber = refController.text.trim();
-              Navigator.pop(context);
-              await _handleSpringAction('submit-payment', {
-                'payment_reference': referenceNumber,
-              }, 'GCash reference submitted! Awaiting seller verification.');
-            },
-            icon: const Icon(Icons.send_rounded, size: 16, color: Colors.white),
-            label: const Text('Confirm Payment Sent', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showOTPInputDialog() {
     final otpController = TextEditingController();
@@ -1275,7 +1258,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     final otherPartyContact = widget.isSeller
         ? (_order['buyer_contact'] as String?)
         : (_order['seller_contact'] as String?);
-    final sellerGcash = _order['seller_gcash'] as String?;
 
     final pickupLocation = _order['pickup_location'] as String? ?? '—';
     final pickupDay = _order['pickup_day'] as String? ?? '—';
@@ -1336,7 +1318,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 const SizedBox(height: 10),
                 _detailRow('Name', otherPartyName, isDark),
                 if (otherPartyContact != null) _detailRow('Contact', otherPartyContact, isDark),
-                if (!widget.isSeller && _isGCash && sellerGcash != null) _detailRow('GCash No.', sellerGcash, isDark),
+                if (_isGCash) _detailRow('Protection', 'PayMongo Escrow Hold', isDark),
                 const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
@@ -1376,15 +1358,48 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 _detailRow('Day', pickupDay, isDark),
                 _detailRow('Time', pickupTime, isDark),
                 _detailRow('Payment', _paymentMethod, isDark),
-                if (!widget.isSeller && _isGCash && sellerGcash != null) ...[
-                  const SizedBox(height: 8),
+                if (_isGCash) ...[
+                  const SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.withValues(alpha: 0.2))),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _status == 'ESCROWED'
+                          ? Colors.green.withValues(alpha: 0.08)
+                          : (_status == 'AWAITING_PAYMENT' ? Colors.indigo.withValues(alpha: 0.08) : Colors.blue.withValues(alpha: 0.08)),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _status == 'ESCROWED'
+                            ? Colors.green.withValues(alpha: 0.25)
+                            : (_status == 'AWAITING_PAYMENT' ? Colors.indigo.withValues(alpha: 0.25) : Colors.blue.withValues(alpha: 0.2)),
+                      ),
+                    ),
                     child: Row(children: [
-                      const Icon(Icons.info_outline, color: Colors.blue, size: 16),
+                      Icon(
+                        _status == 'ESCROWED'
+                            ? Icons.verified_user_rounded
+                            : (_status == 'AWAITING_PAYMENT' ? Icons.hourglass_top_rounded : Icons.shield_rounded),
+                        color: _status == 'ESCROWED'
+                            ? Colors.green
+                            : (_status == 'AWAITING_PAYMENT' ? Colors.indigo : Colors.blue),
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
-                      Expanded(child: Text('Send GCash to: $sellerGcash — then submit the reference number below.', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.blue))),
+                      Expanded(
+                        child: Text(
+                          _status == 'ESCROWED'
+                              ? 'Payment Secured: ₱ ${_order['total_amount']} held in Escrow. Released to seller upon campus handoff.'
+                              : (_status == 'AWAITING_PAYMENT'
+                                  ? 'Awaiting Payment: Complete GCash checkout via PayMongo to lock order in escrow.'
+                                  : 'Protected by PayMongo GCash Payment Hold.'),
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 12,
+                            color: _status == 'ESCROWED'
+                                ? Colors.green
+                                : (_status == 'AWAITING_PAYMENT' ? Colors.indigo : Colors.blue),
+                          ),
+                        ),
+                      ),
                     ]),
                   ),
                 ],
@@ -1393,30 +1408,28 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             const SizedBox(height: 16),
 
             // Confirmation status
-            if (_status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'PAYMENT_SUBMITTED' || _status == 'PAYMENT_VERIFIED' || isCompleted)
+            if (_status == 'APPROVED' || _status == 'SELLER_ACCEPTED' || _status == 'ESCROWED' || _status == 'PAYMENT_SUBMITTED' || _status == 'PAYMENT_VERIFIED' || isCompleted)
               _section(isDark, child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _sectionTitle(Icons.handshake_rounded, 'Transaction Details', isDark),
                   const SizedBox(height: 12),
-                  if (_isGCash && _status == 'PAYMENT_SUBMITTED')
+                  if (_isGCash && _status == 'ESCROWED')
                     Container(
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.indigo.withValues(alpha: 0.08),
+                        color: Colors.green.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.indigo.withValues(alpha: 0.2)),
+                        border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
                       ),
-                      child: Row(children: [
-                        const Icon(Icons.hourglass_top_rounded, color: Colors.indigo, size: 16),
-                        const SizedBox(width: 8),
+                      child: const Row(children: [
+                        Icon(Icons.shield_rounded, color: Colors.green, size: 16),
+                        SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            ((_order['payment_reference'] != null && (_order['payment_reference'] as String).isNotEmpty)
-                                    ? 'GCash ref: ${_order['payment_reference']} — Awaiting seller verification.'
-                                    : 'GCash payment submitted. Awaiting seller verification.'),
-                            style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.indigo),
+                            'Funds held in platform escrow. Automated payout will be released after physical handoff completion.',
+                            style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.green),
                           ),
                         ),
                       ]),
@@ -1467,7 +1480,106 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             () => _handleSpringAction('accept', {}, 'Order accepted.')));
       }
       
-      if (_status == 'ACCEPTED' || _status == 'PAYMENT_VERIFIED') {
+      if (_status == 'ACCEPTED') {
+        if (_isGCash) {
+          buttons.add(
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.hourglass_empty_rounded, color: Colors.amber, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Awaiting buyer GCash payment via PayMongo. Meetup scheduling will unlock once payment is secured in escrow.',
+                      style: TextStyle(fontFamily: 'Inter', fontSize: 12.5, color: Colors.amber),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        } else {
+          if (_isPreorder) {
+            buttons.add(
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: TeknoyTheme.citMaroon.withValues(alpha: 0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: _isActing ? null : () => _showNotifyItemReadyDialog(isPreorder: true),
+                  icon: const Icon(Icons.campaign_rounded, size: 22, color: TeknoyTheme.citGold),
+                  label: const Text(
+                    'Item Arrived — Schedule Meetup',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+            );
+          } else {
+            buttons.add(_actionBtn('Schedule Meetup & Notify Buyer', TeknoyTheme.citMaroon, Icons.calendar_month_rounded, 
+                () => _showNotifyItemReadyDialog(isPreorder: false)));
+          }
+        }
+      }
+
+      if (_status == 'AWAITING_PAYMENT') {
+        buttons.add(
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.indigo.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.indigo.withValues(alpha: 0.25)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.credit_card_rounded, color: Colors.indigo, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Buyer has initiated PayMongo GCash checkout. Waiting for payment webhook confirmation.',
+                    style: TextStyle(fontFamily: 'Inter', fontSize: 12.5, color: Colors.indigo),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      if (_status == 'ESCROWED' || _status == 'PAYMENT_VERIFIED') {
         if (_isPreorder) {
           buttons.add(
             Container(
@@ -1537,10 +1649,29 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         ));
       }
 
-      if (_isGCash && _status == 'PAYMENT_SUBMITTED') {
-        buttons.add(_actionBtn('Verify GCash Payment', Colors.teal, Icons.verified_rounded, 
-            () => _handleSpringAction('verify-payment', {}, 'GCash payment verified!')));
-        buttons.add(const SizedBox(height: 10));
+      if (_status == 'REFUND_PENDING') {
+        buttons.add(
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.assignment_late_rounded, color: Colors.orange, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'This order is flagged for refund. Platform administrators will handle the PayMongo refund.',
+                    style: TextStyle(fontFamily: 'Inter', fontSize: 12.5, color: Colors.orange),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
       }
 
       if (_status == 'MEETUP_SCHEDULED') {
@@ -1565,8 +1696,75 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       }
     } else {
       // Buyer actions
-      if (_isGCash && (_status == 'PLACED' || _status == 'ACCEPTED' || _status == 'APPROVED')) {
-        buttons.add(_actionBtn('Submit GCash Reference', Colors.indigo, Icons.receipt_long_rounded, _showGCashSubmitDialog));
+      if (_isGCash && (_status == 'ACCEPTED' || _status == 'APPROVED')) {
+        buttons.add(_actionBtn(
+          'Pay ₱ ${_order['total_amount']} via GCash',
+          TeknoyTheme.citMaroon,
+          Icons.payment_rounded,
+          _initiateGcashPayment,
+        ));
+        buttons.add(const SizedBox(height: 10));
+      }
+
+      if (_isGCash && _status == 'AWAITING_PAYMENT') {
+        buttons.add(_actionBtn(
+          'Resume GCash Payment (PayMongo)',
+          Colors.indigo,
+          Icons.open_in_browser_rounded,
+          _initiateGcashPayment,
+        ));
+        buttons.add(const SizedBox(height: 10));
+      }
+
+      if (_isGCash && _status == 'ESCROWED') {
+        buttons.add(
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.green.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.shield_rounded, color: Colors.green, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Payment Secured! Your funds are held safely in TeknoyCart Escrow. The seller is preparing handoff.',
+                    style: TextStyle(fontFamily: 'Inter', fontSize: 12.5, color: Colors.green, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        buttons.add(const SizedBox(height: 10));
+      }
+
+      if (_status == 'REFUND_PENDING') {
+        buttons.add(
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.currency_exchange_rounded, color: Colors.orange, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Refund In Progress: An administrator is processing your PayMongo refund.',
+                    style: TextStyle(fontFamily: 'Inter', fontSize: 12.5, color: Colors.orange),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
         buttons.add(const SizedBox(height: 10));
       }
 
@@ -1856,7 +2054,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             () => _handleSpringAction('dispute', {'reason': 'Seller unresponsive to refund request'}, 'Dispute opened with Admin.')));
       }
 
-      if (_status == 'PLACED' || _status == 'ACCEPTED' || _status == 'NEEDS_REVIEW') {
+      if (_status == 'PLACED' || _status == 'ACCEPTED' || _status == 'AWAITING_PAYMENT' || _status == 'NEEDS_REVIEW') {
         buttons.add(const SizedBox(height: 10));
         buttons.add(SizedBox(
           width: double.infinity,

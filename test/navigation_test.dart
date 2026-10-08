@@ -63,7 +63,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            authStateProvider.overrideWith((ref) => Stream.value(mockUser)),
+            authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
             productsListProvider.overrideWith((ref) => Future.value([testProduct])),
           ],
           child: const MaterialApp(
@@ -99,7 +99,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            authStateProvider.overrideWith((ref) => Stream.value(mockUser)),
+            authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
             productsListProvider.overrideWith((ref) => Future.value([testProduct])),
           ],
           child: const MaterialApp(
@@ -133,7 +133,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            authStateProvider.overrideWith((ref) => Stream.value(mockUser)),
+            authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
           ],
           child: MaterialApp(
             home: ProductDetailView(product: testProduct),
@@ -175,7 +175,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            authStateProvider.overrideWith((ref) => Stream.value(mockUser)),
+            authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
           ],
           child: MaterialApp(
             home: CheckoutView(

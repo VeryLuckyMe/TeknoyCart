@@ -73,10 +73,7 @@ void main() {
               ref.onDispose(() => service.dispose());
               return service;
             }),
-            authStateProvider.overrideWith((ref) async* {
-              final notifierState = ref.watch(authNotifierProvider);
-              yield notifierState.valueOrNull;
-            }),
+            authStateProvider.overrideWith((ref) => ref.watch(authNotifierProvider)),
             chatMessagesStreamProvider.overrideWith((ref, roomId) {
               // Use a broadcast StreamController so we can merge: seed messages + sent messages + seller reply
               final controller = StreamController<List<Message>>.broadcast();

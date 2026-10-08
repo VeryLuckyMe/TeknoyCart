@@ -51,9 +51,6 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   // FIX #3: Renamed from 'Cash on Delivery' to 'Cash on Pickup' to match campus meetup model.
   String _selectedPaymentMethod = 'Cash on Pickup';
 
-  String? _sellerGcashNumber;
-  bool _isLoadingSellerGcash = false;
-
   // FIX #1: Per-item reservation map. Key = product.id, Value = isReservation.
   final Map<String, bool> _itemReservationMap = {};
   // FIX #1: Track resolved variant IDs per product to avoid re-querying on submit.
@@ -121,29 +118,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     if (widget.isPreorder) {
       _selectedDay = 'When Batch Ready (Est. 3-7 Days)';
     }
-    _fetchSellerGcash();
     _fetchAllInventoryStatuses();
-  }
-
-  Future<void> _fetchSellerGcash() async {
-    if (_checkoutItems.isEmpty) return;
-    setState(() => _isLoadingSellerGcash = true);
-    try {
-      final res = await SupabaseConfig.client
-          .from('users')
-          .select('gcash_number')
-          .eq('user_id', _checkoutItems.first.product.sellerId)
-          .maybeSingle();
-      if (res != null && mounted) {
-        setState(() {
-          _sellerGcashNumber = res['gcash_number'] as String?;
-        });
-      }
-    } catch (e) {
-      // ignore
-    } finally {
-      if (mounted) setState(() => _isLoadingSellerGcash = false);
-    }
   }
 
   // FIX #1 & #7: Fetches inventory for ALL items concurrently using Future.wait()
@@ -259,21 +234,6 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
   Future<void> _submitCheckout() async {
     if (!_formKey.currentState!.validate()) return;
-
-    // FIX #2: Block GCash checkout if seller hasn't configured their GCash number.
-    if (_selectedPaymentMethod == 'GCash' &&
-        (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'The seller has not set up GCash. Please choose "Cash on Pickup" or contact the seller via chat.',
-          ),
-          backgroundColor: TeknoyTheme.warning,
-          duration: Duration(seconds: 4),
-        ),
-      );
-      return;
-    }
 
     setState(() => _isSubmitting = true);
 
@@ -1504,53 +1464,32 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
-                  ? TeknoyTheme.warning.withValues(alpha: 0.1)
-                  : (isDark ? const Color(0xFF251C12) : TeknoyTheme.citGold.withValues(alpha: 0.12)),
+              color: isDark ? const Color(0xFF1B2B1E) : Colors.green.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
-                    ? TeknoyTheme.warning.withValues(alpha: 0.4)
-                    : TeknoyTheme.citGold.withValues(alpha: 0.35),
+                color: Colors.green.withValues(alpha: 0.35),
                 width: 1.2,
               ),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
-                      ? Icons.warning_amber_rounded
-                      : Icons.verified_user_rounded,
-                  color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
-                      ? TeknoyTheme.warning
-                      : TeknoyTheme.citGold,
+                const Icon(
+                  Icons.lock_outline_rounded,
+                  color: Colors.green,
                   size: 20,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _isLoadingSellerGcash
-                      ? const Align(
-                          alignment: Alignment.centerLeft,
-                          child: SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: TeknoyTheme.citGold),
-                          ),
-                        )
-                      : Text(
-                          _sellerGcashNumber != null && _sellerGcashNumber!.isNotEmpty
-                              ? 'Transfer GCash to Seller: $_sellerGcashNumber'
-                              : 'GCash Unavailable — Seller has not configured their GCash number. Please switch to Cash on Pickup.',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: (_sellerGcashNumber == null || _sellerGcashNumber!.isEmpty)
-                                ? TeknoyTheme.warning
-                                : (isDark ? Colors.white : TeknoyTheme.citMaroonDark),
-                          ),
-                        ),
+                  child: Text(
+                    'GCash Payment Hold: Once the seller accepts this deal, you will pay via PayMongo. Your funds are secured by TeknoyCart and only released to the seller after your campus meetup handoff.',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white70 : const Color(0xFF1B5E20),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1741,7 +1680,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bool isPageLoading = _isLoadingInventory || _isLoadingSellerGcash;
+    final bool isPageLoading = _isLoadingInventory;
 
     return Scaffold(
       backgroundColor: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBg,
