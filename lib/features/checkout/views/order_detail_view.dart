@@ -43,6 +43,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     _order = Map<String, dynamic>.from(widget.order);
     _subscribeToOrderUpdates();
     _refreshOrder();
+    if (_isGCash && _status == 'AWAITING_PAYMENT') {
+      _syncPayment();
+    }
   }
 
   void _subscribeToOrderUpdates() {
@@ -80,6 +83,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      if (_isGCash && _status == 'AWAITING_PAYMENT') {
+        _syncPayment();
+      }
       _refreshOrder();
     }
   }
@@ -241,6 +247,20 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
   Future<void> _initiateGcashPayment() async {
     setState(() => _isActing = true);
     try {
+      if (_status == 'AWAITING_PAYMENT') {
+        final synced = await _syncPayment(showFeedback: false);
+        if (synced && _status == 'ESCROWED') {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Payment verified! Your order is now secured in Escrow.'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+          return;
+        }
+      }
       final existingUrl = _order['paymongo_checkout_url'] as String?;
       if (existingUrl != null && existingUrl.isNotEmpty && _status == 'AWAITING_PAYMENT') {
         final uri = Uri.parse(existingUrl);
@@ -298,6 +318,83 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     } finally {
       if (mounted) setState(() => _isActing = false);
     }
+  }
+
+  Future<bool> _syncPayment({bool showFeedback = false}) async {
+    final status = _status;
+    if (!_isGCash || status != 'AWAITING_PAYMENT') return false;
+
+    if (showFeedback && mounted) {
+      setState(() => _isActing = true);
+    }
+
+    try {
+      final token = await SecureTokenService.getBearerToken();
+      final url = Uri.parse('$backendUrl/${_order['order_id']}/sync-payment');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.body.isNotEmpty) {
+          try {
+            final data = jsonDecode(response.body);
+            if (data is Map<String, dynamic> && data['status'] != null) {
+              if (mounted) {
+                setState(() {
+                  _order['status'] = data['status'];
+                });
+              }
+            }
+          } catch (_) {}
+        }
+        await _refreshOrder();
+        if (_status == 'ESCROWED') {
+          if (showFeedback && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Payment verified! Your order is now secured in Escrow.'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+          return true;
+        } else if (showFeedback && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment not yet detected by PayMongo. If you recently paid, please wait a moment and try again.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } else if (showFeedback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not verify payment (code ${response.statusCode}).'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Sync payment error: $e');
+      if (showFeedback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not connect to payment verification service: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (showFeedback && mounted) {
+        setState(() => _isActing = false);
+      }
+    }
+    return false;
   }
 
   Future<void> _handleSpringAction(String action, Map<String, dynamic> body, String successMsg) async {
@@ -1130,23 +1227,27 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                         // 2. Call Spring API schedule to transition status & generate OTP
                         await _callSpringApi('schedule', {});
 
-                        // 3. Send automated notification to chat room
-                        final buyerId = _order['buyer_id'] as String?;
-                        final sellerId = _order['seller_id'] as String?;
-                        if (buyerId != null && sellerId != null) {
-                          final productModel = _extractProductFromOrder();
-                          final chatService = ChatService();
-                          final roomId = await chatService.getOrCreateChatRoom(
-                            buyerId: buyerId,
-                            sellerId: sellerId,
-                            productId: productModel.id,
-                          );
-                          await chatService.sendMessage(
-                            senderId: sellerId,
-                            receiverId: buyerId,
-                            roomId: roomId,
-                            content: messageController.text.trim(),
-                          );
+                        // 3. Send automated notification to chat room (non-blocking for order state)
+                        try {
+                          final buyerId = _order['buyer_id'] as String?;
+                          final sellerId = _order['seller_id'] as String?;
+                          if (buyerId != null && sellerId != null) {
+                            final productModel = _extractProductFromOrder();
+                            final chatService = ChatService();
+                            final roomId = await chatService.getOrCreateChatRoom(
+                              buyerId: buyerId,
+                              sellerId: sellerId,
+                              productId: productModel.id,
+                            );
+                            await chatService.sendMessage(
+                              senderId: sellerId,
+                              receiverId: buyerId,
+                              roomId: roomId,
+                              content: messageController.text.trim(),
+                            );
+                          }
+                        } catch (chatErr) {
+                          debugPrint('Automated chat notification notice: $chatErr');
                         }
 
                         await _refreshOrder();
@@ -1670,7 +1771,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Buyer has initiated PayMongo GCash checkout. Waiting for payment webhook confirmation.',
+                    'Buyer has initiated PayMongo GCash checkout. Waiting for payment confirmation.',
                     style: TextStyle(fontFamily: 'Inter', fontSize: 12.5, color: Colors.indigo),
                   ),
                 ),
@@ -1678,6 +1779,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
             ),
           ),
         );
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn(
+          'Check Payment Status',
+          Colors.indigo,
+          Icons.sync_rounded,
+          () => _syncPayment(showFeedback: true),
+        ));
       }
 
       if (_status == 'ESCROWED' || _status == 'PAYMENT_VERIFIED') {
@@ -1808,6 +1916,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
       }
 
       if (_isGCash && _status == 'AWAITING_PAYMENT') {
+        buttons.add(_actionBtn(
+          'I Have Paid (Verify with PayMongo)',
+          Colors.green.shade700,
+          Icons.verified_rounded,
+          () => _syncPayment(showFeedback: true),
+        ));
+        buttons.add(const SizedBox(height: 10));
         buttons.add(_actionBtn(
           'Resume GCash Payment (PayMongo)',
           Colors.indigo,
