@@ -94,9 +94,9 @@ void main() {
   }
 
   group('Expired OTP & Meetup Reschedule UX Tests', () {
-    testWidgets('Buyer with expired OTP sees Handoff Code Expired warning and Generate Fresh Code & QR button', (tester) async {
-      // Created 20 minutes ago (expired beyond 15 min limit)
-      final expiredAt = DateTime.now().toUtc().subtract(const Duration(minutes: 20)).toIso8601String();
+    testWidgets('Buyer with expired OTP (>48 hours) sees Handoff Code Expired warning and Generate Fresh Code & QR button', (tester) async {
+      // Created 50 hours ago (expired beyond 48-hour security window)
+      final expiredAt = DateTime.now().toUtc().subtract(const Duration(hours: 50)).toIso8601String();
       final order = makeOrder(
         orderId: 'ORD-EXP-001',
         status: 'MEETUP_SCHEDULED',
@@ -109,14 +109,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Handoff Code Expired'), findsOneWidget);
-      expect(find.textContaining('Meetup security window (15 mins) has elapsed'), findsOneWidget);
+      expect(find.textContaining('Meetup security window (48 hours) has elapsed'), findsOneWidget);
       expect(find.text('EXPIRED CODE'), findsOneWidget);
       expect(find.text('Generate Fresh Code & QR'), findsOneWidget);
     });
 
-    testWidgets('Buyer with active OTP sees Active badge with remaining minutes and Regenerate button', (tester) async {
-      // Created 5 minutes ago (10 minutes remaining)
-      final activeAt = DateTime.now().toUtc().subtract(const Duration(minutes: 5)).toIso8601String();
+    testWidgets('Buyer with active OTP for Today sees Code Ready banner and Regenerate Code / Refresh QR button', (tester) async {
+      // Created 1 hour ago (within 48-hour window)
+      final activeAt = DateTime.now().toUtc().subtract(const Duration(hours: 1)).toIso8601String();
       final order = makeOrder(
         orderId: 'ORD-ACT-002',
         status: 'MEETUP_SCHEDULED',
@@ -129,8 +129,29 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Handoff Verification'), findsOneWidget);
-      expect(find.textContaining('Active • Expires in ~10 min'), findsOneWidget);
-      expect(find.text('Regenerate Code / Reset Timer'), findsOneWidget);
+      expect(find.textContaining('Code Ready • Today'), findsOneWidget);
+      expect(find.text('Regenerate Code / Refresh QR'), findsOneWidget);
+    });
+
+    testWidgets('Buyer with active OTP for Tomorrow sees Campus Meetup Scheduled and At Meetup Spot? Refresh Code & QR button', (tester) async {
+      // Created 2 hours ago for a tomorrow rendezvous
+      final activeAt = DateTime.now().toUtc().subtract(const Duration(hours: 2)).toIso8601String();
+      final order = makeOrder(
+        orderId: 'ORD-TOM-003',
+        status: 'MEETUP_SCHEDULED',
+        handoffOtp: '789012',
+        otpCreatedAt: activeAt,
+      );
+      order['pickup_day'] = 'Tomorrow';
+      final buyer = makeBuyerProfile();
+
+      await tester.pumpWidget(createWidget(order: order, user: buyer, isSeller: false, tester: tester));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Campus Meetup Scheduled'), findsOneWidget);
+      expect(find.textContaining('Tomorrow • 12:00 PM - 01:30 PM'), findsOneWidget);
+      expect(find.textContaining('Rendezvous: Library Lobby'), findsOneWidget);
+      expect(find.text('At Meetup Spot? Refresh Code & QR'), findsOneWidget);
     });
 
     testWidgets('Seller in MEETUP_SCHEDULED sees Reschedule Meetup / Update Time button', (tester) async {

@@ -569,7 +569,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'For campus security and exchange validation, meetup OTPs and QR codes expire after 15 minutes.',
+                'For campus security and exchange validation, meetup OTPs and QR codes remain valid for the scheduled meetup window (48 hours).',
                 style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: isDark ? Colors.white70 : Colors.black87),
               ),
               const SizedBox(height: 12),
@@ -588,7 +588,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                       child: Text(
                         widget.isSeller
                             ? 'Tap "Reschedule Meetup" to select a time slot and generate a fresh code for the buyer.'
-                            : 'Tap "Generate Fresh Code" to renew the 15-minute handoff QR and code immediately.',
+                            : 'Tap "Generate Fresh Code" to renew your handoff QR and code immediately.',
                         style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: isDark ? Colors.white70 : Colors.black87),
                       ),
                     ),
@@ -2167,17 +2167,20 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
 
         final nowUtc = DateTime.now().toUtc();
         bool isOtpExpired = false;
-        int remainingMinutes = 0;
 
+        // 48-hour security window (Option 2) comfortably supports Today, Tomorrow, and Next Business Day meetups
         if (otp != '------' && otpCreatedAt != null) {
           final elapsedSeconds = nowUtc.difference(otpCreatedAt).inSeconds;
-          if (elapsedSeconds >= 15 * 60) {
+          if (elapsedSeconds >= 48 * 3600) {
             isOtpExpired = true;
-          } else {
-            remainingMinutes = ((15 * 60 - elapsedSeconds) / 60).ceil();
-            if (remainingMinutes < 1) remainingMinutes = 1;
           }
         }
+
+        final pickupDay = (_order['pickup_day'] as String? ?? 'Today').trim();
+        final pickupTime = (_order['pickup_time'] as String? ?? '').trim();
+        final pickupLoc = (_order['pickup_location'] as String? ?? 'Campus Landmark').replaceAll('[PRE-ORDER] ', '').trim();
+        final isTomorrowOrLater = pickupDay.toLowerCase().contains('tomorrow') ||
+            pickupDay.toLowerCase().contains('next business day');
 
         buttons.add(
           Container(
@@ -2200,13 +2203,17 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      isOtpExpired ? Icons.timer_off_rounded : Icons.qr_code_2_rounded,
+                      isOtpExpired
+                          ? Icons.timer_off_rounded
+                          : (isTomorrowOrLater ? Icons.event_available_rounded : Icons.qr_code_2_rounded),
                       color: isOtpExpired ? Colors.amber[800] : Colors.blue,
                       size: 22,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      isOtpExpired ? 'Handoff Code Expired' : 'Handoff Verification',
+                      isOtpExpired
+                          ? 'Handoff Code Expired'
+                          : (isTomorrowOrLater ? 'Campus Meetup Scheduled' : 'Handoff Verification'),
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.bold,
@@ -2234,7 +2241,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Meetup security window (15 mins) has elapsed. Please generate a fresh code & QR below.',
+                            'Meetup security window (48 hours) has elapsed. Please generate a fresh code & QR below.',
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 12,
@@ -2329,46 +2336,82 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                   ),
                 ] else if (otp != '------') ...[
                   // Active code
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          otpCreatedAt != null
-                              ? 'Active • Expires in ~$remainingMinutes min'
-                              : 'Active Code • Valid for 15 min',
-                          style: const TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
+                  if (isTomorrowOrLater) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.calendar_today_rounded, size: 14, color: Colors.blue),
+                          const SizedBox(width: 6),
+                          Text(
+                            '$pickupDay • $pickupTime',
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Present this QR code or 6-digit code to the seller at the meetup spot:',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 12,
-                      color: isDark ? Colors.white70 : Colors.black87,
+                    const SizedBox(height: 10),
+                    Text(
+                      'Rendezvous: $pickupLoc\nYour handoff code is active and ready for $pickupDay. Present this code to the seller at the meetup spot:',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        height: 1.4,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
                     ),
-                  ),
+                  ] else ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            pickupTime.isNotEmpty ? 'Code Ready • Today ($pickupTime)' : 'Active Code • Ready for Meetup',
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Present this QR code or 6-digit code to the seller at $pickupLoc:',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -2400,13 +2443,22 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                       color: isDark ? Colors.blue[300] : Colors.blue[800],
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  TextButton.icon(
-                    onPressed: _isActing ? null : () => _handleSpringAction('schedule', {}, 'Fresh handoff code and QR generated!'),
-                    icon: const Icon(Icons.refresh_rounded, size: 16, color: Colors.blue),
-                    label: const Text(
-                      'Regenerate Code / Reset Timer',
-                      style: TextStyle(fontFamily: 'Inter', fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.blue),
+                  const SizedBox(height: 12),
+                  // Option 1 At-the-Spot Refresh CTA
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _isActing ? null : () => _handleSpringAction('schedule', {}, 'Fresh handoff code and QR generated!'),
+                      icon: const Icon(Icons.refresh_rounded, size: 16, color: Colors.blue),
+                      label: Text(
+                        isTomorrowOrLater ? 'At Meetup Spot? Refresh Code & QR' : 'Regenerate Code / Refresh QR',
+                        style: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.blue.withValues(alpha: 0.4)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
                     ),
                   ),
                 ] else ...[
