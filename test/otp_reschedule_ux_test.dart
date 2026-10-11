@@ -189,5 +189,43 @@ void main() {
       expect(find.text('Reschedule Meetup / Update Time'), findsWidgets);
       expect(find.text('Update Schedule & Generate Fresh Code'), findsOneWidget);
     });
+
+    testWidgets('Seller submitting reschedule updates local pickup details immediately and reflects on view', (tester) async {
+      final order = makeOrder(
+        orderId: 'ORD-SEL-005',
+        status: 'MEETUP_SCHEDULED',
+        handoffOtp: '123456',
+      );
+      order['pickup_day'] = 'Today';
+      order['pickup_time'] = '12:00 PM - 01:30 PM';
+      order['pickup_location'] = 'Library Lobby';
+      final seller = makeSellerProfile();
+
+      await tester.pumpWidget(createWidget(order: order, user: seller, isSeller: true, tester: tester));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Library Lobby'), findsWidgets);
+      expect(find.textContaining('12:00 PM - 01:30 PM'), findsWidgets);
+
+      final rescheduleBtn = find.text('Reschedule Meetup / Update Time');
+      await tester.tap(rescheduleBtn);
+      await tester.pumpAndSettle();
+
+      // Tap Tomorrow chip
+      final tomorrowChip = find.text('Tomorrow');
+      expect(tomorrowChip, findsOneWidget);
+      await tester.tap(tomorrowChip);
+      await tester.pumpAndSettle();
+
+      // Tap Confirm button
+      final confirmBtn = find.text('Update Schedule & Generate Fresh Code');
+      expect(confirmBtn, findsOneWidget);
+      await tester.tap(confirmBtn);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // View now reflects updated day: Tomorrow
+      expect(find.textContaining('Tomorrow'), findsWidgets);
+    });
   });
 }

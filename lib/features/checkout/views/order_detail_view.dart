@@ -122,6 +122,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
               if (data['handoffOtp'] != null) _order['handoff_otp'] = data['handoffOtp'].toString();
               if (data['otpCreatedAt'] != null) _order['otp_created_at'] = data['otpCreatedAt'];
               if (data['otpFailedAttempts'] != null) _order['otp_failed_attempts'] = data['otpFailedAttempts'];
+              if (data['pickupDay'] != null) _order['pickup_day'] = data['pickupDay'];
+              if (data['pickupTime'] != null) _order['pickup_time'] = data['pickupTime'];
+              if (data['pickupLocation'] != null) _order['pickup_location'] = data['pickupLocation'];
               if (data['status'] != null) _order['status'] = data['status'];
               if (data['sellerHandedOff'] != null) _order['seller_handed_off'] = data['sellerHandedOff'];
               if (data['buyerConfirmedReceipt'] != null) _order['buyer_confirmed_receipt'] = data['buyerConfirmedReceipt'];
@@ -272,14 +275,21 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         }
       }
       final token = await SecureTokenService.getBearerToken();
-      final url = Uri.parse('$backendUrl/${_order['order_id']}/initiate-payment');
+      final orderId = _order['order_id'];
+      final url = Uri.parse('$backendUrl/$orderId/initiate-payment');
+      final backendBase = backendUrl.replaceAll('/orders', '');
+      final successUrl = '$backendBase/payments/success?order=$orderId';
+      final cancelUrl = '$backendBase/payments/cancel?order=$orderId';
       final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
           if (token != null) 'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({}),
+        body: jsonEncode({
+          'success_url': successUrl,
+          'cancel_url': cancelUrl,
+        }),
       );
       if (response.statusCode >= 400) {
         String errorMessage = 'Error ${response.statusCode}';
@@ -1375,17 +1385,29 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                   ElevatedButton.icon(
                     onPressed: () async {
                       Navigator.pop(ctx);
-                      setState(() => _isActing = true);
+                      setState(() {
+                        _isActing = true;
+                        // Optimistically update local state so seller sees updated meetup info immediately
+                        _order['pickup_day'] = selectedDay;
+                        _order['pickup_time'] = selectedTime;
+                        _order['pickup_location'] = selectedLandmark;
+                      });
                       try {
-                        // 1. Update orders table in Supabase
-                        await SupabaseConfig.client.from('orders').update({
+                        // 1. Call authoritative Spring API schedule to persist schedule in PostgreSQL & generate OTP
+                        await _callSpringApi('schedule', {
                           'pickup_day': selectedDay,
                           'pickup_time': selectedTime,
                           'pickup_location': selectedLandmark,
-                        }).eq('order_id', _order['order_id']);
+                        });
 
-                        // 2. Call Spring API schedule to transition status & generate OTP
-                        await _callSpringApi('schedule', {});
+                        // 2. Direct Supabase update attempt (swallowed if RLS policy restricts authenticated client)
+                        try {
+                          await SupabaseConfig.client.from('orders').update({
+                            'pickup_day': selectedDay,
+                            'pickup_time': selectedTime,
+                            'pickup_location': selectedLandmark,
+                          }).eq('order_id', _order['order_id']);
+                        } catch (_) {}
 
                         // 3. Send automated notification to chat room (non-blocking for order state)
                         try {
