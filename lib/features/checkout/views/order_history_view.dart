@@ -120,6 +120,8 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
             buyer_confirmed_at,
             seller_id,
             handoff_otp,
+            otp_created_at,
+            otp_failed_attempts,
             seller_handed_off,
             buyer_confirmed_receipt,
             product_variants (
@@ -205,6 +207,8 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
             buyer_confirmed_at,
             buyer_id,
             handoff_otp,
+            otp_created_at,
+            otp_failed_attempts,
             seller_handed_off,
             buyer_confirmed_receipt,
             product_variants (

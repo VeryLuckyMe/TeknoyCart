@@ -120,6 +120,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
           if (mounted) {
             setState(() {
               if (data['handoffOtp'] != null) _order['handoff_otp'] = data['handoffOtp'].toString();
+              if (data['otpCreatedAt'] != null) _order['otp_created_at'] = data['otpCreatedAt'];
+              if (data['otpFailedAttempts'] != null) _order['otp_failed_attempts'] = data['otpFailedAttempts'];
               if (data['status'] != null) _order['status'] = data['status'];
               if (data['sellerHandedOff'] != null) _order['seller_handed_off'] = data['sellerHandedOff'];
               if (data['buyerConfirmedReceipt'] != null) _order['buyer_confirmed_receipt'] = data['buyerConfirmedReceipt'];
@@ -224,7 +226,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
             order_id, total_amount, status, quantity, created_at,
             pickup_location, pickup_day, pickup_time, payment_method,
             seller_confirmed_at, buyer_confirmed_at, buyer_id, seller_id,
-            handoff_otp, seller_handed_off, buyer_confirmed_receipt,
+            handoff_otp, otp_created_at, otp_failed_attempts, seller_handed_off, buyer_confirmed_receipt,
             handoff_completed_at, return_otp, refund_reference,
             dispute_reason, dispute_ruling, return_completed_at, is_preorder,
             paymongo_checkout_session_id, paymongo_checkout_url, payment_expires_at, amount_centavos, payout_released,
@@ -371,21 +373,46 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
             ),
           );
         }
-      } else if (showFeedback && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not verify payment (code ${response.statusCode}).'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      } else {
+        // Resilient check: Database might already have been moved to ESCROWED by webhook
+        await _refreshOrder();
+        if (_status == 'ESCROWED') {
+          if (showFeedback && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Payment verified! Your order is now secured in Escrow.'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+          return true;
+        } else if (showFeedback && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment verification is processing. If you completed payment in GCash, please give it a moment to reflect.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
       }
     } catch (e) {
-      debugPrint('Sync payment error: $e');
-      if (showFeedback && mounted) {
+      debugPrint('Sync payment notice: $e');
+      await _refreshOrder();
+      if (_status == 'ESCROWED') {
+        if (showFeedback && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment verified! Your order is now secured in Escrow.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        return true;
+      } else if (showFeedback && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not connect to payment verification service: $e'),
-            backgroundColor: Colors.red,
+          const SnackBar(
+            content: Text('Payment verification is processing. Please check again in a few moments.'),
+            backgroundColor: Colors.orange,
           ),
         );
       }
@@ -477,14 +504,136 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
       }
     } catch (e) {
       if (mounted) {
+        final errText = e.toString().toLowerCase();
+        final isExpiredOrLockout = errText.contains('expired') ||
+            errText.contains('reschedule') ||
+            errText.contains('locked');
+
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Action failed: $e'),
+          content: Text(isExpiredOrLockout
+              ? 'Handoff code has expired. Please reschedule meetup to generate a fresh code.'
+              : 'Action failed: $e'),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+          action: isExpiredOrLockout
+              ? SnackBarAction(
+                  label: 'Reschedule',
+                  textColor: TeknoyTheme.citGold,
+                  onPressed: () {
+                    if (widget.isSeller) {
+                      _showNotifyItemReadyDialog(isPreorder: _isPreorder);
+                    } else {
+                      _handleSpringAction('schedule', {}, 'Fresh handoff code and QR generated!');
+                    }
+                  },
+                )
+              : null,
         ));
+
+        if (isExpiredOrLockout) {
+          _showOtpExpiredPromptDialog();
+        }
       }
     } finally {
       if (mounted) setState(() => _isActing = false);
     }
+  }
+
+  void _showOtpExpiredPromptDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: isDark ? const Color(0xFF1E1E28) : Colors.white,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.timer_off_rounded, color: Colors.amber, size: 24),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Meetup Code Expired',
+                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'For campus security and exchange validation, meetup OTPs and QR codes expire after 15 minutes.',
+                style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: isDark ? Colors.white70 : Colors.black87),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.15 : 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: TeknoyTheme.citMaroon.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, color: TeknoyTheme.citMaroon, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.isSeller
+                            ? 'Tap "Reschedule Meetup" to select a time slot and generate a fresh code for the buyer.'
+                            : 'Tap "Generate Fresh Code" to renew the 15-minute handoff QR and code immediately.',
+                        style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: isDark ? Colors.white70 : Colors.black87),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Dismiss', style: TextStyle(fontFamily: 'Inter', color: Colors.grey)),
+            ),
+            if (widget.isSeller)
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _showNotifyItemReadyDialog(isPreorder: _isPreorder);
+                },
+                icon: const Icon(Icons.edit_calendar_rounded, size: 18, color: Colors.white),
+                label: const Text('Reschedule Meetup', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: TeknoyTheme.citMaroon,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _handleSpringAction('schedule', {}, 'Fresh handoff code and QR generated!');
+                },
+                icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white),
+                label: const Text('Generate Fresh Code', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: TeknoyTheme.citMaroon,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   void _showCancelConfirmationDialog() {
@@ -959,7 +1108,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     String selectedDay = 'Today';
     final dayOptions = ['Today', 'Tomorrow', 'Next Business Day'];
 
+    final isReschedule = _status == 'MEETUP_SCHEDULED';
+
     String generateMessage(String landmark, String day, String time) {
+      if (isReschedule) {
+        return 'UPDATE: The meetup schedule for "$productName" has been updated.\n\nNew Location: $landmark\nNew Date: $day\nNew Time: $time\n\nA fresh handoff code has been generated. See you on campus!';
+      }
       if (isPreorder) {
         return 'GOOD NEWS! Your pre-order for "$productName" has arrived on campus and is ready for pickup!\n\nMeetup Location: $landmark\nDate: $day\nTime: $time\n\nPlease bring exact payment / your CIT-U ID. See you on campus!';
       } else {
@@ -1026,12 +1180,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: TeknoyTheme.citMaroon.withValues(alpha: 0.12),
+                          color: (isReschedule ? Colors.blue : TeknoyTheme.citMaroon).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
-                          isPreorder ? Icons.campaign_rounded : Icons.calendar_month_rounded,
-                          color: TeknoyTheme.citMaroon,
+                          isReschedule
+                              ? Icons.edit_calendar_rounded
+                              : (isPreorder ? Icons.campaign_rounded : Icons.calendar_month_rounded),
+                          color: isReschedule ? Colors.blue : TeknoyTheme.citMaroon,
                           size: 24,
                         ),
                       ),
@@ -1041,7 +1197,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isPreorder ? 'Pre-Order Ready for Meetup' : 'Finalize Meetup Schedule',
+                              isReschedule
+                                  ? 'Reschedule Meetup / Update Time'
+                                  : (isPreorder ? 'Pre-Order Ready for Meetup' : 'Finalize Meetup Schedule'),
                               style: const TextStyle(
                                 fontFamily: 'Outfit',
                                 fontSize: 17,
@@ -1050,9 +1208,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              isPreorder
-                                  ? 'Notify buyer via chat & generate handoff OTP'
-                                  : 'Confirm date, location & notify buyer',
+                              isReschedule
+                                  ? 'Update campus date/time & generate a fresh handoff code'
+                                  : (isPreorder
+                                      ? 'Notify buyer via chat & generate handoff OTP'
+                                      : 'Confirm date, location & notify buyer'),
                               style: TextStyle(
                                 fontFamily: 'Inter',
                                 fontSize: 12,
@@ -1255,7 +1415,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Buyer notified via in-app chat! Meetup scheduled for $selectedDay ($selectedTime) at $selectedLandmark.'),
+                              content: Text(isReschedule
+                                  ? 'Meetup rescheduled! Fresh handoff code generated for $selectedDay ($selectedTime) at $selectedLandmark.'
+                                  : 'Buyer notified via in-app chat! Meetup scheduled for $selectedDay ($selectedTime) at $selectedLandmark.'),
                               backgroundColor: Colors.green,
                             ),
                           );
@@ -1270,10 +1432,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                         if (mounted) setState(() => _isActing = false);
                       }
                     },
-                    icon: const Icon(Icons.send_rounded, size: 18, color: Colors.white),
-                    label: const Text(
-                      'Send Notice & Confirm Schedule',
-                      style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                    icon: Icon(isReschedule ? Icons.check_circle_rounded : Icons.send_rounded, size: 18, color: Colors.white),
+                    label: Text(
+                      isReschedule ? 'Update Schedule & Generate Fresh Code' : 'Send Notice & Confirm Schedule',
+                      style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: TeknoyTheme.citMaroon,
@@ -1838,8 +2000,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
       }
 
       if (_status == 'NEEDS_REVIEW') {
-        buttons.add(_actionBtn('Reschedule Meetup', Colors.blue, Icons.refresh_rounded, 
-            () => _handleSpringAction('schedule', {}, 'Meetup rescheduled. New OTP generated.')));
+        buttons.add(_actionBtn('Reschedule Meetup', Colors.blue, Icons.edit_calendar_rounded, 
+            () => _showNotifyItemReadyDialog(isPreorder: _isPreorder)));
         buttons.add(const SizedBox(height: 10));
         buttons.add(_actionBtn('Report No-Show', Colors.orange, Icons.person_off_rounded, _showNoShowDialog));
         buttons.add(const SizedBox(height: 10));
@@ -1885,6 +2047,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
 
       if (_status == 'MEETUP_SCHEDULED') {
         buttons.add(_actionBtn('Verify Buyer Handoff (OTP)', TeknoyTheme.citMaroon, Icons.verified_user_rounded, _showOTPInputDialog));
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn('Reschedule Meetup / Update Time', Colors.blue.shade700, Icons.edit_calendar_rounded, () => _showNotifyItemReadyDialog(isPreorder: _isPreorder)));
         buttons.add(const SizedBox(height: 10));
         buttons.add(_actionBtn('Report No-Show', Colors.orange, Icons.person_off_rounded, _showNoShowDialog));
       }
@@ -1992,47 +2156,220 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
       }
 
       if (_status == 'MEETUP_SCHEDULED') {
-        final otp = (_order['handoff_otp'] != null && _order['handoff_otp'].toString().isNotEmpty)
-            ? _order['handoff_otp'].toString()
-            : '------';
+        final rawOtp = _order['handoff_otp']?.toString().trim();
+        final otp = (rawOtp != null && rawOtp.isNotEmpty) ? rawOtp : '------';
+
+        final otpCreatedAtStr = _order['otp_created_at']?.toString();
+        DateTime? otpCreatedAt;
+        if (otpCreatedAtStr != null) {
+          otpCreatedAt = DateTime.tryParse(otpCreatedAtStr)?.toUtc();
+        }
+
+        final nowUtc = DateTime.now().toUtc();
+        bool isOtpExpired = false;
+        int remainingMinutes = 0;
+
+        if (otp != '------' && otpCreatedAt != null) {
+          final elapsedSeconds = nowUtc.difference(otpCreatedAt).inSeconds;
+          if (elapsedSeconds >= 15 * 60) {
+            isOtpExpired = true;
+          } else {
+            remainingMinutes = ((15 * 60 - elapsedSeconds) / 60).ceil();
+            if (remainingMinutes < 1) remainingMinutes = 1;
+          }
+        }
+
         buttons.add(
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1B2332) : const Color(0xFFF0F6FF),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.blue.withValues(alpha: 0.35), width: 1.5),
+              color: isOtpExpired
+                  ? (isDark ? const Color(0xFF261D15) : const Color(0xFFFFF9F2))
+                  : (isDark ? const Color(0xFF1B2332) : const Color(0xFFF0F6FF)),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: isOtpExpired
+                    ? Colors.amber.withValues(alpha: 0.5)
+                    : Colors.blue.withValues(alpha: 0.35),
+                width: 1.5,
+              ),
             ),
             child: Column(
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.qr_code_2_rounded, color: Colors.blue, size: 22),
+                    Icon(
+                      isOtpExpired ? Icons.timer_off_rounded : Icons.qr_code_2_rounded,
+                      color: isOtpExpired ? Colors.amber[800] : Colors.blue,
+                      size: 22,
+                    ),
                     const SizedBox(width: 8),
                     Text(
-                      'Handoff Verification',
+                      isOtpExpired ? 'Handoff Code Expired' : 'Handoff Verification',
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: isDark ? Colors.blue[200] : Colors.blue[900],
+                        fontSize: 16.5,
+                        color: isOtpExpired
+                            ? (isDark ? Colors.amber[300] : Colors.amber[900])
+                            : (isDark ? Colors.blue[200] : Colors.blue[900]),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Present this QR code or 6-digit code to the seller at the meetup spot:',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12,
-                    color: isDark ? Colors.white70 : Colors.black87,
+                const SizedBox(height: 8),
+
+                if (isOtpExpired) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: Colors.amber[800], size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Meetup security window (15 mins) has elapsed. Please generate a fresh code & QR below.',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12,
+                              color: isDark ? Colors.amber[200] : Colors.amber[900],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                if (otp != '------') ...[
+                  const SizedBox(height: 14),
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Opacity(
+                        opacity: 0.2,
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: QrImageView(
+                            data: otp,
+                            version: QrVersions.auto,
+                            size: 140.0,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.78),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.lock_clock_rounded, color: Colors.amber, size: 18),
+                            SizedBox(width: 6),
+                            Text(
+                              'EXPIRED CODE',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Colors.white,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    otp.split('').join(' '),
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 26,
+                      letterSpacing: 6,
+                      decoration: TextDecoration.lineThrough,
+                      decorationColor: Colors.grey,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
                   const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isActing ? null : () => _handleSpringAction('schedule', {}, 'Fresh handoff code and QR generated!'),
+                      icon: const Icon(Icons.refresh_rounded, size: 20, color: Colors.white),
+                      label: const Text(
+                        'Generate Fresh Code & QR',
+                        style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: TeknoyTheme.citMaroon,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 2,
+                      ),
+                    ),
+                  ),
+                ] else if (otp != '------') ...[
+                  // Active code
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          otpCreatedAt != null
+                              ? 'Active • Expires in ~$remainingMinutes min'
+                              : 'Active Code • Valid for 15 min',
+                          style: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Present this QR code or 6-digit code to the seller at the meetup spot:',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -2063,13 +2400,39 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                       color: isDark ? Colors.blue[300] : Colors.blue[800],
                     ),
                   ),
-                ],
-                if (otp == '------') ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   TextButton.icon(
-                    onPressed: _isActing ? null : () => _handleSpringAction('schedule', {}, 'Meetup code generated!'),
+                    onPressed: _isActing ? null : () => _handleSpringAction('schedule', {}, 'Fresh handoff code and QR generated!'),
                     icon: const Icon(Icons.refresh_rounded, size: 16, color: Colors.blue),
-                    label: const Text('Generate Code Now', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, color: Colors.blue)),
+                    label: const Text(
+                      'Regenerate Code / Reset Timer',
+                      style: TextStyle(fontFamily: 'Inter', fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.blue),
+                    ),
+                  ),
+                ] else ...[
+                  // Not yet generated
+                  const SizedBox(height: 8),
+                  Text(
+                    'Generate your handoff code to show the seller during pickup:',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: isDark ? Colors.white70 : Colors.black87),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isActing ? null : () => _handleSpringAction('schedule', {}, 'Meetup code generated!'),
+                      icon: const Icon(Icons.qr_code_2_rounded, size: 18, color: Colors.white),
+                      label: const Text(
+                        'Generate Code & QR Now',
+                        style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: TeknoyTheme.citMaroon,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
                   ),
                 ],
               ],
