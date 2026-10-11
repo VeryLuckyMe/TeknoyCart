@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/chat/models/message.dart';
 import 'package:teknoycart/core/models/product.dart';
+import 'package:teknoycart/core/utils/order_ui_helper.dart';
 
 /// Real-time chat service using Supabase Realtime channels.
 /// Listens to the `messages` table for INSERT events on the given chat room.
@@ -737,11 +738,7 @@ class ChatService {
     // 5. Order Status Inquiry
     if (msg.contains('status') || msg.contains('order') || msg.contains('delivered') || msg.contains('track') || msg.contains('delivery') || msg.contains('nasaan') || msg.contains('update')) {
       if (orderStatus != null && orderStatus.isNotEmpty) {
-        String displayStatus = orderStatus;
-        if (orderStatus == 'APPROVED') displayStatus = 'Approved (Reserved)';
-        if (orderStatus == 'INQUIRY_SENT') displayStatus = 'Inquiry Sent / Pending Approval';
-        if (orderStatus == 'COMPLETED') displayStatus = 'Completed';
-        if (orderStatus == 'REJECTED') displayStatus = 'Rejected/Declined';
+        final displayStatus = OrderUiHelper.formatStatus(orderStatus);
         return "Your latest order status is: **$displayStatus**.\nPlease check your order details in the app or let me know if you have any questions!";
       } else {
         return "You don't have any active orders with $resolvedSellerName yet. Proceed to checkout to place an order!";

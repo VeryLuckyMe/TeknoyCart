@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
+import 'package:teknoycart/core/utils/order_ui_helper.dart';
 
 const String _backendOrdersUrl = 'https://teknoycart-backend.onrender.com/api/orders';
 
@@ -482,7 +483,7 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
                               ? DateTime.tryParse(o['created_at'].toString())
                               : null;
                           final dateStr = createdAt != null
-                              ? '${createdAt.month}/${createdAt.day} ${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}'
+                              ? OrderUiHelper.formatDate(createdAt, withTime: true)
                               : '';
 
                           return Container(
@@ -520,21 +521,10 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
                                             ),
                                           ),
                                           const SizedBox(width: 8),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: Colors.amber.withValues(alpha: 0.15),
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              status,
-                                              style: TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.amber.shade800,
-                                              ),
-                                            ),
+                                          OrderUiHelper.buildStatusBadge(
+                                            status: status,
+                                            fontSize: 9.5,
+                                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                                           ),
                                         ],
                                       ),

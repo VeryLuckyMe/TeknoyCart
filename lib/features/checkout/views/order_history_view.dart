@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
+import 'package:teknoycart/core/utils/order_ui_helper.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
 import 'package:http/http.dart' as http;
@@ -361,39 +362,6 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     }
   }
 
-  Color _statusColor(String status, [Map<String, dynamic>? order]) {
-    final bool isOos = order != null && _isItemOutOfStock(order);
-    if (isOos) return const Color(0xFFEA580C);
-    switch (status) {
-      case 'COMPLETED':
-        return TeknoyTheme.success; // Emerald #10B981
-      case 'PAYMENT_VERIFIED':
-      case 'ESCROWED':
-        return const Color(0xFF2563EB); // Cobalt #2563EB
-      case 'SELLER_ACCEPTED':
-      case 'APPROVED':
-        return const Color(0xFFD97706); // Warm Amber
-      case 'AWAITING_PAYMENT':
-      case 'PAYMENT_SUBMITTED':
-        return const Color(0xFF4F46E5); // Indigo Accent
-      case 'REFUND_PENDING':
-      case 'RETURN_REQUESTED':
-        return TeknoyTheme.warning;
-      case 'REFUNDED':
-      case 'REFUND_COMPLETED':
-      case 'RETURN_APPROVED':
-        return const Color(0xFF0D9488); // Teal
-      case 'RETURN_DECLINED':
-      case 'DECLINED':
-      case 'CANCELLED':
-        return TeknoyTheme.error; // Crimson #EF4444
-      case 'PENDING_SELLER_ACCEPT':
-      case 'INQUIRY_SENT':
-      default:
-        return TeknoyTheme.warning;
-    }
-  }
-
   bool _isItemOutOfStock(Map<String, dynamic> order) {
     if (order['is_out_of_stock'] == true) return true;
     final variantRaw = order['product_variants'];
@@ -406,30 +374,6 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       }
     }
     return false;
-  }
-
-  String _statusLabel(String status, [Map<String, dynamic>? order]) {
-    final bool isOos = order != null && _isItemOutOfStock(order);
-    switch (status) {
-      case 'PENDING_SELLER_ACCEPT': return 'Awaiting Seller';
-      case 'SELLER_ACCEPTED':
-      case 'APPROVED': return isOos ? 'RESERVED (OUT OF STOCK)' : 'RESERVED';
-      case 'AWAITING_PAYMENT': return 'Awaiting Payment';
-      case 'ESCROWED': return 'Payment in Escrow';
-      case 'PAYMENT_SUBMITTED': return 'Payment Sent';
-      case 'PAYMENT_VERIFIED': return 'Payment Verified';
-      case 'REFUND_PENDING': return 'Refund Pending';
-      case 'REFUNDED':
-      case 'REFUND_COMPLETED': return 'Refunded';
-      case 'COMPLETED': return 'Completed';
-      case 'DECLINED': return 'Declined';
-      case 'CANCELLED': return 'Cancelled';
-      case 'RETURN_REQUESTED': return 'Return Requested';
-      case 'RETURN_APPROVED': return 'Return Approved';
-      case 'RETURN_DECLINED': return 'Return Declined';
-      case 'INQUIRY_SENT': return 'Pending';
-      default: return status;
-    }
   }
 
   String? _getImageUrl(Map<String, dynamic> order) {
@@ -452,7 +396,6 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     required bool isSeller,
   }) {
     final status = order['status'] as String? ?? '';
-    final statusColor = _statusColor(status, order);
     final imageUrl = _getImageUrl(order);
     final productName = _getProductName(order);
     final isPending = status == 'PENDING_SELLER_ACCEPT';
@@ -465,7 +408,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         ? (order['buyer_contact'] as String?)
         : (order['seller_contact'] as String?);
 
-    final pickupLocation = order['pickup_location'] as String? ?? '—';
+    final pickupLocation = OrderUiHelper.cleanLocation(order['pickup_location'] as String?);
     final pickupDay = order['pickup_day'] as String? ?? '—';
     final pickupTime = order['pickup_time'] as String? ?? '—';
     final rawPayment = order['payment_method'] as String? ?? 'CASH_ON_PICKUP';
@@ -520,14 +463,10 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                      ),
-                      child: Text(_statusLabel(status, order), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: statusColor, letterSpacing: 0.3)),
+                    OrderUiHelper.buildStatusBadge(
+                      status: status,
+                      isOutOfStock: _isItemOutOfStock(order),
+                      fontSize: 10,
                     ),
                   ],
                 ),

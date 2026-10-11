@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
+import 'package:teknoycart/core/utils/order_ui_helper.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/edit_product_view.dart';
@@ -319,11 +320,12 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                       ),
                                     ),
                                     child: Text(
-                                      item['status']?.toString() ?? 'PENDING',
+                                      item['status'] == 'ACTIVE' ? 'Active' : (item['status'] == 'INACTIVE' ? 'Hidden' : OrderUiHelper.cleanEnumText(item['status']?.toString() ?? 'Pending')),
                                       style: TextStyle(
-                                        fontSize: 9, 
-                                        fontWeight: FontWeight.w800, 
-                                        letterSpacing: 0.5, 
+                                        fontFamily: 'Inter',
+                                        fontSize: 9.5, 
+                                        fontWeight: FontWeight.w700, 
+                                        letterSpacing: 0.2, 
                                         color: item['status'] == 'ACTIVE' ? Colors.green : Colors.orange
                                       ),
                                     ),

@@ -394,7 +394,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                                                   ),
                                                 ),
                                                 child: Text(
-                                                  (room['other_user_role'] as String).toUpperCase(),
+                                                  room['other_user_role'] == 'Seller' ? 'Seller' : 'Buyer',
                                                   style: TextStyle(
                                                     fontFamily: 'Outfit',
                                                     fontSize: 9,

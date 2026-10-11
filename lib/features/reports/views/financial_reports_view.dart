@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:teknoycart/features/reports/views/download_helper.dart';
 import 'package:teknoycart/core/theme.dart';
+import 'package:teknoycart/core/utils/order_ui_helper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
@@ -405,7 +406,7 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           subtitle: Text(
-                            'Date: ${txn['date']}  |  Status: ${txn['status']}',
+                            'Date: ${OrderUiHelper.formatDate(txn['date'])}  |  Status: ${OrderUiHelper.formatStatus(txn['status'])}',
                             style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey),
                           ),
                           trailing: Text(

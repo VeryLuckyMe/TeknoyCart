@@ -90,7 +90,7 @@ class ChatNegotiationBanner extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Text(
-                'COMPLETED',
+                'Completed',
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontSize: 10,

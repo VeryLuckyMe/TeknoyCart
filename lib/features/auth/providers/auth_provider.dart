@@ -94,13 +94,14 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
 
   /// Sign in user with error handling and loading indicators.
   Future<void> login({required String email, required String password}) async {
-    state = const AsyncValue.loading();
+    state = const AsyncLoading<Profile?>().copyWithPrevious(state);
     try {
       final user = await _authService.signIn(email: email, password: password);
       final enriched = await _authService.getEnrichedProfile(user);
       state = AsyncValue.data(enriched);
-    } catch (e, stackTrace) {
-      state = AsyncValue.error(e, stackTrace);
+    } catch (e) {
+      // Keep auth session state as unauthenticated (null) so root app remains on AuthGateView
+      state = const AsyncValue.data(null);
       rethrow;
     }
   }
@@ -117,7 +118,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
     String? sellerType,   // 'STUDENT' or 'ORG'
     String? orgContact,   // contact number for ORG sellers
   }) async {
-    state = const AsyncValue.loading();
+    state = const AsyncLoading<Profile?>().copyWithPrevious(state);
     try {
       await _authService.signUp(
         email: email,
@@ -131,8 +132,9 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
         orgContact: orgContact,
       );
       state = const AsyncValue.data(null);
-    } catch (e, stackTrace) {
-      state = AsyncValue.error(e, stackTrace);
+    } catch (e) {
+      // Keep auth session state as unauthenticated (null) so root app remains on AuthGateView
+      state = const AsyncValue.data(null);
       rethrow;
     }
   }

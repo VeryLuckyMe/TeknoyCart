@@ -12,6 +12,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/chat/services/chat_service.dart';
 import 'package:teknoycart/core/models/product.dart';
+import 'package:teknoycart/core/utils/order_ui_helper.dart';
 import 'widgets/order_status_stepper.dart';
 import 'widgets/qr_scanner_sheet.dart';
 import 'package:teknoycart/core/models/review.dart';
@@ -974,7 +975,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                   Expanded(child: Divider(color: Colors.grey.shade300)),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 10),
-                    child: Text('OR ENTER CODE', style: TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    child: Text('or enter code manually', style: TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey)),
                   ),
                   Expanded(child: Divider(color: Colors.grey.shade300)),
                 ],
@@ -1520,7 +1521,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                 Expanded(child: Divider(color: Colors.grey.shade300)),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('OR ENTER CODE', style: TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  child: Text('or enter code manually', style: TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey)),
                 ),
                 Expanded(child: Divider(color: Colors.grey.shade300)),
               ],
@@ -1645,10 +1646,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         ? (_order['buyer_contact'] as String?)
         : (_order['seller_contact'] as String?);
 
-    final pickupLocation = _order['pickup_location'] as String? ?? '—';
+    final pickupLocation = OrderUiHelper.cleanLocation(_order['pickup_location'] as String?);
     final pickupDay = _order['pickup_day'] as String? ?? '—';
     final pickupTime = _order['pickup_time'] as String? ?? '—';
-    final createdAt = (_order['created_at'] as String?)?.substring(0, 10) ?? '—';
+    final createdAt = OrderUiHelper.formatDate(_order['created_at']);
     final orderId = (_order['order_id'] as String?)?.substring(0, 8).toUpperCase() ?? '—';
 
     final sellerConfirmed = _order['seller_confirmed_at'] != null;
@@ -1829,7 +1830,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                   ],
                   if (_order['dispute_ruling'] != null && (_order['dispute_ruling'] as String).isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    _detailRow('Admin Ruling', _order['dispute_ruling'], isDark),
+                    _detailRow('Admin Ruling', OrderUiHelper.formatDisputeRuling(_order['dispute_ruling'] as String?), isDark),
                   ],
                 ],
               )),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/core/theme.dart';
+import 'package:teknoycart/core/utils/order_ui_helper.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
@@ -1083,7 +1084,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                                   ),
                                 ),
                                 child: Text(
-                                  product.condition.toUpperCase(),
+                                  OrderUiHelper.formatCondition(product.condition),
                                   style: const TextStyle(
                                     fontFamily: 'Outfit',
                                     fontSize: 10,

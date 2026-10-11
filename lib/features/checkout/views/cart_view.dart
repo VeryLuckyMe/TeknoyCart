@@ -5,6 +5,7 @@ import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:teknoycart/features/checkout/models/checkout_item.dart';
 import 'package:teknoycart/features/checkout/models/cart_item.dart';
+import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 
 class CartView extends ConsumerStatefulWidget {
   const CartView({super.key});
@@ -235,7 +236,15 @@ class _CartViewState extends ConsumerState<CartView> {
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ProductDiscoveryFeedView(initialTab: 0),
+                          ),
+                          (route) => false,
+                        );
+                      },
                       icon: const Icon(Icons.storefront_rounded, size: 18),
                       label: const Text(
                         'Explore Campus Deals',

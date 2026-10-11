@@ -198,11 +198,32 @@ class AuthService {
           body['fullName'] as String? ?? 'Student',
         );
       }
-      // ACCOUNT_LOCKED or forbidden
+      if (errorType == 'ACCOUNT_LOCKED') {
+        DateTime? lockUntil;
+        if (body['lockUntil'] != null) {
+          lockUntil = DateTime.tryParse(body['lockUntil'].toString());
+        }
+        final secs = body['remainingSeconds'] is num ? (body['remainingSeconds'] as num).toInt() : 600;
+        throw AccountLockoutException(
+          message: errorMessage,
+          isLocked: true,
+          attemptsRemaining: 0,
+          remainingSeconds: secs,
+          lockUntil: lockUntil,
+        );
+      }
       throw FormatException(errorMessage);
     }
 
     if (response.statusCode == 400) {
+      final attempts = body['attemptsRemaining'] is num ? (body['attemptsRemaining'] as num).toInt() : null;
+      if (attempts != null || errorMessage.contains('attempts remaining')) {
+        throw AccountLockoutException(
+          message: errorMessage,
+          isLocked: false,
+          attemptsRemaining: attempts,
+        );
+      }
       throw FormatException(errorMessage);
     }
 
@@ -371,4 +392,25 @@ class UnverifiedEmailException implements Exception {
 
   @override
   String toString() => 'EMAIL_UNVERIFIED_PENDING: $email|$fullName';
+}
+
+/// Custom Exception thrown when login fails due to incorrect credentials or active account lockout.
+/// Holds attempts remaining and cooldown duration for UI/UX Pro Max countdown & live badge indicators.
+class AccountLockoutException implements Exception {
+  final String message;
+  final bool isLocked;
+  final int? attemptsRemaining;
+  final int? remainingSeconds;
+  final DateTime? lockUntil;
+
+  AccountLockoutException({
+    required this.message,
+    this.isLocked = false,
+    this.attemptsRemaining,
+    this.remainingSeconds,
+    this.lockUntil,
+  });
+
+  @override
+  String toString() => message;
 }

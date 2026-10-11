@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets/teknoy_cart_logo.dart';
+import '../../../core/services/secure_token_service.dart';
 import '../providers/auth_provider.dart';
 import '../services/auth_service.dart';
 import 'widgets/email_verification_dialog.dart';
@@ -43,9 +44,72 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
   late Animation<double> _fadeAnim;
   StreamSubscription<AuthState>? _authSubscription;
 
+  int? _attemptsRemaining;
+  int? _lockoutSecondsRemaining;
+  int _localFailedAttempts = 0;
+  Timer? _countdownTimer;
+
+  void _startLockoutCountdown(int seconds, {DateTime? lockUntil}) {
+    _countdownTimer?.cancel();
+    final expiration = lockUntil ?? DateTime.now().add(Duration(seconds: seconds));
+    SecureTokenService.saveLockoutUntil(expiration);
+    setState(() {
+      _lockoutSecondsRemaining = seconds;
+      _attemptsRemaining = 0;
+    });
+    HapticFeedback.heavyImpact();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_lockoutSecondsRemaining == null || _lockoutSecondsRemaining! <= 1) {
+        timer.cancel();
+        SecureTokenService.clearLockout();
+        setState(() {
+          _lockoutSecondsRemaining = null;
+          _attemptsRemaining = null;
+          _localFailedAttempts = 0;
+        });
+        HapticFeedback.mediumImpact();
+      } else {
+        setState(() {
+          _lockoutSecondsRemaining = _lockoutSecondsRemaining! - 1;
+        });
+      }
+    });
+  }
+
+  Future<void> _restorePersistentLockoutState() async {
+    try {
+      final lockUntil = await SecureTokenService.getLockoutUntil();
+      if (lockUntil != null) {
+        final diff = lockUntil.difference(DateTime.now()).inSeconds;
+        if (diff > 0) {
+          if (mounted) {
+            _startLockoutCountdown(diff, lockUntil: lockUntil);
+          }
+          return;
+        } else {
+          await SecureTokenService.clearLockout();
+        }
+      }
+      final attempts = await SecureTokenService.getFailedAttempts();
+      if (mounted && attempts > 0 && attempts < 5) {
+        setState(() {
+          _localFailedAttempts = attempts;
+          _attemptsRemaining = 5 - attempts;
+        });
+      }
+    } catch (e) {
+      debugPrint('RESTORE_LOCKOUT_STATE: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _restorePersistentLockoutState();
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -79,6 +143,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _authSubscription?.cancel();
     _fadeController.dispose();
     _emailController.dispose();
@@ -185,14 +250,41 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
     FocusScope.of(context).unfocus();
 
     if (_isLoginTab) {
+      if (_lockoutSecondsRemaining != null && _lockoutSecondsRemaining! > 0) {
+        _showErrorSnackBar('Account is currently locked. Please wait for the cooldown timer.');
+        return;
+      }
       if (!_formKey.currentState!.validate()) return;
       try {
         await ref.read(authNotifierProvider.notifier).login(
               email: _emailController.text.trim(),
               password: _passwordController.text,
             );
+        _countdownTimer?.cancel();
+        await SecureTokenService.clearLockout();
+        if (mounted) {
+          setState(() {
+            _attemptsRemaining = null;
+            _lockoutSecondsRemaining = null;
+            _localFailedAttempts = 0;
+          });
+        }
       } catch (e) {
         if (mounted) {
+          if (e is AccountLockoutException) {
+            if (e.isLocked) {
+              final secs = e.remainingSeconds ?? 600;
+              _startLockoutCountdown(secs, lockUntil: e.lockUntil);
+              _showErrorSnackBar(e.message);
+              return;
+            } else if (e.attemptsRemaining != null) {
+              setState(() {
+                _attemptsRemaining = e.attemptsRemaining;
+                _localFailedAttempts = 5 - e.attemptsRemaining!;
+              });
+              SecureTokenService.saveFailedAttempts(_localFailedAttempts);
+            }
+          }
           // Catch unverified email specifically and open the friendly verification modal immediately
           if (e is UnverifiedEmailException) {
             showDialog(
@@ -220,7 +312,50 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
             );
             return;
           }
-          if (msg.contains('invalid_credentials') ||
+
+          if (msg.contains('attempts remaining')) {
+            final match = RegExp(r'(\d+)\s+attempts remaining').firstMatch(msg);
+            if (match != null) {
+              final remaining = int.tryParse(match.group(1)!);
+              if (remaining != null) {
+                setState(() {
+                  _attemptsRemaining = remaining;
+                  _localFailedAttempts = 5 - remaining;
+                });
+                SecureTokenService.saveFailedAttempts(_localFailedAttempts);
+              }
+            }
+          } else if (msg.contains('Account is temporarily locked') || msg.contains('Account locked') || msg.contains('lockout')) {
+            _startLockoutCountdown(600);
+            _showErrorSnackBar('Account temporarily locked. Please wait 10 minutes.');
+            return;
+          } else if (e is! AccountLockoutException) {
+            _localFailedAttempts++;
+            SecureTokenService.saveFailedAttempts(_localFailedAttempts);
+            if (_localFailedAttempts >= 5) {
+              _startLockoutCountdown(600);
+              _showErrorSnackBar('Account temporarily locked after 5 failed attempts. Please wait 10 minutes.');
+              return;
+            } else {
+              setState(() => _attemptsRemaining = 5 - _localFailedAttempts);
+            }
+          }
+
+          // UI/UX Pro Max: Select password text for instant correction without touching email
+          if (_passwordController.text.isNotEmpty) {
+            _passwordController.selection = TextSelection(
+              baseOffset: 0,
+              extentOffset: _passwordController.text.length,
+            );
+          }
+
+          if (msg.contains('attempts remaining') || msg.contains('lockout')) {
+            msg = msg
+                .replaceAll('AuthException: ', '')
+                .replaceAll('FormatException: ', '')
+                .replaceAll('Exception: ', '')
+                .trim();
+          } else if (msg.contains('invalid_credentials') ||
               msg.contains('Invalid login credentials') ||
               msg.contains('400')) {
             msg = 'No account found matching these credentials. Please check your email and password, or sign up.';
@@ -449,6 +584,8 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                                         onForgotPassword: _showForgotPasswordSheet,
                                         onSubmit: _submitForm,
                                         isLoading: authState.isLoading,
+                                        attemptsRemaining: _attemptsRemaining,
+                                        lockoutSecondsRemaining: _lockoutSecondsRemaining,
                                       )
                                     else
                                       AuthRegisterForm(

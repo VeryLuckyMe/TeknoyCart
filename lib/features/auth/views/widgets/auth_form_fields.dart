@@ -163,6 +163,7 @@ class AuthInputField extends StatelessWidget {
   final String? Function(String?)? validator;
   final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onChanged;
+  final bool enabled;
 
   const AuthInputField({
     super.key,
@@ -175,6 +176,7 @@ class AuthInputField extends StatelessWidget {
     this.validator,
     this.inputFormatters,
     this.onChanged,
+    this.enabled = true,
   });
 
   @override
@@ -182,6 +184,7 @@ class AuthInputField extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextFormField(
       controller: controller,
+      enabled: enabled,
       obscureText: obscureText,
       keyboardType: keyboardType,
       validator: validator,
@@ -190,7 +193,9 @@ class AuthInputField extends StatelessWidget {
       style: TextStyle(
         fontFamily: 'Inter',
         fontSize: 14,
-        color: isDark ? Colors.white : Colors.black87,
+        color: enabled
+            ? (isDark ? Colors.white : Colors.black87)
+            : (isDark ? Colors.white38 : Colors.black38),
       ),
       decoration: InputDecoration(
         labelText: label,
@@ -202,7 +207,9 @@ class AuthInputField extends StatelessWidget {
         prefixIcon: Icon(icon, size: 20, color: isDark ? Colors.white60 : Colors.black54),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8F9FA),
+        fillColor: enabled
+            ? (isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8F9FA))
+            : (isDark ? Colors.white.withValues(alpha: 0.02) : const Color(0xFFEEEEF0)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -211,6 +218,10 @@ class AuthInputField extends StatelessWidget {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: isDark ? Colors.white12 : const Color(0xFFE9ECEF)),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE0E0E4)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

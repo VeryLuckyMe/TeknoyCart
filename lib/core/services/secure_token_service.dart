@@ -17,6 +17,8 @@ class SecureTokenService {
   static const String _keyAccessToken = 'teknoy_access_token';
   static const String _keyRefreshToken = 'teknoy_refresh_token';
   static const String _keyBackendToken = 'teknoy_backend_token';
+  static const String _keyLockoutUntil = 'teknoy_auth_lockout_until';
+  static const String _keyFailedAttempts = 'teknoy_auth_failed_attempts';
 
   /// Securely stores auth tokens after successful authentication.
   static Future<void> saveTokens({
@@ -85,5 +87,59 @@ class SecureTokenService {
       await _storage.delete(key: _keyRefreshToken);
       await _storage.delete(key: _keyBackendToken);
     } catch (e) { debugPrint('SECURE_TOKEN_CLEAR: $e'); }
+  }
+
+  /// Saves the lockout expiration timestamp so the 10-minute cooldown persists across app restarts.
+  static Future<void> saveLockoutUntil(DateTime lockUntil) async {
+    try {
+      await _storage.write(key: _keyLockoutUntil, value: lockUntil.toIso8601String());
+    } catch (e) {
+      debugPrint('SECURE_LOCKOUT_SAVE: $e');
+    }
+  }
+
+  /// Retrieves the lockout expiration timestamp if active.
+  static Future<DateTime?> getLockoutUntil() async {
+    try {
+      final val = await _storage.read(key: _keyLockoutUntil);
+      if (val != null && val.isNotEmpty) {
+        return DateTime.tryParse(val);
+      }
+    } catch (e) {
+      debugPrint('SECURE_LOCKOUT_READ: $e');
+    }
+    return null;
+  }
+
+  /// Saves failed attempt count to persist across app restarts.
+  static Future<void> saveFailedAttempts(int count) async {
+    try {
+      await _storage.write(key: _keyFailedAttempts, value: count.toString());
+    } catch (e) {
+      debugPrint('SECURE_ATTEMPTS_SAVE: $e');
+    }
+  }
+
+  /// Retrieves stored failed attempt count.
+  static Future<int> getFailedAttempts() async {
+    try {
+      final val = await _storage.read(key: _keyFailedAttempts);
+      if (val != null && val.isNotEmpty) {
+        return int.tryParse(val) ?? 0;
+      }
+    } catch (e) {
+      debugPrint('SECURE_ATTEMPTS_READ: $e');
+    }
+    return 0;
+  }
+
+  /// Clears lockout state and failed attempts counter upon successful login or timer expiration.
+  static Future<void> clearLockout() async {
+    try {
+      await _storage.delete(key: _keyLockoutUntil);
+      await _storage.delete(key: _keyFailedAttempts);
+    } catch (e) {
+      debugPrint('SECURE_LOCKOUT_CLEAR: $e');
+    }
   }
 }

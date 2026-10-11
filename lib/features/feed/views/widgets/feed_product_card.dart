@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/product.dart';
 import '../../../../core/theme.dart';
+import '../../../../core/utils/order_ui_helper.dart';
 import '../../providers/review_provider.dart';
 import '../search_results_view.dart';
 
@@ -102,13 +103,13 @@ class _FeedProductCardState extends State<FeedProductCard> {
                         ],
                       ),
                       child: Text(
-                        product.condition.toUpperCase(),
+                        OrderUiHelper.formatCondition(product.condition),
                         style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w700,
                           fontSize: 9.5,
                           color: badgeText,
-                          letterSpacing: 0.5,
+                          letterSpacing: 0.2,
                         ),
                       ),
                     ),

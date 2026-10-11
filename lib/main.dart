@@ -68,24 +68,16 @@ class TeknoyCartApp extends ConsumerWidget {
           }
           return const AuthGateView();
         },
-        loading: () => const Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(
-              color: TeknoyTheme.citMaroon,
-            ),
-          ),
-        ),
-        error: (err, _) => Scaffold(
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Text(
-                'Critical Error: $err',
-                style: const TextStyle(color: TeknoyTheme.error),
-              ),
-            ),
-          ),
-        ),
+        loading: () {
+          // If a logged-in user is loading (e.g. refreshing session profile), keep feed mounted
+          if (authStateAsync.valueOrNull != null) {
+            return const ProductDiscoveryFeedView();
+          }
+          // For unauthenticated states (login/register in-flight), NEVER unmount AuthGateView!
+          // The form's submit button displays its own inline progress indicator.
+          return const AuthGateView();
+        },
+        error: (err, _) => const AuthGateView(),
       ),
     );
   }
