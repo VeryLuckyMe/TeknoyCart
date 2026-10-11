@@ -381,6 +381,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             'unit_price': item.price,
             'total_amount': item.price * item.quantity,
             'status': 'PLACED',
+            'version': 0,
             'pickup_location': widget.isPreorder ? '[PRE-ORDER] $_selectedLocation' : _selectedLocation,
             'pickup_day': widget.isPreorder ? 'When Batch Ready (Est. 3-7 Days)' : _selectedDay,
             'pickup_time': _selectedTimeSlot,

@@ -41,9 +41,13 @@ class SecureTokenService {
   }
 
   /// Retrieves the active bearer token for backend requests.
-  /// Prefers secure storage, falls back to Supabase session.
+  /// Prefers Spring Boot backend token, then secure storage access token, falls back to Supabase session.
   static Future<String?> getBearerToken() async {
     try {
+      final backendToken = await _storage.read(key: _keyBackendToken);
+      if (backendToken != null && backendToken.isNotEmpty) {
+        return backendToken;
+      }
       final token = await _storage.read(key: _keyAccessToken);
       if (token != null && token.isNotEmpty) {
         return token;

@@ -4,6 +4,9 @@ import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:teknoycart/core/services/secure_token_service.dart';
 
 /// Orders Hub — unified view for buyers ("My Purchases") and sellers ("Incoming Orders").
 /// Shows full order details including buyer/seller name, pickup schedule, payment method, and action buttons.
@@ -257,14 +260,43 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
 
   Future<void> _acceptOrder(String orderId) async {
     try {
-      await SupabaseConfig.client
-          .from('orders')
-          .update({'status': 'APPROVED'})
-          .eq('order_id', orderId);
+      bool rpcSucceeded = false;
+      try {
+        final rpcRes = await SupabaseConfig.client.rpc(
+          'accept_order_as_seller',
+          params: {'p_order_id': orderId},
+        );
+        if (rpcRes is Map && rpcRes['success'] == true) {
+          rpcSucceeded = true;
+        }
+      } catch (rpcErr) {
+        debugPrint('accept_order_as_seller RPC attempt: $rpcErr');
+      }
+
+      if (!rpcSucceeded) {
+        final token = await SecureTokenService.getBearerToken();
+        final url = Uri.parse('https://teknoycart-backend.onrender.com/api/orders/$orderId/accept');
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({}),
+        );
+        if (response.statusCode >= 400) {
+          String msg = 'Failed to accept order (${response.statusCode})';
+          try {
+            final parsed = jsonDecode(response.body);
+            if (parsed is Map && parsed['message'] != null) msg = parsed['message'].toString();
+          } catch (_) {}
+          throw Exception(msg);
+        }
+      }
       await _fetchSellerOrders();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order accepted! The buyer has been notified.'), backgroundColor: Colors.green));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to accept: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to accept: $e'), backgroundColor: Colors.red));
     }
   }
 
@@ -311,14 +343,17 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
 
   Future<void> _declineOrder(String orderId) async {
     try {
-      await SupabaseConfig.client
-          .from('orders')
-          .update({'status': 'REJECTED'})
-          .eq('order_id', orderId);
+      final rpcRes = await SupabaseConfig.client.rpc(
+        'cancel_order_as_seller',
+        params: {'p_order_id': orderId, 'p_reason': 'Declined by seller'},
+      );
+      if (rpcRes is Map && rpcRes['success'] == false) {
+        throw Exception(rpcRes['error'] ?? 'Failed to decline order');
+      }
       await _fetchSellerOrders();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order declined.')));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to decline: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to decline: $e'), backgroundColor: Colors.red));
     }
   }
 

@@ -96,7 +96,16 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
       body: jsonEncode(body),
     );
     if (response.statusCode >= 400) {
-      throw Exception('API Error: ${response.statusCode} - ${response.body}');
+      String errorMessage = 'Error ${response.statusCode}';
+      try {
+        final parsed = jsonDecode(response.body);
+        if (parsed is Map && parsed['message'] != null) {
+          errorMessage = parsed['message'].toString();
+        }
+      } catch (_) {
+        if (response.body.isNotEmpty) errorMessage = response.body;
+      }
+      throw Exception(errorMessage);
     }
     try {
       if (response.body.isNotEmpty) {
@@ -129,6 +138,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     final raw = _order['status'] as String? ?? '';
     if (raw == 'PENDING_SELLER_ACCEPT' || raw == 'INQUIRY_SENT') return 'PLACED';
     if (raw == 'APPROVED' || raw == 'SELLER_ACCEPTED') return 'ACCEPTED';
+    if (raw == 'REJECTED' || raw == 'DECLINED') return 'CANCELLED';
     return raw;
   }
 
@@ -231,6 +241,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
   Future<void> _initiateGcashPayment() async {
     setState(() => _isActing = true);
     try {
+      final existingUrl = _order['paymongo_checkout_url'] as String?;
+      if (existingUrl != null && existingUrl.isNotEmpty && _status == 'AWAITING_PAYMENT') {
+        final uri = Uri.parse(existingUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      }
       final token = await SecureTokenService.getBearerToken();
       final url = Uri.parse('$backendUrl/${_order['order_id']}/initiate-payment');
       final response = await http.post(
@@ -242,11 +260,22 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         body: jsonEncode({}),
       );
       if (response.statusCode >= 400) {
-        throw Exception('Payment initiation failed: ${response.statusCode} - ${response.body}');
+        String errorMessage = 'Error ${response.statusCode}';
+        try {
+          final parsed = jsonDecode(response.body);
+          if (parsed is Map && parsed['message'] != null) {
+            errorMessage = parsed['message'].toString();
+          } else if (parsed is Map && parsed['error'] != null) {
+            errorMessage = parsed['error'].toString();
+          }
+        } catch (_) {
+          if (response.body.isNotEmpty) errorMessage = response.body;
+        }
+        throw Exception(errorMessage);
       }
       final data = jsonDecode(response.body);
       if (data is Map<String, dynamic>) {
-        final checkoutUrl = data['checkoutUrl'] as String?;
+        final checkoutUrl = (data['checkoutUrl'] ?? data['checkout_url']) as String?;
         if (checkoutUrl != null && checkoutUrl.isNotEmpty) {
           final uri = Uri.parse(checkoutUrl);
           if (await canLaunchUrl(uri)) {
@@ -274,7 +303,74 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
   Future<void> _handleSpringAction(String action, Map<String, dynamic> body, String successMsg) async {
     setState(() => _isActing = true);
     try {
-      await _callSpringApi(action, body);
+      if (action == 'cancel') {
+        final reason = body['reason'] as String? ?? 'Seller declined';
+        bool rpcSucceeded = false;
+        try {
+          final rpcRes = await SupabaseConfig.client.rpc(
+            'cancel_order_as_seller',
+            params: {
+              'p_order_id': _order['order_id'],
+              'p_reason': reason,
+            },
+          );
+          if (rpcRes is Map && rpcRes['success'] == true) {
+            rpcSucceeded = true;
+          } else if (rpcRes is Map && rpcRes['error'] != null) {
+            throw Exception(rpcRes['error']);
+          }
+        } catch (rpcErr) {
+          debugPrint('cancel_order_as_seller RPC attempt: $rpcErr');
+        }
+
+        if (rpcSucceeded) {
+          if (mounted) {
+            setState(() {
+              _order['status'] = 'CANCELLED';
+              _order['dispute_reason'] = reason;
+            });
+          }
+        } else {
+          // Secondary path: Spring Boot backend order endpoint
+          await _callSpringApi(action, body);
+        }
+      } else if (action == 'accept') {
+        bool rpcSucceeded = false;
+        try {
+          final rpcRes = await SupabaseConfig.client.rpc(
+            'accept_order_as_seller',
+            params: {
+              'p_order_id': _order['order_id'],
+            },
+          );
+          if (rpcRes is Map && rpcRes['success'] == true) {
+            rpcSucceeded = true;
+          } else if (rpcRes is Map && rpcRes['error'] != null) {
+            debugPrint('accept_order_as_seller RPC error: ${rpcRes['error']}');
+          }
+        } catch (rpcErr) {
+          debugPrint('accept_order_as_seller RPC attempt: $rpcErr');
+        }
+
+        if (rpcSucceeded) {
+          if (mounted) {
+            setState(() {
+              _order['status'] = 'ACCEPTED';
+            });
+          }
+        } else {
+          // Secondary path: Spring Boot backend order endpoint
+          await _callSpringApi(action, body);
+          if (mounted) {
+            setState(() {
+              _order['status'] = 'ACCEPTED';
+            });
+          }
+        }
+      } else {
+        await _callSpringApi(action, body);
+      }
+
       await _refreshOrder();
       if (mounted && successMsg.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -283,7 +379,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         ));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Action failed: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Action failed: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
     } finally {
       if (mounted) setState(() => _isActing = false);
     }
