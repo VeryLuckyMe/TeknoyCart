@@ -18,8 +18,9 @@ import 'widgets/qr_scanner_sheet.dart';
 import 'package:teknoycart/core/models/review.dart';
 import 'package:teknoycart/features/feed/providers/review_provider.dart';
 import 'package:teknoycart/features/feed/views/widgets/review_submission_sheet.dart';
+import 'package:teknoycart/core/config/api_config.dart';
 
-const String backendUrl = 'https://teknoycart-backend.onrender.com/api/orders';
+String get backendUrl => ApiConfig.ordersUrl;
 
 /// Full-screen order detail view with status stepper, party info, cancellation & return request capabilities.
 class OrderDetailView extends ConsumerStatefulWidget {

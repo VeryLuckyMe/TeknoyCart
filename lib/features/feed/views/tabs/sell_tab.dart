@@ -317,18 +317,18 @@ class _SellTabState extends ConsumerState<SellTab> {
       }
       setState(() => _isUploadingProductImage = false);
     } else {
-      // Dynamic mock visual based on category
+      // Dynamic category visual fallback
       const categoryImages = {
-        'Books': 'https://picsum.photos/seed/books-cs/400/300',
-        'Uniforms': 'https://picsum.photos/seed/uniforms/400/300',
-        'Clothes': 'https://picsum.photos/seed/clothes-apparel/400/300',
-        'Electronics': 'https://picsum.photos/seed/electronics/400/300',
-        'Drawing Tools': 'https://picsum.photos/seed/drawing-tools/400/300',
-        'Food & Beverages': 'https://picsum.photos/seed/food-snacks/400/300',
-        'School Supplies': 'https://picsum.photos/seed/school-supplies/400/300',
-        'Services': 'https://picsum.photos/seed/services/400/300',
+        'Books': 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop',
+        'Uniforms': 'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?w=600&auto=format&fit=crop',
+        'Clothes': 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=600&auto=format&fit=crop',
+        'Electronics': 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?w=600&auto=format&fit=crop',
+        'Drawing Tools': 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?w=600&auto=format&fit=crop',
+        'Food & Beverages': 'https://images.unsplash.com/photo-1509722747041-616f39b57569?w=600&auto=format&fit=crop',
+        'School Supplies': 'https://images.unsplash.com/photo-1456735190827-d1262f71b8a3?w=600&auto=format&fit=crop',
+        'Services': 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&auto=format&fit=crop',
       };
-      final fallbackUrl = categoryImages[_sellCategory] ?? 'https://picsum.photos/seed/others/400/300';
+      final fallbackUrl = categoryImages[_sellCategory] ?? 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&auto=format&fit=crop';
       imageUrls = [fallbackUrl];
     }
 

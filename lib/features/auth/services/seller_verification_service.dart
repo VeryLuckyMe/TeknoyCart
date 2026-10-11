@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import '../../../core/supabase_client.dart';
 import '../../../core/services/secure_token_service.dart';
+import '../../../core/config/api_config.dart';
 import '../models/seller_verification.dart';
 
 final sellerVerificationServiceProvider = Provider<SellerVerificationService>((ref) {
@@ -114,7 +115,7 @@ class SellerVerificationService {
       final token = await SecureTokenService.getBearerToken();
       if (token != null && token.isNotEmpty) {
         final response = await http.post(
-          Uri.parse('https://teknoycart-backend.onrender.com/api/auth/request-seller-upgrade'),
+          Uri.parse('${ApiConfig.authUrl}/request-seller-upgrade'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $token',

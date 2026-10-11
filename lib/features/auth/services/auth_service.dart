@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
+import 'package:teknoycart/core/config/api_config.dart';
 import 'package:http/http.dart' as http;
 
 /// Authentication service backed by Supabase Auth.
@@ -122,7 +123,7 @@ class AuthService {
     final emailTrimmed = email.trim().toLowerCase();
 
     // Call server-authoritative backend /auth/login endpoint
-    final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/login');
+    final url = Uri.parse('${ApiConfig.authUrl}/login');
     http.Response response;
 
     try {
@@ -352,7 +353,7 @@ class AuthService {
   }
 
   Future<void> _sendVerificationEmailWithRetry(String email, String fullName) async {
-    final url = Uri.parse('https://teknoycart-backend.onrender.com/api/auth/send-verification')
+    final url = Uri.parse('${ApiConfig.authUrl}/send-verification')
         .replace(queryParameters: {
           'email': email.trim(),
           'fullName': fullName.trim(),

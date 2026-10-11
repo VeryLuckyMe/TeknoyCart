@@ -187,7 +187,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
         final images = productData['product_images'] as List<dynamic>?;
         final imageUrl = (images != null && images.isNotEmpty)
             ? images[0]['image_url'] as String?
-            : 'https://picsum.photos/seed/others/300/300';
+            : 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=300&auto=format&fit=crop';
 
         final product = Product(
           id: productData['product_id'] as String,

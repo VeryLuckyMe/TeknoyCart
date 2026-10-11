@@ -5,8 +5,9 @@ import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/utils/order_ui_helper.dart';
+import 'package:teknoycart/core/config/api_config.dart';
 
-const String _backendOrdersUrl = 'https://teknoycart-backend.onrender.com/api/orders';
+String get _backendOrdersUrl => ApiConfig.ordersUrl;
 
 /// Self-contained, robust bottom sheet for inspecting and reconciling reserved holds.
 class ReservedOrdersSheet extends StatefulWidget {

@@ -337,7 +337,7 @@ final List<Product> _fallbackProducts = [
         'Official CIT-U drawing board with adjustable stands. Very clean, lightly used for one semester.',
     price: 450.00,
     imageUrl:
-        'https://picsum.photos/seed/drawing-tools/400/300',
+        'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?w=600&auto=format&fit=crop',
     category: 'Drawing Tools',
     condition: 'Like New',
     sellerId: 'demo-1',
@@ -355,7 +355,7 @@ final List<Product> _fallbackProducts = [
         'Complete set of official CIT-U physical education uniform. Unisex design, medium size.',
     price: 250.00,
     imageUrl:
-        'https://picsum.photos/seed/uniforms/400/300',
+        'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?w=600&auto=format&fit=crop',
     category: 'Uniforms',
     condition: 'Gently Used',
     sellerId: 'demo-2',
@@ -374,7 +374,7 @@ final List<Product> _fallbackProducts = [
         'Data Structures and Algorithms in Java, 6th Edition. Super helpful for second-year CS subjects.',
     price: 180.00,
     imageUrl:
-        'https://picsum.photos/seed/books-cs/400/300',
+        'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop',
     category: 'Books',
     condition: 'New',
     sellerId: 'demo-3',
@@ -393,7 +393,7 @@ final List<Product> _fallbackProducts = [
         'Casio Scientific Calculator, perfect for Engineering and Math courses. All buttons working.',
     price: 350.00,
     imageUrl:
-        'https://picsum.photos/seed/electronics/400/300',
+        'https://images.unsplash.com/photo-1629909613654-28e377c37b09?w=600&auto=format&fit=crop',
     category: 'Electronics',
     condition: 'Gently Used',
     sellerId: 'demo-1',
@@ -412,7 +412,7 @@ final List<Product> _fallbackProducts = [
         'Freshly baked artisan chocolate chip cookies made by CIT-U Hospitality students. Warm and soft-baked.',
     price: 120.00,
     imageUrl:
-        'https://picsum.photos/seed/food-snacks/400/300',
+        'https://images.unsplash.com/photo-1509722747041-616f39b57569?w=600&auto=format&fit=crop',
     category: 'Food & Beverages',
     condition: 'New',
     sellerId: 'demo-4',
@@ -432,7 +432,7 @@ final List<Product> _fallbackProducts = [
         'Original Pilot G-Tec-C 0.3mm ultra-fine point gel ink pens. Perfect for technical sketching and clean notes.',
     price: 165.00,
     imageUrl:
-        'https://picsum.photos/seed/school-supplies/400/300',
+        'https://images.unsplash.com/photo-1456735190827-d1262f71b8a3?w=600&auto=format&fit=crop',
     category: 'School Supplies',
     condition: 'New',
     sellerId: 'demo-5',
@@ -452,7 +452,7 @@ final List<Product> _fallbackProducts = [
         'Trendy streetwear wide-leg denim jorts. High-quality denim with deep pockets, perfect campus casual style.',
     price: 320.00,
     imageUrl:
-        'https://picsum.photos/seed/clothes-apparel/400/300',
+        'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=600&auto=format&fit=crop',
     category: 'Clothes',
     condition: 'Like New',
     sellerId: 'demo-2',
@@ -804,23 +804,23 @@ class ProductListNotifier
   static String _categoryImage(String category) {
     switch (category) {
       case 'Books':
-        return 'https://picsum.photos/seed/books-cs/400/300';
+        return 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop';
       case 'Drawing Tools':
-        return 'https://picsum.photos/seed/drawing-tools/400/300';
+        return 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?w=600&auto=format&fit=crop';
       case 'Uniforms':
-        return 'https://picsum.photos/seed/uniforms/400/300';
+        return 'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?w=600&auto=format&fit=crop';
       case 'Clothes':
-        return 'https://picsum.photos/seed/clothes-apparel/400/300';
+        return 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=600&auto=format&fit=crop';
       case 'Electronics':
-        return 'https://picsum.photos/seed/electronics/400/300';
+        return 'https://images.unsplash.com/photo-1629909613654-28e377c37b09?w=600&auto=format&fit=crop';
       case 'Food & Beverages':
-        return 'https://picsum.photos/seed/food-snacks/400/300';
+        return 'https://images.unsplash.com/photo-1509722747041-616f39b57569?w=600&auto=format&fit=crop';
       case 'School Supplies':
-        return 'https://picsum.photos/seed/school-supplies/400/300';
+        return 'https://images.unsplash.com/photo-1456735190827-d1262f71b8a3?w=600&auto=format&fit=crop';
       case 'Services':
-        return 'https://picsum.photos/seed/services/400/300';
+        return 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&auto=format&fit=crop';
       default:
-        return 'https://picsum.photos/seed/others/400/300';
+        return 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&auto=format&fit=crop';
     }
   }
 }

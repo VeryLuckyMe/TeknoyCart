@@ -8,6 +8,7 @@ import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:teknoycart/core/services/secure_token_service.dart';
+import 'package:teknoycart/core/config/api_config.dart';
 
 /// Orders Hub — unified view for buyers ("My Purchases") and sellers ("Incoming Orders").
 /// Shows full order details including buyer/seller name, pickup schedule, payment method, and action buttons.
@@ -280,7 +281,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
 
       if (!rpcSucceeded) {
         final token = await SecureTokenService.getBearerToken();
-        final url = Uri.parse('https://teknoycart-backend.onrender.com/api/orders/$orderId/accept');
+        final url = Uri.parse('${ApiConfig.ordersUrl}/$orderId/accept');
         final response = await http.post(
           url,
           headers: {
