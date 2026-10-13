@@ -278,6 +278,70 @@ void main() {
       expect(find.text('ORDER'), findsOneWidget);
       expect(find.text('VERIFICATION'), findsOneWidget);
     });
+
+    testWidgets('7. Admin notification: New Seller Application renders properly and filters into Account category', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final adminUser = Profile(
+        id: 'admin-ui-test-99',
+        username: 'teknoy_admin',
+        email: 'admin@cit.edu',
+        role: 'ADMIN',
+        isSellerVerified: true,
+        createdAt: DateTime.now(),
+      );
+
+      final adminNotifications = [
+        NotificationItem(
+          id: 'notif-admin-01',
+          userId: adminUser.id,
+          title: '📋 New Seller Application',
+          body: 'Maria Santos submitted KYC verification (STUDENT) for administrative review.',
+          type: 'KYC',
+          referenceId: 'kyc-application-101',
+          referenceType: 'KYC',
+          isRead: false,
+          createdAt: DateTime.now().subtract(const Duration(minutes: 3)),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => AsyncValue.data(adminUser)),
+            unreadNotificationCountProvider.overrideWithValue(1),
+            notificationProvider.overrideWith(() => FakeNotificationNotifier(adminNotifications)),
+          ],
+          child: const MaterialApp(
+            home: ProductDiscoveryFeedView(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Notifications'));
+      await tester.pumpAndSettle();
+
+      // Check title, body, and micro-chip
+      expect(find.text('📋 New Seller Application'), findsOneWidget);
+      expect(find.text('Maria Santos submitted KYC verification (STUDENT) for administrative review.'), findsOneWidget);
+      expect(find.text('VERIFICATION'), findsOneWidget);
+
+      // Tap 'Account' filter pill and confirm item remains visible
+      await tester.tap(find.text('Account'));
+      await tester.pumpAndSettle();
+      expect(find.text('📋 New Seller Application'), findsOneWidget);
+
+      // Tap 'Orders' filter pill and confirm item is filtered out
+      await tester.tap(find.text('Orders'));
+      await tester.pumpAndSettle();
+      expect(find.text('📋 New Seller Application'), findsNothing);
+    });
   });
 }
 
