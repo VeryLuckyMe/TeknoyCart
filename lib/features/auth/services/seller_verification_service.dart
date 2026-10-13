@@ -120,7 +120,7 @@ class SellerVerificationService {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $token',
           },
-        ).timeout(const Duration(seconds: 15));
+        ).timeout(const Duration(seconds: 35));
         if (response.statusCode != 200) {
           debugPrint('SELLER_UPGRADE_API: Backend returned ${response.statusCode}');
         }
