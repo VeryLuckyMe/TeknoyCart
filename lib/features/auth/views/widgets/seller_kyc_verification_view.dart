@@ -48,6 +48,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
   bool _agreedToTerms = false;
   bool _isSubmitting = false;
   bool _isLoadingHistory = true;
+  bool _isRefreshing = false;
 
   SellerVerification? _existingVerification;
   late String _sellerType;
@@ -62,7 +63,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
     _currentStep = widget.initialStep;
     _pageController = PageController(initialPage: widget.initialStep);
     _subscribeToVerificationRealtime();
-    _fetchVerificationHistory();
+    _fetchVerificationHistory(forceRefresh: true);
   }
 
   void _subscribeToVerificationRealtime() {
@@ -119,7 +120,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
   }
 
   Future<void> _fetchVerificationHistory({bool forceRefresh = false}) async {
-    // Instantaneous 0ms load from memory cache
+    // Fast initial display from cache if available and not explicitly force-refreshing
     if (!forceRefresh && _cachedVerificationMap.containsKey(widget.userId)) {
       final cached = _cachedVerificationMap[widget.userId];
       setState(() {
@@ -141,26 +142,42 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
       return;
     }
 
-    setState(() => _isLoadingHistory = _existingVerification == null);
-    final service = ref.read(sellerVerificationServiceProvider);
-    final record = await service.getLatestVerification(widget.userId);
-    _cachedVerificationMap[widget.userId] = record;
     if (mounted) {
       setState(() {
-        _existingVerification = record;
-        if (record != null) {
-          _sellerType = record.sellerType;
-          if (record.officerName != null) {
-            _officerNameController.text = record.officerName!;
-          }
-          if (record.officerPosition != null) {
-            _officerPositionController.text = record.officerPosition!;
-          }
-        }
-        _isLoadingHistory = false;
+        _isLoadingHistory = _existingVerification == null;
+        if (forceRefresh) _isRefreshing = true;
       });
-      if (record != null && record.isApproved) {
-        widget.onRefreshStatus?.call();
+    }
+
+    try {
+      final service = ref.read(sellerVerificationServiceProvider);
+      final record = await service.getLatestVerification(widget.userId);
+      _cachedVerificationMap[widget.userId] = record;
+      if (mounted) {
+        setState(() {
+          _existingVerification = record;
+          if (record != null) {
+            _sellerType = record.sellerType;
+            if (record.officerName != null) {
+              _officerNameController.text = record.officerName!;
+            }
+            if (record.officerPosition != null) {
+              _officerPositionController.text = record.officerPosition!;
+            }
+          }
+          _isLoadingHistory = false;
+          _isRefreshing = false;
+        });
+        if (record != null && record.isApproved) {
+          widget.onRefreshStatus?.call();
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoadingHistory = false;
+          _isRefreshing = false;
+        });
       }
     }
   }
@@ -578,14 +595,22 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
             ),
             const SizedBox(height: 28),
             OutlinedButton.icon(
-              onPressed: () async {
-                await _fetchVerificationHistory();
-                widget.onRefreshStatus?.call();
-              },
-              icon: const Icon(Icons.sync_rounded, size: 18),
-              label: const Text(
-                'Refresh Review Status',
-                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+              onPressed: _isRefreshing
+                  ? null
+                  : () async {
+                      await _fetchVerificationHistory(forceRefresh: true);
+                      widget.onRefreshStatus?.call();
+                    },
+              icon: _isRefreshing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: TeknoyTheme.citMaroon),
+                    )
+                  : const Icon(Icons.sync_rounded, size: 18),
+              label: Text(
+                _isRefreshing ? 'Checking Status...' : 'Refresh Review Status',
+                style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
               ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: TeknoyTheme.citMaroon,
