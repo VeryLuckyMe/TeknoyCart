@@ -6,6 +6,7 @@ import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/core/config/api_config.dart';
+import 'package:teknoycart/core/services/fcm_service.dart';
 import 'package:http/http.dart' as http;
 
 /// Authentication service backed by Supabase Auth.
@@ -344,6 +345,9 @@ class AuthService {
 
   // ── Sign Out ──
   Future<void> signOut() async {
+    try {
+      await FcmService.instance.unregisterToken();
+    } catch (_) {}
     await SecureTokenService.clearTokens();
     await _client.auth.signOut();
   }

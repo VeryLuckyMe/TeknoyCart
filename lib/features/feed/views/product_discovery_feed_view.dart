@@ -11,6 +11,9 @@ import 'package:teknoycart/features/checkout/views/order_history_view.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/views/cart_view.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
+import 'package:teknoycart/core/providers/notification_provider.dart';
+import 'package:teknoycart/core/models/notification_item.dart';
+import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
 import 'tabs/browse_tab.dart';
 import 'tabs/sell_tab.dart';
 import 'tabs/profile_tab.dart';
@@ -204,81 +207,327 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1B1B22) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: TeknoyTheme.kElevationHigh,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white24 : Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+      builder: (ctx) => Consumer(
+        builder: (context, ref, _) {
+          final notificationsAsync = ref.watch(notificationProvider);
+          final unreadCount = ref.watch(unreadNotificationCountProvider);
+
+          return Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.75,
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF141418) : const Color(0xFFFFFFFF),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: TeknoyTheme.kElevationHigh,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Notifications',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text(
-                    'Mark all as read',
-                    style: TextStyle(fontFamily: 'Inter', color: TeknoyTheme.citMaroon),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'Notifications',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (unreadCount > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: TeknoyTheme.citMaroon,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '$unreadCount',
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (unreadCount > 0)
+                      TextButton(
+                        onPressed: () async {
+                          HapticFeedback.lightImpact();
+                          try {
+                            await ref.read(notificationProvider.notifier).markAllAsRead();
+                          } catch (e) {
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Failed to mark all as read. Please try again.'),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        child: const Text(
+                          'Mark all as read',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            color: TeknoyTheme.citMaroon,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Divider(color: isDark ? const Color(0xFF26262B) : const Color(0xFFEAEAEE)),
+                Flexible(
+                  child: notificationsAsync.when(
+                    loading: () => const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40.0),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: TeknoyTheme.citMaroon,
+                        ),
+                      ),
+                    ),
+                    error: (err, _) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 36.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.error_outline_rounded, size: 40, color: Colors.grey.shade400),
+                          const SizedBox(height: 8),
+                          const Text('Could not load notifications', style: TextStyle(fontFamily: 'Inter', fontSize: 14)),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () => ref.read(notificationProvider.notifier).refresh(),
+                            child: const Text('Retry', style: TextStyle(color: TeknoyTheme.citMaroon)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    data: (items) {
+                      if (items.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 36.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.notifications_none_rounded,
+                                size: 48,
+                                color: isDark ? Colors.white30 : Colors.grey.shade400,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No new notifications',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white70 : Colors.grey.shade700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Updates on orders, payments, and account status will show up here.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 13,
+                                  color: isDark ? Colors.white38 : Colors.grey.shade500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: items.length,
+                        separatorBuilder: (_, __) => Divider(
+                          height: 1,
+                          color: isDark ? const Color(0xFF26262B) : const Color(0xFFF0F0F4),
+                        ),
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          return _buildNotificationTile(context, ref, item, isDark);
+                        },
+                      );
+                    },
                   ),
                 ),
               ],
             ),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 36.0),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildNotificationTile(
+    BuildContext context,
+    WidgetRef ref,
+    NotificationItem item,
+    bool isDark,
+  ) {
+    IconData icon;
+    Color iconColor;
+    Color iconBg;
+
+    switch (item.type) {
+      case 'PAYMENT':
+        icon = Icons.account_balance_wallet_rounded;
+        iconColor = TeknoyTheme.citGold;
+        iconBg = TeknoyTheme.citGold.withValues(alpha: 0.15);
+        break;
+      case 'KYC':
+        icon = Icons.verified_user_rounded;
+        iconColor = const Color(0xFF1E88E5);
+        iconBg = const Color(0xFF1E88E5).withValues(alpha: 0.15);
+        break;
+      case 'OFFER':
+        icon = Icons.local_offer_rounded;
+        iconColor = Colors.orangeAccent;
+        iconBg = Colors.orangeAccent.withValues(alpha: 0.15);
+        break;
+      case 'ORDER_STATUS':
+      default:
+        icon = Icons.shopping_bag_rounded;
+        iconColor = TeknoyTheme.citMaroon;
+        iconBg = TeknoyTheme.citMaroon.withValues(alpha: 0.15);
+        break;
+    }
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () async {
+        HapticFeedback.lightImpact();
+        final nav = Navigator.of(context);
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+        if (!item.isRead) {
+          try {
+            await ref.read(notificationProvider.notifier).markAsRead(item.id);
+          } catch (e) {
+            scaffoldMessenger.showSnackBar(
+              const SnackBar(content: Text('Could not update notification state')),
+            );
+          }
+        }
+
+        nav.pop();
+
+        if (item.referenceType == 'ORDER' && item.referenceId != null && item.referenceId!.isNotEmpty) {
+          nav.push(
+            MaterialPageRoute(
+              builder: (_) => OrderDetailView(
+                order: {'order_id': item.referenceId!},
+                isSeller: item.title.contains('Payment') || item.title.contains('Sale') || item.title.contains('New Order'),
+              ),
+            ),
+          );
+        } else if (item.referenceType == 'KYC') {
+          _onTabSelected(2);
+        } else if (item.referenceType == 'CHAT') {
+          _onTabSelected(1);
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: iconBg,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 20, color: iconColor),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.notifications_none_rounded,
-                    size: 48,
-                    color: isDark ? Colors.white30 : Colors.grey.shade400,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.title,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 14,
+                            fontWeight: item.isRead ? FontWeight.w500 : FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        item.timeAgo,
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 11,
+                          color: isDark ? Colors.white38 : Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 3),
                   Text(
-                    'No new notifications',
+                    item.body,
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white60 : Colors.grey.shade600,
+                      fontSize: 12,
+                      color: isDark ? Colors.white70 : Colors.grey.shade700,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Updates on orders, chats, and deals will show up here.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 13,
-                      color: isDark ? Colors.white38 : Colors.grey.shade500,
-                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
+            if (!item.isRead) ...[
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(top: 6.0),
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: TeknoyTheme.citMaroon,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -535,8 +784,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           // ── 2. Notification Action ──
           Consumer(
             builder: (context, ref, child) {
-              // Notification unread indicator (clean anti-slop: only display when there are active unread alerts)
-              const bool hasUnreadNotifications = false;
+              final unreadCount = ref.watch(unreadNotificationCountProvider);
+              final hasUnreadNotifications = unreadCount > 0;
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
