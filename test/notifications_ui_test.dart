@@ -214,5 +214,70 @@ void main() {
       expect(find.text('Updates on orders, payments, and account status will show up here.'), findsOneWidget);
       expect(find.text('Mark all as read'), findsNothing);
     });
+
+    testWidgets('5. Category filter pills: tapping Payments filters list to only payment items', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => AsyncValue.data(testUser)),
+            unreadNotificationCountProvider.overrideWithValue(2),
+            notificationProvider.overrideWith(() => FakeNotificationNotifier(sampleNotifications)),
+          ],
+          child: const MaterialApp(
+            home: ProductDiscoveryFeedView(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Notifications'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Payments'), findsOneWidget);
+      await tester.tap(find.text('Payments'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('💰 Payment Secured in Escrow'), findsOneWidget);
+      expect(find.text('Order Accepted'), findsNothing);
+      expect(find.text('🎉 Seller Verification Approved!'), findsNothing);
+    });
+
+    testWidgets('6. Category micro-chips render correctly (PAYMENT, ORDER, VERIFICATION)', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => AsyncValue.data(testUser)),
+            unreadNotificationCountProvider.overrideWithValue(2),
+            notificationProvider.overrideWith(() => FakeNotificationNotifier(sampleNotifications)),
+          ],
+          child: const MaterialApp(
+            home: ProductDiscoveryFeedView(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Notifications'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('PAYMENT'), findsOneWidget);
+      expect(find.text('ORDER'), findsOneWidget);
+      expect(find.text('VERIFICATION'), findsOneWidget);
+    });
   });
 }
+
