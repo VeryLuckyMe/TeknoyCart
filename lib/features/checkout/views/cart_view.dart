@@ -16,6 +16,217 @@ class CartView extends ConsumerStatefulWidget {
 
 class _CartViewState extends ConsumerState<CartView> {
   final Set<String> _selectedItemKeys = {};
+  final Set<String> _editingSellerIds = {};
+  final Map<String, int> _draftQuantities = {};
+
+  void _enterStoreEditMode(String sellerId, List<CartItem> storeItems) {
+    setState(() {
+      _editingSellerIds.add(sellerId);
+      for (final item in storeItems) {
+        _draftQuantities[item.cartKey] = item.quantity;
+      }
+    });
+  }
+
+  void _exitStoreEditMode(String sellerId, String storeName, List<CartItem> storeItems) {
+    final storeDrafts = <String, int>{};
+    for (final item in storeItems) {
+      if (_draftQuantities.containsKey(item.cartKey)) {
+        storeDrafts[item.cartKey] = _draftQuantities[item.cartKey]!;
+      }
+    }
+    if (storeDrafts.isNotEmpty) {
+      ref.read(cartProvider.notifier).batchUpdateQuantities(storeDrafts);
+      _showSnack('Updated $storeName quantities!');
+    }
+    setState(() {
+      _editingSellerIds.remove(sellerId);
+      for (final item in storeItems) {
+        _draftQuantities.remove(item.cartKey);
+      }
+    });
+  }
+
+  void _commitAllPendingDrafts() {
+    if (_draftQuantities.isNotEmpty) {
+      ref.read(cartProvider.notifier).batchUpdateQuantities(Map.from(_draftQuantities));
+      _draftQuantities.clear();
+      _editingSellerIds.clear();
+    }
+  }
+
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: TeknoyTheme.citMaroon,
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Widget _dragHandle(bool isDark) => Center(
+        child: Container(
+          width: 38,
+          height: 4,
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white24 : Colors.black12,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      );
+
+  void _showConfirmActionSheet({
+    required BuildContext context,
+    required String title,
+    required String message,
+    required String confirmText,
+    required VoidCallback onConfirm,
+    String cancelText = 'Cancel',
+    IconData icon = Icons.delete_outline_rounded,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1C1C24) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _dragHandle(isDark),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: Colors.red, size: 32),
+            ),
+            const SizedBox(height: 16),
+            Text(title, style: const TextStyle(fontFamily: 'Outfit', fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(message, textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: isDark ? Colors.white70 : Colors.black54, height: 1.4)),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      side: BorderSide(color: isDark ? Colors.white24 : Colors.black12),
+                    ),
+                    child: Text(cancelText, style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.black87)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      onConfirm();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade700,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(confirmText, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRemoveItemConfirmationSheet(BuildContext context, CartItem item) {
+    _showConfirmActionSheet(
+      context: context,
+      title: 'Remove from Cart?',
+      message: 'Do you want to remove "${item.product.title}" from your shopping cart?',
+      confirmText: 'Remove Item',
+      cancelText: 'Keep in Cart',
+      onConfirm: () {
+        ref.read(cartProvider.notifier).removeFromCart(item.product.id, item.variantId, item.variantName);
+        setState(() {
+          _draftQuantities.remove(item.cartKey);
+          _selectedItemKeys.remove(item.cartKey);
+        });
+        _showSnack('Removed "${item.product.title}"');
+      },
+    );
+  }
+
+  String _storeName(CartItem item) =>
+      item.product.sellerStoreName?.isNotEmpty == true ? item.product.sellerStoreName! : 'Wildcat Student Store';
+
+  List<CheckoutItem> _toCheckoutItems(Iterable<CartItem> items) => items
+      .map((i) => CheckoutItem(
+            product: i.product,
+            price: i.product.price,
+            quantity: i.quantity,
+            variantId: i.variantId,
+            variantName: i.variantName,
+          ))
+      .toList();
+
+  Widget _qtyBtn({
+    required VoidCallback? onPressed,
+    required IconData icon,
+    required Color color,
+    required bool isDark,
+  }) =>
+      IconButton(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 15, color: color),
+        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+        padding: const EdgeInsets.all(6),
+        style: IconButton.styleFrom(
+          backgroundColor: isDark ? const Color(0xFF22222A) : const Color(0xFFF5F5F8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(
+              color: isDark ? Colors.white12 : const Color(0xFFE2E2EA),
+              width: 1,
+            ),
+          ),
+        ),
+      );
+
+  Widget _productThumb(String? url, Color cardBorder, bool isDark) {
+    final icon = Center(
+      child: Icon(Icons.inventory_2_outlined, size: 24, color: isDark ? Colors.white30 : Colors.black26),
+    );
+    return Container(
+      width: 68,
+      height: 68,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: isDark ? const Color(0xFF25252D) : const Color(0xFFEDEDF2),
+        border: Border.all(color: cardBorder, width: 0.8),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: (url != null && url.isNotEmpty)
+            ? Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => icon)
+            : icon,
+      ),
+    );
+  }
 
   void _showChangeVariantSheet(BuildContext context, CartItem item) {
     final variantAttr = item.product.categoryAttributes
@@ -38,17 +249,7 @@ class _CartViewState extends ConsumerState<CartView> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 38,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white24 : Colors.black12,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              _dragHandle(isDark),
               const Text(
                 'Change Variation',
                 style: TextStyle(
@@ -93,13 +294,7 @@ class _CartViewState extends ConsumerState<CartView> {
                               item.variantName,
                               opt.trim(),
                             );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Switched to ${variantAttr.name}: ${opt.trim()}'),
-                            backgroundColor: TeknoyTheme.citMaroon,
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
+                        _showSnack('Switched to ${variantAttr.name}: ${opt.trim()}');
                       }
                     },
                     child: AnimatedContainer(
@@ -147,6 +342,11 @@ class _CartViewState extends ConsumerState<CartView> {
   @override
   Widget build(BuildContext context) {
     final cartItems = ref.watch(cartProvider);
+    if (cartItems.isEmpty) {
+      _editingSellerIds.clear();
+      _draftQuantities.clear();
+      _selectedItemKeys.clear();
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Color definitions matching theme
@@ -181,7 +381,11 @@ class _CartViewState extends ConsumerState<CartView> {
             TextButton(
               onPressed: () {
                 ref.read(cartProvider.notifier).clearCart();
-                setState(() => _selectedItemKeys.clear());
+                setState(() {
+                  _selectedItemKeys.clear();
+                  _editingSellerIds.clear();
+                  _draftQuantities.clear();
+                });
               },
               child: const Text(
                 'Clear All',
@@ -286,6 +490,7 @@ class _CartViewState extends ConsumerState<CartView> {
                           final storeItems = itemsBySeller[sellerId]!;
                           return _buildStoreCard(
                             context: context,
+                            index: index,
                             sellerId: sellerId,
                             storeItems: storeItems,
                             isDark: isDark,
@@ -340,24 +545,13 @@ class _CartViewState extends ConsumerState<CartView> {
                               onPressed: _selectedItemKeys.isEmpty
                                   ? null
                                   : () {
-                                      final checkoutItems = cartItems
-                                          .where((item) => _selectedItemKeys.contains(item.cartKey))
-                                          .map((item) => CheckoutItem(
-                                                product: item.product,
-                                                price: item.product.price,
-                                                quantity: item.quantity,
-                                                variantId: item.variantId,
-                                                variantName: item.variantName,
-                                              ))
-                                          .toList();
-
-                                      final selectedSellers = checkoutItems.map((item) => item.product.sellerId).toSet();
-
-                                      if (selectedSellers.length > 1) {
+                                      _commitAllPendingDrafts();
+                                      final checkoutItems = _toCheckoutItems(
+                                          cartItems.where((i) => _selectedItemKeys.contains(i.cartKey)));
+                                      if (checkoutItems.map((i) => i.product.sellerId).toSet().length > 1) {
                                         _showMultiStoreCheckoutChooser(context, itemsBySeller);
                                         return;
                                       }
-
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
@@ -374,9 +568,11 @@ class _CartViewState extends ConsumerState<CartView> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                 elevation: 0,
                               ),
-                              child: const Text(
-                                'Checkout Selected',
-                                style: TextStyle(
+                              child: Text(
+                                _selectedItemKeys.isEmpty
+                                    ? 'Checkout Selected'
+                                    : 'Checkout Selected (${_selectedItemKeys.length})',
+                                style: const TextStyle(
                                   fontFamily: 'Outfit',
                                   fontWeight: FontWeight.bold,
                                   fontSize: 15,
@@ -397,21 +593,11 @@ class _CartViewState extends ConsumerState<CartView> {
 
   void _checkoutSpecificStore(BuildContext context, List<CartItem> itemsToCheckout) {
     if (itemsToCheckout.isEmpty) return;
-    final checkoutItems = itemsToCheckout
-        .map((item) => CheckoutItem(
-              product: item.product,
-              price: item.product.price,
-              quantity: item.quantity,
-              variantId: item.variantId,
-              variantName: item.variantName,
-            ))
-        .toList();
-
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => CheckoutView(
-          items: checkoutItems,
+          items: _toCheckoutItems(itemsToCheckout),
           isDirectBuy: false,
         ),
       ),
@@ -448,17 +634,7 @@ class _CartViewState extends ConsumerState<CartView> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white24 : Colors.black12,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+              _dragHandle(isDark),
               Row(
                 children: [
                   Container(
@@ -499,10 +675,7 @@ class _CartViewState extends ConsumerState<CartView> {
               const SizedBox(height: 18),
               ...selectedBySeller.entries.map((entry) {
                 final storeItems = entry.value;
-                final firstItem = storeItems.first;
-                final storeName = (firstItem.product.sellerStoreName != null && firstItem.product.sellerStoreName!.isNotEmpty)
-                    ? firstItem.product.sellerStoreName!
-                    : 'Wildcat Student Store';
+                final storeName = _storeName(storeItems.first);
                 final storeTotal = storeItems.fold<double>(0.0, (sum, i) => sum + (i.product.price * i.quantity));
 
                 return Container(
@@ -576,6 +749,7 @@ class _CartViewState extends ConsumerState<CartView> {
 
   Widget _buildStoreCard({
     required BuildContext context,
+    required int index,
     required String sellerId,
     required List<CartItem> storeItems,
     required bool isDark,
@@ -583,16 +757,12 @@ class _CartViewState extends ConsumerState<CartView> {
     required Color cardBorder,
   }) {
     final firstItem = storeItems.first;
-    final storeName = (firstItem.product.sellerStoreName != null && firstItem.product.sellerStoreName!.isNotEmpty)
-        ? firstItem.product.sellerStoreName!
-        : 'Wildcat Student Store';
+    final storeName = _storeName(firstItem);
+    final isStoreEditing = _editingSellerIds.contains(sellerId);
 
     final allStoreKeys = storeItems.map((e) => e.cartKey).toSet();
     final isStoreAllSelected = allStoreKeys.every(_selectedItemKeys.contains);
     final isStorePartiallySelected = !isStoreAllSelected && allStoreKeys.any(_selectedItemKeys.contains);
-
-    final selectedStoreItems = storeItems.where((i) => _selectedItemKeys.contains(i.cartKey)).toList();
-    final storeCheckoutItems = selectedStoreItems.isNotEmpty ? selectedStoreItems : storeItems;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -611,7 +781,7 @@ class _CartViewState extends ConsumerState<CartView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Store Header
+          // Store Header: Checkbox + Store Name + [Editing badge] on left, Edit/Done on right
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
@@ -629,15 +799,11 @@ class _CartViewState extends ConsumerState<CartView> {
                     tristate: true,
                     activeColor: TeknoyTheme.citMaroon,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                    onChanged: (val) {
-                      setState(() {
-                        if (isStoreAllSelected) {
-                          _selectedItemKeys.removeAll(allStoreKeys);
-                        } else {
-                          _selectedItemKeys.addAll(allStoreKeys);
-                        }
-                      });
-                    },
+                    onChanged: (_) => setState(() {
+                      isStoreAllSelected
+                          ? _selectedItemKeys.removeAll(allStoreKeys)
+                          : _selectedItemKeys.addAll(allStoreKeys);
+                    }),
                   ),
                 ),
                 Icon(
@@ -647,46 +813,85 @@ class _CartViewState extends ConsumerState<CartView> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    storeName,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => _checkoutSpecificStore(context, storeCheckoutItems),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    minimumSize: const Size(44, 32),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'Store Deal',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                      Flexible(
+                        child: Text(
+                          storeName,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 2),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        size: 16,
-                        color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
-                      ),
+                      if (isStoreEditing) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.amber.shade700, width: 0.8),
+                          ),
+                          child: Text(
+                            'Editing',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.amber.shade900,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
+                if (isStoreEditing)
+                  TextButton.icon(
+                    key: const Key('cart_done_button'),
+                    onPressed: () => _exitStoreEditMode(sellerId, storeName, storeItems),
+                    icon: const Icon(Icons.check_rounded, size: 15, color: TeknoyTheme.citMaroon),
+                    label: const Text(
+                      'Done',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: TeknoyTheme.citMaroon,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: const Size(44, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  )
+                else
+                  TextButton(
+                    key: index == 0
+                        ? const Key('cart_edit_mode_button')
+                        : Key('cart_edit_mode_button_$sellerId'),
+                    onPressed: () => _enterStoreEditMode(sellerId, storeItems),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: const Size(44, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      'Edit',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -703,6 +908,7 @@ class _CartViewState extends ConsumerState<CartView> {
                 item: item,
                 isDark: isDark,
                 cardBorder: cardBorder,
+                isEditing: isStoreEditing,
               );
             },
           ),
@@ -716,8 +922,12 @@ class _CartViewState extends ConsumerState<CartView> {
     required CartItem item,
     required bool isDark,
     required Color cardBorder,
+    required bool isEditing,
   }) {
     final isSelected = _selectedItemKeys.contains(item.cartKey);
+    final currentQty = isEditing
+        ? (_draftQuantities[item.cartKey] ?? item.quantity)
+        : item.quantity;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -735,49 +945,14 @@ class _CartViewState extends ConsumerState<CartView> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                 onChanged: (val) {
                   setState(() {
-                    if (val == true) {
-                      _selectedItemKeys.add(item.cartKey);
-                    } else {
-                      _selectedItemKeys.remove(item.cartKey);
-                    }
+                    val == true ? _selectedItemKeys.add(item.cartKey) : _selectedItemKeys.remove(item.cartKey);
                   });
                 },
               ),
             ),
           ),
           const SizedBox(width: 4),
-          // Product Thumbnail
-          Container(
-            width: 68,
-            height: 68,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              color: isDark ? const Color(0xFF25252D) : const Color(0xFFEDEDF2),
-              border: Border.all(color: cardBorder, width: 0.8),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: item.product.imageUrl != null && item.product.imageUrl!.isNotEmpty
-                  ? Image.network(
-                      item.product.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Center(
-                        child: Icon(
-                          Icons.inventory_2_outlined,
-                          size: 24,
-                          color: isDark ? Colors.white30 : Colors.black26,
-                        ),
-                      ),
-                    )
-                  : Center(
-                      child: Icon(
-                        Icons.inventory_2_outlined,
-                        size: 24,
-                        color: isDark ? Colors.white30 : Colors.black26,
-                      ),
-                    ),
-            ),
-          ),
+          _productThumb(item.product.imageUrl, cardBorder, isDark),
           const SizedBox(width: 12),
           // Product Info
           Expanded(
@@ -854,14 +1029,14 @@ class _CartViewState extends ConsumerState<CartView> {
                 if (item.maxStock != null) ...[
                   const SizedBox(height: 3),
                   Text(
-                    item.quantity >= item.maxStock!
+                    currentQty >= item.maxStock!
                         ? 'Max stock reached (${item.maxStock})'
                         : '${item.maxStock} in stock',
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 10.5,
                       fontWeight: FontWeight.w600,
-                      color: item.quantity >= item.maxStock!
+                      color: currentQty >= item.maxStock!
                           ? Colors.orange.shade700
                           : (isDark ? Colors.white54 : Colors.black45),
                     ),
@@ -870,80 +1045,101 @@ class _CartViewState extends ConsumerState<CartView> {
               ],
             ),
           ),
-          // Quantity & Delete
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
-                constraints: const BoxConstraints(minWidth: 44, minHeight: 40),
-                padding: const EdgeInsets.all(8),
-                onPressed: () {
-                  ref.read(cartProvider.notifier).removeFromCart(item.product.id, item.variantId, item.variantName);
-                  setState(() => _selectedItemKeys.remove(item.cartKey));
-                },
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      ref.read(cartProvider.notifier).updateQuantity(
-                            item.product.id,
-                            item.variantId,
-                            item.quantity - 1,
-                            item.variantName,
-                          );
-                    },
-                    icon: const Icon(Icons.remove, size: 15),
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                    padding: const EdgeInsets.all(8),
-                    style: IconButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(color: cardBorder),
-                      ),
+          const SizedBox(width: 8),
+          // Normal vs Edit Mode Quantity Section
+          if (!isEditing)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF22222A) : const Color(0xFFF1F1F6),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isDark ? Colors.white12 : const Color(0xFFE2E2EA),
+                      width: 0.8,
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(
-                      '${item.quantity}',
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
+                  child: Text(
+                    'Qty: ${item.quantity}',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
                     ),
                   ),
-                  IconButton(
-                    onPressed: (item.maxStock != null && item.quantity >= item.maxStock!)
-                        ? null
-                        : () {
-                            ref.read(cartProvider.notifier).updateQuantity(
-                                  item.product.id,
-                                  item.variantId,
-                                  item.quantity + 1,
-                                  item.variantName,
-                                );
-                          },
-                    icon: const Icon(Icons.add, size: 15),
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                    padding: const EdgeInsets.all(8),
-                    style: IconButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(
-                          color: (item.maxStock != null && item.quantity >= item.maxStock!)
-                              ? (isDark ? Colors.white24 : Colors.grey.shade300)
-                              : cardBorder,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '₱${(item.product.price * item.quantity).toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white60 : Colors.black54,
+                  ),
+                ),
+              ],
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                  constraints: const BoxConstraints(minWidth: 44, minHeight: 36),
+                  padding: const EdgeInsets.all(6),
+                  tooltip: 'Remove item',
+                  onPressed: () => _showRemoveItemConfirmationSheet(context, item),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _qtyBtn(
+                      onPressed: () {
+                        if (currentQty > 1) {
+                          setState(() => _draftQuantities[item.cartKey] = currentQty - 1);
+                        } else {
+                          _showRemoveItemConfirmationSheet(context, item);
+                        }
+                      },
+                      icon: currentQty > 1 ? Icons.remove_rounded : Icons.delete_outline_rounded,
+                      color: currentQty > 1
+                          ? (isDark ? Colors.white70 : Colors.black87)
+                          : Colors.red.shade400,
+                      isDark: isDark,
+                    ),
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 34),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        '$currentQty',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+                    _qtyBtn(
+                      onPressed: (item.maxStock != null && currentQty >= item.maxStock!)
+                          ? null
+                          : () => setState(() => _draftQuantities[item.cartKey] = currentQty + 1),
+                      icon: Icons.add_rounded,
+                      color: (item.maxStock != null && currentQty >= item.maxStock!)
+                          ? (isDark ? Colors.white24 : Colors.grey.shade400)
+                          : (isDark ? Colors.white70 : Colors.black87),
+                      isDark: isDark,
+                    ),
+                  ],
+                ),
+              ],
+            ),
         ],
       ),
     );

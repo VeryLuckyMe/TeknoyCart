@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -23,7 +22,8 @@ class SecureCartStorageService implements CartStorageService {
 
   bool get _hasBinding {
     try {
-      return WidgetsBinding.instance != null;
+      WidgetsBinding.instance;
+      return true;
     } catch (_) {
       return false;
     }
@@ -92,7 +92,7 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
   Future<void> loadFromDisk() async {
     if (_storage == null) return;
     try {
-      final jsonStr = await _storage!.read(cartStorageKey);
+      final jsonStr = await _storage.read(cartStorageKey);
       if (jsonStr != null && jsonStr.isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(jsonStr);
         state = decoded
@@ -108,10 +108,10 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
     if (_storage == null) return;
     try {
       if (state.isEmpty) {
-        await _storage!.delete(cartStorageKey);
+        await _storage.delete(cartStorageKey);
       } else {
         final jsonStr = jsonEncode(state.map((item) => item.toJson()).toList());
-        await _storage!.write(cartStorageKey, jsonStr);
+        await _storage.write(cartStorageKey, jsonStr);
       }
     } catch (e) {
       debugPrint('CART_PERSIST_TO_DISK_ERROR: $e');
@@ -304,6 +304,30 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
         ...state.sublist(oldIndex + 1),
       ];
     }
+    _persistToDisk();
+  }
+
+  void batchUpdateQuantities(Map<String, int> quantityByCartKey) {
+    if (quantityByCartKey.isEmpty) return;
+    state = [
+      for (final item in state)
+        if (quantityByCartKey[item.cartKey] case final q? when q > 0)
+          CartItem(
+            product: item.product,
+            quantity: item.maxStock != null && q > item.maxStock! ? item.maxStock! : q,
+            variantId: item.variantId,
+            variantName: item.variantName,
+            maxStock: item.maxStock,
+          )
+        else if (!quantityByCartKey.containsKey(item.cartKey))
+          item,
+    ];
+    _persistToDisk();
+  }
+
+  void batchRemoveFromCart(Set<String> cartKeys) {
+    if (cartKeys.isEmpty) return;
+    state = state.where((item) => !cartKeys.contains(item.cartKey)).toList();
     _persistToDisk();
   }
 

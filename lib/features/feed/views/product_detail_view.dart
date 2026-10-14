@@ -323,362 +323,477 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
             final currentOfferVal = double.tryParse(rawText) ?? (originalPrice * 0.90);
             final savings = originalPrice - currentOfferVal;
             final discountPercent = originalPrice > 0 ? ((savings / originalPrice) * 100).round() : 0;
+            final isValidOffer = currentOfferVal > 0 && currentOfferVal < originalPrice;
+            final isLowball = currentOfferVal > 0 && currentOfferVal < (originalPrice * 0.40);
 
             return Padding(
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
               ),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1B1B22) : Colors.white,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                  boxShadow: TeknoyTheme.kElevationHigh,
-                ),
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                    // Handle Bar
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.white24 : Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Header
-                    Row(
+              child: SafeArea(
+                top: false,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1B1B22) : Colors.white,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                    boxShadow: TeknoyTheme.kElevationHigh,
+                  ),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: TeknoyTheme.citGold.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.handshake_rounded,
-                            color: TeknoyTheme.citGold,
-                            size: 24,
+                        // Handle Bar
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4.5,
+                            margin: const EdgeInsets.only(bottom: 14),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white24 : Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+
+                        // Header
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(9),
+                              decoration: BoxDecoration(
+                                color: TeknoyTheme.citGold.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.handshake_rounded,
+                                color: Color(0xFFB48200),
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Make an Offer (Tawad)',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: -0.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    'Propose a fair campus deal to the seller',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 12,
+                                      color: isDark ? Colors.white60 : Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 22),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: isSubmitting ? null : () => Navigator.pop(sheetContext),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Product Summary Card
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF141418) : const Color(0xFFF7F7FA),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isDark ? Colors.white10 : const Color(0xFFE8E8EE),
+                            ),
+                          ),
+                          child: Row(
                             children: [
-                              const Text(
-                                'Make an Offer (Tawad)',
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  width: 50,
+                                  height: 50,
+                                  color: isDark ? const Color(0xFF222228) : const Color(0xFFEAEAF0),
+                                  child: product.imageUrl != null && product.imageUrl!.isNotEmpty
+                                      ? Image.network(
+                                          product.imageUrl!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) =>
+                                              const Icon(Icons.inventory_2_outlined, color: Colors.grey),
+                                        )
+                                      : const Icon(Icons.inventory_2_outlined, color: Colors.grey),
                                 ),
                               ),
-                              Text(
-                                'Propose a fair price to the seller',
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 12,
-                                  color: isDark ? Colors.white60 : Colors.black54,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      product.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          'Original Asking Price: ',
+                                          style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 11.5,
+                                            color: isDark ? Colors.white60 : Colors.black54,
+                                          ),
+                                        ),
+                                        Text(
+                                          '₱${originalPrice.toStringAsFixed(0)}',
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark ? Colors.white : Colors.black87,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded),
-                          onPressed: isSubmitting ? null : () => Navigator.pop(sheetContext),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+                        const SizedBox(height: 14),
 
-                    // Product Summary Card
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF141418) : const Color(0xFFF7F7F9),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+                        // Quick Discount Chips (-5%, -10%, -15%, -20%)
+                        Row(
+                          children: [
+                            _buildDiscountChip(
+                              label: '-5%',
+                              discountedPrice: (originalPrice * 0.95).roundToDouble(),
+                              controller: offerController,
+                              setModalState: setModalState,
+                              isDark: isDark,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildDiscountChip(
+                              label: '-10%',
+                              discountedPrice: (originalPrice * 0.90).roundToDouble(),
+                              controller: offerController,
+                              setModalState: setModalState,
+                              isDark: isDark,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildDiscountChip(
+                              label: '-15%',
+                              discountedPrice: (originalPrice * 0.85).roundToDouble(),
+                              controller: offerController,
+                              setModalState: setModalState,
+                              isDark: isDark,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildDiscountChip(
+                              label: '-20%',
+                              discountedPrice: (originalPrice * 0.80).roundToDouble(),
+                              controller: offerController,
+                              setModalState: setModalState,
+                              isDark: isDark,
+                            ),
+                          ],
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: SizedBox(
-                              width: 48,
-                              height: 48,
-                              child: product.imageUrl != null && product.imageUrl!.isNotEmpty
-                                  ? Image.network(
-                                      product.imageUrl!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
-                                          const Icon(Icons.inventory_2_outlined),
-                                    )
-                                  : const Icon(Icons.inventory_2_outlined),
+                        const SizedBox(height: 14),
+
+                        // Modern Focused Price Input Card
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF141418) : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: currentOfferVal >= originalPrice && currentOfferVal > 0
+                                  ? Colors.red.shade400
+                                  : (isDark ? const Color(0xFF2C2C36) : const Color(0xFFD6D6E0)),
+                              width: 1.5,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  product.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Original Asking Price: ₱${originalPrice.toStringAsFixed(0)}',
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 12,
-                                    color: isDark ? Colors.white60 : Colors.black54,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Quick Discount Chips (-5%, -10%, -15%, -20%)
-                    Row(
-                      children: [
-                        _buildDiscountChip(
-                          label: '-5%',
-                          discountedPrice: (originalPrice * 0.95).roundToDouble(),
-                          controller: offerController,
-                          setModalState: setModalState,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildDiscountChip(
-                          label: '-10%',
-                          discountedPrice: (originalPrice * 0.90).roundToDouble(),
-                          controller: offerController,
-                          setModalState: setModalState,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildDiscountChip(
-                          label: '-15%',
-                          discountedPrice: (originalPrice * 0.85).roundToDouble(),
-                          controller: offerController,
-                          setModalState: setModalState,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildDiscountChip(
-                          label: '-20%',
-                          discountedPrice: (originalPrice * 0.80).roundToDouble(),
-                          controller: offerController,
-                          setModalState: setModalState,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Price Input
-                    TextField(
-                      controller: offerController,
-                      enabled: !isSubmitting,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (_) => setModalState(() {}),
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Your Offered Price',
-                        prefixText: '₱ ',
-                        prefixStyle: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: TeknoyTheme.citMaroon,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: TeknoyTheme.citMaroon, width: 2),
-                        ),
-                        helperText: savings > 0
-                            ? 'You save ₱${savings.toStringAsFixed(0)} ($discountPercent% OFF asking price)'
-                            : 'Enter an amount between ₱1 and ₱${originalPrice.toStringAsFixed(0)}',
-                        helperStyle: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 12,
-                          color: savings > 0 ? TeknoyTheme.success : Colors.grey,
-                          fontWeight: savings > 0 ? FontWeight.w600 : FontWeight.normal,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Submit Action Button with dynamic offer price & inline progress
-                    ElevatedButton(
-                      onPressed: isSubmitting
-                          ? null
-                          : () async {
-                              final offerVal = double.tryParse(offerController.text.trim()) ?? (originalPrice * 0.90);
-                              if (offerVal <= 0) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Please enter a valid offer amount.'),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                                return;
-                              }
-
-                              if (offerVal >= originalPrice) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Your offer must be lower than the asking price of ₱${originalPrice.toStringAsFixed(0)}.'),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                                return;
-                              }
-
-                              setModalState(() {
-                                isSubmitting = true;
-                              });
-
-                              try {
-                                final chatService = ref.read(chatServiceProvider);
-                                final roomId = await chatService.getOrCreateChatRoom(
-                                  buyerId: currentUser.id,
-                                  sellerId: product.sellerId,
-                                  productId: product.id,
-                                  productName: product.title,
-                                  productPrice: product.price,
-                                );
-
-                                // Close bottom sheet safely
-                                if (sheetContext.mounted && Navigator.of(sheetContext).canPop()) {
-                                  Navigator.of(sheetContext).pop();
-                                }
-
-                                if (!mounted) return;
-
-                                // Push ChatView on parent view's context
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => ChatView(
-                                      product: product,
-                                      roomId: roomId,
-                                      initialOfferPrice: offerVal,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'YOUR OFFERED PRICE',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.8,
+                                      color: isDark ? Colors.white54 : Colors.grey.shade600,
                                     ),
                                   ),
-                                );
-                              } catch (e) {
-                                if (modalContext.mounted) {
-                                  setModalState(() {
-                                    isSubmitting = false;
-                                  });
-                                }
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Failed to open chat: $e'),
-                                      backgroundColor: TeknoyTheme.citMaroon,
-                                      behavior: SnackBarBehavior.floating,
+                                  if (savings > 0 && discountPercent > 0)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                      decoration: BoxDecoration(
+                                        color: TeknoyTheme.citGold.withValues(alpha: 0.18),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        '$discountPercent% OFF',
+                                        style: const TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF8B6508),
+                                        ),
+                                      ),
                                     ),
-                                  );
-                                }
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: TeknoyTheme.citMaroon,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: TeknoyTheme.citMaroon.withValues(alpha: 0.6),
-                        disabledForegroundColor: Colors.white70,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        elevation: 2,
-                      ),
-                      child: isSubmitting
-                          ? const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  const Text(
+                                    '₱',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
+                                      color: TeknoyTheme.citMaroon,
+                                    ),
                                   ),
-                                ),
-                                SizedBox(width: 12),
-                                Text(
-                                  'Connecting to Seller...',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.send_rounded, size: 18),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Send ₱${currentOfferVal.toStringAsFixed(0)} Offer & Open Chat',
-                                  style: const TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                if (savings > 0 && discountPercent > 0) ...[
                                   const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: TeknoyTheme.citGold,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      '-$discountPercent%',
+                                  Expanded(
+                                    child: TextField(
+                                      controller: offerController,
+                                      enabled: !isSubmitting,
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      onChanged: (_) => setModalState(() {}),
                                       style: const TextStyle(
                                         fontFamily: 'Outfit',
-                                        fontSize: 11,
+                                        fontSize: 28,
                                         fontWeight: FontWeight.bold,
-                                        color: Color(0xFF3E2E00),
+                                        letterSpacing: -0.5,
+                                      ),
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                        border: InputBorder.none,
+                                        hintText: '0',
                                       ),
                                     ),
                                   ),
                                 ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Real-time Inline Validation / Savings Badge
+                        if (currentOfferVal >= originalPrice)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.info_outline_rounded, size: 16, color: Colors.red),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Offer must be lower than asking price (₱${originalPrice.toStringAsFixed(0)})',
+                                    style: const TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 12,
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
+                          )
+                        else if (isLowball)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFB48200)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Heads up: offers under 40% are rarely accepted by sellers.',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 12,
+                                      color: isDark ? Colors.amber.shade300 : const Color(0xFF8B6508),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (savings > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: TeknoyTheme.success.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.check_circle_outline_rounded, size: 16, color: TeknoyTheme.success),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'You save ₱${savings.toStringAsFixed(0)} ($discountPercent% OFF asking price)',
+                                  style: const TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 12,
+                                    color: TeknoyTheme.success,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                        const SizedBox(height: 16),
+
+                        // Submit Action Button
+                        ElevatedButton(
+                          onPressed: (!isValidOffer || isSubmitting)
+                              ? null
+                              : () async {
+                                  final offerVal = double.tryParse(offerController.text.trim()) ?? (originalPrice * 0.90);
+                                  if (offerVal <= 0 || offerVal >= originalPrice) return;
+
+                                  setModalState(() {
+                                    isSubmitting = true;
+                                  });
+
+                                  try {
+                                    final chatService = ref.read(chatServiceProvider);
+                                    final roomId = await chatService.getOrCreateChatRoom(
+                                      buyerId: currentUser.id,
+                                      sellerId: product.sellerId,
+                                      productId: product.id,
+                                      productName: product.title,
+                                      productPrice: product.price,
+                                    );
+
+                                    // Close bottom sheet safely
+                                    if (sheetContext.mounted && Navigator.of(sheetContext).canPop()) {
+                                      Navigator.of(sheetContext).pop();
+                                    }
+
+                                    if (!mounted) return;
+
+                                    // Push ChatView on parent view's context
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => ChatView(
+                                          product: product,
+                                          roomId: roomId,
+                                          initialOfferPrice: offerVal,
+                                        ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    if (modalContext.mounted) {
+                                      setModalState(() {
+                                        isSubmitting = false;
+                                      });
+                                    }
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Failed to open chat: $e'),
+                                          backgroundColor: TeknoyTheme.citMaroon,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: TeknoyTheme.citMaroon,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: isDark ? Colors.white12 : const Color(0xFFE0E0E6),
+                            disabledForegroundColor: isDark ? Colors.white38 : Colors.grey.shade500,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            elevation: isValidOffer ? 2 : 0,
+                          ),
+                          child: isSubmitting
+                              ? const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      'Connecting to Seller...',
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.send_rounded, size: 16),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Send ₱${currentOfferVal.toStringAsFixed(0)} Offer & Open Chat',
+                                      style: const TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
                 ),
               ),
             );
@@ -693,6 +808,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
     required double discountedPrice,
     required TextEditingController controller,
     required StateSetter setModalState,
+    required bool isDark,
   }) {
     final formattedPrice = discountedPrice.toStringAsFixed(0);
     final isSelected = controller.text.trim() == formattedPrice;
@@ -704,27 +820,41 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
             controller.text = formattedPrice;
           });
         },
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: isSelected
                 ? TeknoyTheme.citMaroon
-                : TeknoyTheme.citMaroon.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(8),
+                : (isDark ? const Color(0xFF22222A) : const Color(0xFFF6F6F9)),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: isSelected ? TeknoyTheme.citMaroon : TeknoyTheme.citMaroon.withValues(alpha: 0.2),
+              color: isSelected
+                  ? TeknoyTheme.citMaroon
+                  : (isDark ? Colors.white12 : const Color(0xFFE2E2EA)),
+              width: isSelected ? 1.5 : 1.0,
             ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: TeknoyTheme.citMaroon.withValues(alpha: 0.25),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 label,
                 style: TextStyle(
                   fontFamily: 'Outfit',
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: isSelected ? Colors.white : TeknoyTheme.citMaroon,
+                  color: isSelected ? Colors.white : (isDark ? Colors.white : const Color(0xFF1E293B)),
                 ),
               ),
               const SizedBox(height: 2),
@@ -732,9 +862,9 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                 '₱$formattedPrice',
                 style: TextStyle(
                   fontFamily: 'Inter',
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white70 : Colors.black87,
+                  color: isSelected ? Colors.white.withValues(alpha: 0.9) : (isDark ? Colors.white70 : Colors.black87),
                 ),
               ),
             ],
