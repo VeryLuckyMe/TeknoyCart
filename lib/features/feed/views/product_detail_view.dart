@@ -13,6 +13,7 @@ import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
 import 'package:teknoycart/features/feed/views/widgets/product_reviews_section.dart';
 import 'package:teknoycart/features/feed/providers/review_provider.dart';
+import 'package:teknoycart/core/services/wishlist_service.dart';
 
 /// Immersive TeknoyCart Wildcat Product Details Page (PDP).
 /// Features high-resolution media gallery, student trust badges, verified seller
@@ -65,6 +66,12 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
     _selectedVariant = _getEffectiveVariantName();
     _fetchInventoryForCurrentVariant();
     _fetchProductImages();
+    _loadFavoriteStatus();
+  }
+
+  Future<void> _loadFavoriteStatus() async {
+    final fav = await WishlistService.isFavorite(product.id);
+    if (mounted) setState(() => _isFavorite = fav);
   }
 
   Future<void> _fetchProductImages() async {
@@ -1041,15 +1048,18 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                         color: TeknoyTheme.citMaroon,
                         size: 20,
                       ),
-                      onPressed: () {
-                        setState(() => _isFavorite = !_isFavorite);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(_isFavorite ? 'Saved to favorites' : 'Removed from favorites'),
-                            duration: const Duration(seconds: 1),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
+                      onPressed: () async {
+                        final isFav = await WishlistService.toggleFavorite(product.id);
+                        if (mounted) {
+                          setState(() => _isFavorite = isFav);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(_isFavorite ? 'Saved to favorites' : 'Removed from favorites'),
+                              duration: const Duration(seconds: 1),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
                       },
                     ),
                   ),

@@ -120,7 +120,8 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
 
   bool _matchesItem(CartItem item, String productId, String? variantId, String? variantName) {
     if (item.product.id != productId) return false;
-    if (variantId != null && item.variantId != null) {
+    // Strict variant ID match if either side specifies a variantId (Ponytail Audit L7)
+    if (variantId != null || item.variantId != null) {
       return item.variantId == variantId;
     }
     return (item.variantName?.trim().toLowerCase() ?? '') == (variantName?.trim().toLowerCase() ?? '');

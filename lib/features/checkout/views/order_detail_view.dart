@@ -6,11 +6,13 @@ import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
 import 'package:teknoycart/features/chat/services/chat_service.dart';
+import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/core/utils/order_ui_helper.dart';
 import 'widgets/order_status_stepper.dart';
@@ -66,9 +68,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
           ),
           callback: (payload) {
             if (mounted) {
-              setState(() {
-                _order = {..._order, ...Map<String, dynamic>.from(payload.newRecord)};
-              });
+              _refreshOrder();
             }
           },
         )
@@ -102,6 +102,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         if (token != null) 'Authorization': 'Bearer $token',
       },
       body: jsonEncode(body),
+    ).timeout(
+      const Duration(seconds: 20),
+      onTimeout: () => throw TimeoutException('Connection timed out. Please check your network connection and try again.'),
     );
     if (response.statusCode >= 400) {
       String errorMessage = 'Error ${response.statusCode}';
@@ -178,11 +181,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     final imgUrl = images.isNotEmpty
         ? (images.firstWhere((img) => img['is_primary'] == true, orElse: () => images[0])['image_url'] as String?)
         : null;
+    final totalAmount = double.tryParse(_order['total_amount']?.toString() ?? '0') ?? 0.0;
+    final unitPrice = double.tryParse(_order['unit_price']?.toString() ?? '') ??
+        double.tryParse(prod?['price']?.toString() ?? '') ??
+        totalAmount;
     return Product(
       id: prod?['product_id'] as String? ?? 'prod-${_order['order_id']}',
       title: prod?['name'] as String? ?? 'Campus Product',
       description: prod?['description'] as String? ?? '',
-      price: double.tryParse(_order['total_amount']?.toString() ?? '0') ?? 0.0,
+      price: unitPrice,
       category: 'Campus Gear',
       condition: 'Like New',
       sellerId: _order['seller_id'] as String? ?? '',
@@ -199,7 +206,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
       if (buyerId == null || sellerId == null) return;
       final product = _extractProductFromOrder();
 
-      final chatService = ChatService();
+      final chatService = ref.read(chatServiceProvider);
       final roomId = await chatService.getOrCreateChatRoom(
         buyerId: buyerId,
         sellerId: sellerId,

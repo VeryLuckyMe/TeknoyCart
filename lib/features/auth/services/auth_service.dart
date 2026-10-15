@@ -336,10 +336,7 @@ class AuthService {
 
       return _userToProfile(user);
     } finally {
-      // Delay resetting to allow the stream events to settle down and be ignored
-      Future.delayed(const Duration(milliseconds: 600), () {
-        isRegistering = false;
-      });
+      isRegistering = false;
     }
   }
 

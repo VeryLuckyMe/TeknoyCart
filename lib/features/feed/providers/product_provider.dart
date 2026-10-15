@@ -524,14 +524,13 @@ class ProductListNotifier
       final rows = response as List<dynamic>;
 
       if (rows.isEmpty) {
-        // Supabase returned no rows — use fallback demo data
-        _cacheService.saveToLocalCache(_fallbackProducts);
-        state = AsyncValue.data(List.from(_fallbackProducts));
+        // Legitimate empty database — return empty list so clean empty state displays (Ponytail Audit M2)
+        _cacheService.saveToLocalCache([]);
+        state = const AsyncValue.data([]);
         return;
       }
 
       final products = rows.map((row) {
-        final variants = (row['product_variants'] as List<dynamic>?) ?? [];
         final images = (row['product_images'] as List<dynamic>?) ?? [];
         
         String imageUrl = '';
@@ -609,9 +608,10 @@ class ProductListNotifier
           imageUrl: imageUrl,
           imageUrls: imageUrls,
           category: category,
-          condition: variants.isNotEmpty
-              ? (variants[0]['variant_value'] as String? ?? 'Standard')
-              : 'Standard',
+          condition: row['condition'] as String? ??
+              (categoryAttributes.any((a) => a.name.toLowerCase() == 'condition')
+                  ? categoryAttributes.firstWhere((a) => a.name.toLowerCase() == 'condition').value
+                  : 'Like New'),
           sellerId: row['seller_id'] as String? ?? '',
           sellerStoreName: storeName,
           isPreorderEnabled: row['is_preorder_enabled'] as bool? ?? false,

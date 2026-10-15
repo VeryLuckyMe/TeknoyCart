@@ -388,9 +388,13 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             debugPrint("CHAT_CHECKOUT_MESSAGE_POST_ERROR: $e");
           }
 
-          // Remove from cart if not single product direct/negotiated buy.
+          // Remove from cart if not single product direct/negotiated buy (Ponytail Audit M6)
           if (!_isSingleProductCheckout) {
-            ref.read(cartProvider.notifier).removeFromCart(item.product.id, item.variantId);
+            final effectiveVariantId = itemVariantId;
+            ref.read(cartProvider.notifier).removeFromCart(item.product.id, effectiveVariantId);
+            if (item.variantId != null && item.variantId != effectiveVariantId) {
+              ref.read(cartProvider.notifier).removeFromCart(item.product.id, item.variantId);
+            }
           }
         }
 

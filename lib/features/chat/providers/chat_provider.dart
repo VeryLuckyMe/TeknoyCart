@@ -10,10 +10,9 @@ final chatServiceProvider = Provider<ChatService>((ref) {
   return service;
 });
 
-final chatMessagesStreamProvider = StreamProvider.autoDispose.family<List<Message>, String>((ref, roomId) async* {
-  final service = ref.watch(chatServiceProvider);
-  yield service.getMessagesForRoom(roomId);
-  yield* service.watchMessages(roomId);
+final chatMessagesStreamProvider = StreamProvider.autoDispose.family<List<Message>, String>((ref, roomId) {
+  final service = ref.read(chatServiceProvider);
+  return service.watchMessages(roomId);
 });
 
 /// Action notifier to handle sending messages.
