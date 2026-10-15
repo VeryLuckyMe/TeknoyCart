@@ -163,32 +163,13 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               }
             }
 
-            // Stage 3: Auto-heal: If no variant exists at all in DB, insert default variant & inventory
-            if (variantId == null || variantId == '00000000-0000-0000-0000-000000000000') {
-              try {
-                final safeProd = item.product.id.length > 8 ? item.product.id.substring(0, 8) : item.product.id;
-                final newVar = await client.from('product_variants').insert({
-                  'product_id': item.product.id,
-                  'variant_name': 'Standard',
-                  'variant_value': 'Default',
-                  'sku': 'SKU-${safeProd.toUpperCase()}-${DateTime.now().millisecondsSinceEpoch}',
-                }).select().maybeSingle();
-                if (newVar != null && newVar['variant_id'] != null) {
-                  variantId = newVar['variant_id'] as String;
-                } else if (newVar != null && newVar['id'] != null) {
-                  variantId = newVar['id'] as String;
-                } else {
-                  variantId = 'var-standard-${safeProd.toLowerCase()}';
-                }
 
-                await client.from('inventory').insert({
-                  'variant_id': variantId,
-                  'stock_qty': 10,
-                  'reserved_qty': 0,
-                }).catchError((_) {});
-              } catch (healErr) {
-                debugPrint("Variant auto-heal in initState error: $healErr");
-              }
+            // Stage 3: No variant exists in DB — listing is not properly set up.
+            // Do NOT auto-create inventory on behalf of the seller (Ponytail Audit C-4).
+            // Surface the error to the buyer instead of fabricating stock records.
+            if (variantId == null || variantId == '00000000-0000-0000-0000-000000000000') {
+              debugPrint('CHECKOUT: No variant found for product ${item.product.id}. Listing inventory is not configured.');
+              // variantId stays null — the inventory check below will treat it as out-of-stock.
             }
           }
 
@@ -274,27 +255,11 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 }
               }
 
+              // Stage 3: No variant exists in DB — listing is not properly set up.
+              // Do NOT auto-create inventory on behalf of the seller (Ponytail Audit C-4).
               if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
-                final safeProd = item.product.id.length > 8 ? item.product.id.substring(0, 8) : item.product.id;
-                final inserted = await client.from('product_variants').insert({
-                  'product_id': item.product.id,
-                  'variant_name': 'Standard',
-                  'variant_value': 'Default',
-                  'sku': 'SKU-${safeProd.toUpperCase()}-${DateTime.now().millisecondsSinceEpoch}',
-                }).select().maybeSingle();
-                if (inserted != null && inserted['variant_id'] != null) {
-                  itemVariantId = inserted['variant_id'] as String;
-                } else if (inserted != null && inserted['id'] != null) {
-                  itemVariantId = inserted['id'] as String;
-                } else {
-                  itemVariantId = 'var-standard-${safeProd.toLowerCase()}';
-                }
-
-                await client.from('inventory').insert({
-                  'variant_id': itemVariantId,
-                  'stock_qty': 10,
-                  'reserved_qty': 0,
-                }).catchError((_) {});
+                debugPrint('CHECKOUT_SUBMIT: No variant found for product ${item.product.id}. Listing inventory is not configured.');
+                // Fall through to the null-check below which will abort checkout with a user-visible error.
               }
             } catch (vErr) {
               debugPrint("Variant fallback in submitCheckout: $vErr");
@@ -305,14 +270,20 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             if (mounted) {
               setState(() => _isSubmitting = false);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Unable to link listing inventory SKU. Please retry in a moment.'),
+                SnackBar(
+                  content: Text(
+                    '"${item.product.title}" is not yet set up for purchase — '
+                    'the seller has not configured its inventory. '
+                    'Try messaging the seller via chat.',
+                  ),
                   backgroundColor: TeknoyTheme.error,
+                  duration: const Duration(seconds: 5),
                 ),
               );
             }
             return;
           }
+
 
           // Find or create matching inquiry row.
           final existingInquiries = await client
