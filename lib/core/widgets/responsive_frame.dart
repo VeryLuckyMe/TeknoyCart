@@ -22,8 +22,10 @@ class ResponsiveMobileFrame extends StatelessWidget {
 
         final isDark = Theme.of(context).brightness == Brightness.dark;
         
-        const phoneWidth = 420.0 - 24.0;
-        final phoneHeight = (constraints.maxHeight - 48.0).clamp(600.0, 900.0) - 24.0;
+        const phoneBorderWidth = 10.0;
+        const phoneFrameWidth = 460.0;
+        const phoneWidth = phoneFrameWidth - (phoneBorderWidth * 2); // 440.0
+        final phoneHeight = (constraints.maxHeight - 24.0).clamp(650.0, 940.0) - (phoneBorderWidth * 2);
 
         return Scaffold(
           backgroundColor: isDark ? const Color(0xFF0C0C0F) : const Color(0xFFF1F1F5),
@@ -83,18 +85,18 @@ class ResponsiveMobileFrame extends StatelessWidget {
               // 2. Mockup Smartphone Device Frame
               Center(
                 child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                  width: 420,
-                  height: 900,
+                  margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  width: phoneFrameWidth,
+                  height: 940,
                   constraints: BoxConstraints(
-                    maxHeight: constraints.maxHeight - 48,
+                    maxHeight: constraints.maxHeight - 24,
                   ),
                   decoration: BoxDecoration(
                     color: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBg,
-                    borderRadius: BorderRadius.circular(44),
+                    borderRadius: BorderRadius.circular(46),
                     border: Border.all(
                       color: isDark ? const Color(0xFF25252A) : const Color(0xFFDFDFE5),
-                      width: 12, // Realistic bezel
+                      width: phoneBorderWidth, // Refined bezel
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -113,7 +115,7 @@ class ResponsiveMobileFrame extends StatelessWidget {
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(32), // Inner rounded corners
+                    borderRadius: BorderRadius.circular(36), // Inner rounded corners
                     child: Stack(
                       children: [
                         // The main App Viewport
@@ -122,13 +124,13 @@ class ResponsiveMobileFrame extends StatelessWidget {
                             data: MediaQuery.of(context).copyWith(
                               size: Size(phoneWidth, phoneHeight),
                               padding: EdgeInsets.only(
-                                top: 28,
+                                top: 20,
                                 bottom: MediaQuery.of(context).padding.bottom,
                                 left: MediaQuery.of(context).padding.left,
                                 right: MediaQuery.of(context).padding.right,
                               ),
                               viewPadding: EdgeInsets.only(
-                                top: 28,
+                                top: 20,
                                 bottom: MediaQuery.of(context).viewPadding.bottom,
                                 left: MediaQuery.of(context).viewPadding.left,
                                 right: MediaQuery.of(context).viewPadding.right,
@@ -138,30 +140,32 @@ class ResponsiveMobileFrame extends StatelessWidget {
                           ),
                         ),
 
-                        // Dynamic Notch mockup for beautiful presentation realism
+                        // Dynamic Island mockup: sleek & modern
                         Positioned(
                           top: 0,
                           left: 0,
                           right: 0,
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: Container(
-                              width: 140,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF25252A) : const Color(0xFFDFDFE5),
-                                borderRadius: const BorderRadius.only(
-                                  bottomLeft: Radius.circular(20),
-                                  bottomRight: Radius.circular(20),
+                          child: IgnorePointer(
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: Container(
+                                width: 110,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF25252A) : const Color(0xFFDFDFE5),
+                                  borderRadius: const BorderRadius.only(
+                                    bottomLeft: Radius.circular(14),
+                                    bottomRight: Radius.circular(14),
+                                  ),
                                 ),
-                              ),
-                              child: Center(
-                                child: Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF101015),
-                                    shape: BoxShape.circle,
+                                child: Center(
+                                  child: Container(
+                                    width: 9,
+                                    height: 9,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF101015),
+                                      shape: BoxShape.circle,
+                                    ),
                                   ),
                                 ),
                               ),

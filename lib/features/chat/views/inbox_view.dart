@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
@@ -10,10 +11,17 @@ import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/chat/services/presence_service.dart';
 
 /// Real-Time Chat Inbox listing active negotiations.
-/// Enables seamless account-to-account conversations for both buyers and sellers.
+/// Refactored to eliminate container bloat with a clean, borderless, airy layout
+/// inspired by modern mobile messaging standards and CIT-U brand aesthetics.
 class InboxView extends ConsumerStatefulWidget {
   final bool embedded;
-  const InboxView({super.key, this.embedded = false});
+  final void Function(int tabIndex)? onNavigateTab;
+
+  const InboxView({
+    super.key,
+    this.embedded = false,
+    this.onNavigateTab,
+  });
 
   @override
   ConsumerState<InboxView> createState() => _InboxViewState();
@@ -27,12 +35,13 @@ class _InboxViewState extends ConsumerState<InboxView> {
   List<Map<String, dynamic>> _chatRooms = [];
   String? _errorMessage;
   Timer? _presenceRefreshTimer;
+  String _selectedFilter = 'All';
 
   @override
   void initState() {
     super.initState();
     _loadChatRooms();
-    
+
     // Auto-trigger immediate heartbeat for current user when inbox view is opened
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final currentUser = ref.read(authStateProvider).valueOrNull;
@@ -51,6 +60,25 @@ class _InboxViewState extends ConsumerState<InboxView> {
   void dispose() {
     _presenceRefreshTimer?.cancel();
     super.dispose();
+  }
+
+  String _formatTimestamp(DateTime? dt) {
+    if (dt == null) return '';
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inDays == 0 && now.day == dt.day) {
+      final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final minute = dt.minute.toString().padLeft(2, '0');
+      final period = dt.hour >= 12 ? 'PM' : 'AM';
+      return '$hour:$minute $period';
+    } else if (diff.inDays == 1 || (diff.inDays == 0 && now.day != dt.day)) {
+      return 'Yesterday';
+    } else if (diff.inDays < 7) {
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      return days[dt.weekday - 1];
+    } else {
+      return '${dt.month}/${dt.day}';
+    }
   }
 
   Future<void> _loadChatRooms({bool forceRefresh = false}) async {
@@ -132,7 +160,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
         validRooms.add(rawRoom);
       }
 
-      // 2. Batch fetch participant details in a single query instead of N serial queries
+      // 2. Batch fetch participant details in a single query
       final otherUserIds = validRooms.map((r) {
         final buyerId = r['buyer_id'] as String;
         final sellerId = r['seller_id'] as String;
@@ -157,7 +185,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
         final chatId = r['chat_id'] as String;
         return client
             .from('messages')
-            .select('content, sent_at')
+            .select('content, sent_at, sender_id, is_read')
             .eq('chat_id', chatId)
             .order('sent_at', ascending: false)
             .limit(1)
@@ -183,6 +211,12 @@ class _InboxViewState extends ConsumerState<InboxView> {
             ? (lastMsgRes['content'] as String? ?? 'No messages yet')
             : 'No messages yet';
 
+        final String? sentAtStr = lastMsgRes != null ? lastMsgRes['sent_at'] as String? : null;
+        final DateTime? lastMessageTime = sentAtStr != null ? DateTime.tryParse(sentAtStr) : null;
+        final String? msgSenderId = lastMsgRes != null ? lastMsgRes['sender_id'] as String? : null;
+        final bool isRead = lastMsgRes != null ? (lastMsgRes['is_read'] as bool? ?? true) : true;
+        final bool isUnread = !isRead && msgSenderId != null && msgSenderId != currentUser.id;
+
         // Parse Product
         final images = productData['product_images'] as List<dynamic>?;
         final imageUrl = (images != null && images.isNotEmpty)
@@ -205,13 +239,27 @@ class _InboxViewState extends ConsumerState<InboxView> {
 
         rooms.add({
           'chat_id': chatId,
+          'buyer_id': buyerId,
+          'seller_id': sellerId,
           'other_user_id': otherUserId,
           'other_user_name': otherUserName,
           'other_user_role': currentUser.id == buyerId ? 'Seller' : 'Buyer',
           'last_message': lastMessage,
+          'last_message_time': lastMessageTime,
+          'is_unread': isUnread,
           'product': product,
         });
       }
+
+      // Sort chats by most recent message first
+      rooms.sort((a, b) {
+        final timeA = a['last_message_time'] as DateTime?;
+        final timeB = b['last_message_time'] as DateTime?;
+        if (timeA == null && timeB == null) return 0;
+        if (timeA == null) return 1;
+        if (timeB == null) return -1;
+        return timeB.compareTo(timeA);
+      });
 
       if (mounted) {
         _cachedChatRooms = rooms;
@@ -231,276 +279,539 @@ class _InboxViewState extends ConsumerState<InboxView> {
     }
   }
 
-  Widget _buildInboxBody(BuildContext context) {
-    return _isLoading
-          ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
-          : _errorMessage != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Text(
-                       _errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontFamily: 'Inter', color: Colors.grey),
+  List<Map<String, dynamic>> get _filteredRooms {
+    switch (_selectedFilter) {
+      case 'Unread':
+        return _chatRooms.where((r) => r['is_unread'] == true).toList();
+      case 'Deals 🤝':
+        return _chatRooms.where((r) {
+          final msg = (r['last_message'] as String? ?? '').toLowerCase();
+          return msg.contains('deal') || msg.contains('offer') || msg.contains('₱');
+        }).toList();
+      case 'Buying':
+        return _chatRooms.where((r) => r['other_user_role'] == 'Seller').toList();
+      case 'Selling':
+        return _chatRooms.where((r) => r['other_user_role'] == 'Buyer').toList();
+      case 'All':
+      default:
+        return _chatRooms;
+    }
+  }
+
+  Widget _buildFilterBar(bool isDark) {
+    final filters = ['All', 'Unread', 'Deals 🤝', 'Buying', 'Selling'];
+    return Padding(
+      padding: const EdgeInsets.only(top: 2.0, bottom: 6.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: filters.map((filter) {
+            final isSelected = _selectedFilter == filter;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() => _selectedFilter = filter);
+                },
+                borderRadius: BorderRadius.circular(24),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? (isDark ? const Color(0xFF321318) : Colors.white)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: isDark
+                                  ? Colors.black.withValues(alpha: 0.3)
+                                  : TeknoyTheme.citMaroon.withValues(alpha: 0.08),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Text(
+                    filter,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 13.5,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected
+                          ? TeknoyTheme.citMaroon
+                          : (isDark ? Colors.white60 : const Color(0xFF64748B)),
                     ),
                   ),
-                )
-              : _chatRooms.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.forum_outlined, size: 64, color: Colors.grey),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No active chats yet.',
-                            style: TextStyle(fontFamily: 'Outfit', fontSize: 16, color: Colors.grey.shade600),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Chats will appear here once you message a seller.',
-                            style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.grey),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(bool isDark) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Minimal 3D Speech Bubbles Illustration
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    TeknoyTheme.citGold.withValues(alpha: isDark ? 0.2 : 0.15),
+                    TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.05 : 0.04),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Positioned(
+                    top: 18,
+                    left: 18,
+                    child: Container(
+                      width: 44,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: TeknoyTheme.citMaroon,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                          bottomRight: Radius.circular(16),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: TeknoyTheme.citMaroon.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
                           ),
                         ],
                       ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      itemCount: _chatRooms.length,
-                      itemBuilder: (context, index) {
-                        final room = _chatRooms[index];
-                        final Product product = room['product'];
-                        final String lastMsg = room['last_message'];
-                        final isGcashProof = lastMsg.contains('[GCASH_RECEIPT_PROOF]');
-                        final isDark = Theme.of(context).brightness == Brightness.dark;
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF141418) : Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
-                              width: 1,
-                            ),
-                            boxShadow: TeknoyTheme.kElevationLow,
+                      child: const Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 18,
+                    right: 18,
+                    child: Container(
+                      width: 38,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: TeknoyTheme.citGold,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(14),
+                          topRight: Radius.circular(14),
+                          bottomLeft: Radius.circular(14),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: TeknoyTheme.citGold.withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: InkWell(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ChatView(
-                                      product: product,
-                                      roomId: room['chat_id'] as String,
-                                    ),
-                                  ),
-                                ).then((_) => _loadChatRooms());
-                              },
-                              onLongPress: () {
-                                _showDeleteChatDialog(context, room['chat_id'] as String, room['other_user_name'] as String);
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    // Leading avatar with online indicator overlay (glowing green dot)
-                                    FutureBuilder<bool>(
-                                      future: PresenceService.isUserOnline(room['other_user_id'] as String),
-                                      builder: (context, snapshot) {
-                                        final bool isUserOnline = snapshot.data ?? false;
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.handshake_rounded,
+                        color: Color(0xFF4A3800),
+                        size: 17,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              _selectedFilter == 'Unread'
+                  ? 'No unread messages'
+                  : _selectedFilter == 'Deals 🤝'
+                      ? 'No active deal offers'
+                      : 'No conversations yet',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _selectedFilter == 'All'
+                  ? 'Ask about textbooks, drawing tools, or uniforms directly with CIT-U student peers.'
+                  : 'Chats matching this filter will appear here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 13,
+                color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                height: 1.4,
+              ),
+            ),
+            if (_selectedFilter == 'All') ...[
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  widget.onNavigateTab?.call(0);
+                },
+                icon: const Icon(Icons.storefront_rounded, size: 18),
+                label: const Text('Explore Campus Listings'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: TeknoyTheme.citMaroon,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
-                                        return Stack(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(2),
-                                              decoration: BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                border: Border.all(
-                                                  color: TeknoyTheme.citMaroon.withValues(alpha: 0.2),
-                                                  width: 1.5,
-                                                ),
-                                              ),
-                                              child: CircleAvatar(
-                                                backgroundImage: NetworkImage(product.imageUrl ?? ''),
-                                                radius: 26,
-                                                backgroundColor: isDark ? const Color(0xFF1C1C22) : const Color(0xFFEDEEEF),
-                                              ),
-                                            ),
-                                            if (isUserOnline)
-                                              Positioned(
-                                                bottom: 2,
-                                                right: 2,
-                                                child: Container(
-                                                  width: 14,
-                                                  height: 14,
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.green,
-                                                    shape: BoxShape.circle,
-                                                    border: Border.all(
-                                                      color: isDark ? const Color(0xFF141418) : Colors.white,
-                                                      width: 2.5,
-                                                    ),
-                                                    boxShadow: [
-                                                      BoxShadow(
-                                                        color: Colors.green.withValues(alpha: 0.4),
-                                                        blurRadius: 4,
-                                                        spreadRadius: 1,
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        );
-                                      },
-                                    ),
-                                    const SizedBox(width: 12),
-                                    // Title & Subtitle Info Column
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  room['other_user_name'] as String,
-                                                  style: const TextStyle(
-                                                    fontFamily: 'Outfit',
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: room['other_user_role'] == 'Seller'
-                                                      ? TeknoyTheme.citMaroon.withValues(alpha: 0.12)
-                                                      : TeknoyTheme.citGold.withValues(alpha: 0.12),
-                                                  borderRadius: BorderRadius.circular(20),
-                                                  border: Border.all(
-                                                    color: room['other_user_role'] == 'Seller'
-                                                        ? TeknoyTheme.citMaroon.withValues(alpha: 0.3)
-                                                        : TeknoyTheme.citGold.withValues(alpha: 0.3),
-                                                  ),
-                                                ),
-                                                child: Text(
-                                                  room['other_user_role'] == 'Seller' ? 'Seller' : 'Buyer',
-                                                  style: TextStyle(
-                                                    fontFamily: 'Outfit',
-                                                    fontSize: 9,
-                                                    fontWeight: FontWeight.w800,
-                                                    color: room['other_user_role'] == 'Seller'
-                                                        ? TeknoyTheme.citMaroon
-                                                        : const Color(0xFF6F5400),
-                                                    letterSpacing: 0.5,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Align(
-                                            alignment: Alignment.centerLeft,
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                              decoration: BoxDecoration(
-                                                color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF1F1F5),
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                'Item: ${product.title}',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontFamily: 'Inter',
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: isDark ? Colors.white60 : Colors.black54,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Builder(
-                                            builder: (context) {
-                                              final isOffer = lastMsg.startsWith('Can we agree on ₱') || lastMsg.contains('? Deal?');
-                                              final isAccepted = lastMsg == 'Offer Accepted!' || lastMsg.contains('Deal! 🤝') || lastMsg.contains('Deal!');
+  Widget _buildChatItem(Map<String, dynamic> room, bool isDark) {
+    final Product product = room['product'];
+    final String lastMsg = room['last_message'] as String? ?? '';
+    final DateTime? lastMsgTime = room['last_message_time'] as DateTime?;
+    final bool isUnread = room['is_unread'] == true;
+    final otherUserId = room['other_user_id'] as String;
+    final otherUserName = room['other_user_name'] as String;
+    final otherUserRole = room['other_user_role'] as String;
 
-                                              Color iconColor = isDark ? Colors.white30 : Colors.grey;
-                                              IconData iconData = Icons.chat_bubble_outline_rounded;
-                                              Color textColor = isDark ? Colors.white70 : Colors.grey.shade800;
-                                              FontWeight fontWeight = FontWeight.normal;
-                                              String displayText = lastMsg;
+    final isGcashProof = lastMsg.contains('[GCASH_RECEIPT_PROOF]');
+    final isAccepted = lastMsg == 'Offer Accepted!' ||
+        lastMsg.contains('Deal! 🤝') ||
+        lastMsg.contains('Deal Accepted');
+    final isOffer = lastMsg.startsWith('Can we agree on ₱') || lastMsg.contains('? Deal?');
 
-                                              if (isGcashProof) {
-                                                iconColor = Colors.blue;
-                                                iconData = Icons.receipt_long_rounded;
-                                                textColor = Colors.blue;
-                                                fontWeight = FontWeight.bold;
-                                                displayText = 'GCash Receipt Attached';
-                                              } else if (isAccepted) {
-                                                iconColor = TeknoyTheme.success;
-                                                iconData = Icons.handshake_rounded;
-                                                textColor = TeknoyTheme.success;
-                                                fontWeight = FontWeight.bold;
-                                                displayText = '🤝 Deal Accepted! Ready for Checkout';
-                                              } else if (isOffer) {
-                                                iconColor = const Color(0xFFC48200);
-                                                iconData = Icons.local_offer_rounded;
-                                                textColor = const Color(0xFFC48200);
-                                                fontWeight = FontWeight.bold;
-                                                displayText = '🏷️ Tawad Offer: $lastMsg';
-                                              }
+    // Muted preview styles
+    Color previewColor = isDark ? Colors.white60 : const Color(0xFF64748B);
+    FontWeight previewWeight = FontWeight.normal;
+    String displayText = lastMsg;
 
-                                              return Row(
-                                                children: [
-                                                  Icon(iconData, size: 14, color: iconColor),
-                                                  const SizedBox(width: 6),
-                                                  Expanded(
-                                                    child: Text(
-                                                      displayText,
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                      style: TextStyle(
-                                                        fontFamily: 'Inter',
-                                                        fontSize: 13,
-                                                        color: textColor,
-                                                        fontWeight: fontWeight,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    // Trailing chevron
-                                    Icon(
-                                      Icons.arrow_forward_ios_rounded,
-                                      size: 14,
-                                      color: isDark ? Colors.white30 : Colors.grey.shade400,
-                                    ),
-                                  ],
+    if (isGcashProof) {
+      previewColor = Colors.blue;
+      previewWeight = FontWeight.w600;
+      displayText = '🧾 GCash Receipt Attached';
+    } else if (isAccepted) {
+      previewColor = TeknoyTheme.success;
+      previewWeight = FontWeight.w600;
+      displayText = '🤝 Deal Accepted! Ready for Checkout';
+    } else if (isOffer) {
+      previewColor = const Color(0xFFD97706);
+      previewWeight = FontWeight.w600;
+      displayText = '🏷️ Tawad Offer: $lastMsg';
+    }
+
+    // Soft warm tint for unread chats (matching reference mockup)
+    final rowBgColor = isUnread
+        ? (isDark ? const Color(0xFF1E1215) : Colors.white.withValues(alpha: 0.85))
+        : Colors.transparent;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: rowBgColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          hoverColor: isDark
+              ? const Color(0xFF1E1E26)
+              : Colors.white,
+          highlightColor: isDark
+              ? const Color(0xFF262632)
+              : Colors.white,
+          splashColor: isDark
+              ? TeknoyTheme.citMaroon.withValues(alpha: 0.15)
+              : TeknoyTheme.citMaroon.withValues(alpha: 0.04),
+          onTap: () {
+            HapticFeedback.lightImpact();
+
+            // 1. Optimistically clear unread badge in memory immediately
+            setState(() {
+              room['is_unread'] = false;
+            });
+            if (_cachedChatRooms != null) {
+              for (final r in _cachedChatRooms!) {
+                if (r['chat_id'] == room['chat_id']) {
+                  r['is_unread'] = false;
+                }
+              }
+            }
+
+            // 2. Mark messages as read in Supabase
+            final currentUserId = ref.read(authStateProvider).valueOrNull?.id ?? SupabaseConfig.client.auth.currentUser?.id;
+            if (currentUserId != null) {
+              ChatService().markMessagesAsRead(
+                roomId: room['chat_id'] as String,
+                currentUserId: currentUserId,
+              );
+            }
+
+            // 3. Navigate to chat and force refresh when popping back
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ChatView(
+                  product: product,
+                  roomId: room['chat_id'] as String,
+                ),
+              ),
+            ).then((_) => _loadChatRooms(forceRefresh: true));
+          },
+          onLongPress: () {
+            HapticFeedback.mediumImpact();
+            _showDeleteChatDialog(context, room['chat_id'] as String, otherUserName);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Clean Avatar with Presence Dot
+                FutureBuilder<bool>(
+                  future: PresenceService.isUserOnline(otherUserId),
+                  builder: (context, snapshot) {
+                    final bool isUserOnline = snapshot.data ?? false;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        CircleAvatar(
+                          radius: 26,
+                          backgroundImage: NetworkImage(product.imageUrl ?? ''),
+                          backgroundColor: isDark
+                              ? const Color(0xFF1E1E24)
+                              : const Color(0xFFEDEEEF),
+                        ),
+                        if (isUserOnline)
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              width: 13,
+                              height: 13,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isUnread
+                                      ? (isDark
+                                          ? const Color(0xFF1E1215)
+                                          : const Color(0xFFFFF7F0))
+                                      : (isDark
+                                          ? const Color(0xFF0F0F12)
+                                          : Colors.white),
+                                  width: 2.2,
                                 ),
                               ),
                             ),
                           ),
-                        );
-                      },
+                      ],
                     );
+                  },
+                ),
+                const SizedBox(width: 14),
+
+                // Name, Product Context & Last Message
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Top Row: Name + Optional Role Pill
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    otherUserName,
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15.5,
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (otherUserRole == 'Seller') ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.25 : 0.08),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      'Seller',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: TeknoyTheme.citMaroon,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _formatTimestamp(lastMsgTime),
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11.5,
+                              fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
+                              color: isUnread
+                                  ? (isDark ? const Color(0xFFFF8585) : const Color(0xFFEA580C))
+                                  : (isDark ? Colors.white38 : const Color(0xFF94A3B8)),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+
+                      // Item name subtle text
+                      Text(
+                        'Item: ${product.title}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+
+                      // Bottom Row: Message Preview + Unread Counter Badge
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              displayText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 13,
+                                color: isUnread ? (isDark ? Colors.white : const Color(0xFF1E293B)) : previewColor,
+                                fontWeight: isUnread ? FontWeight.w600 : previewWeight,
+                              ),
+                            ),
+                          ),
+                          if (isUnread) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFEA580C), // Warm Wildcat orange
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Text(
+                                '1',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInboxBody(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final filtered = _filteredRooms;
+
+    return Container(
+      color: Colors.transparent,
+      child: Column(
+        children: [
+          // Minimalist, borderless category filter bar
+          _buildFilterBar(isDark),
+
+          // Main Conversation Stream
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
+                : _errorMessage != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontFamily: 'Inter', color: Colors.grey),
+                          ),
+                        ),
+                      )
+                    : filtered.isEmpty
+                        ? _buildEmptyState(isDark)
+                        : RefreshIndicator(
+                            onRefresh: () => _loadChatRooms(forceRefresh: true),
+                            color: TeknoyTheme.citMaroon,
+                            child: ListView.builder(
+                              physics: const AlwaysScrollableScrollPhysics(
+                                parent: BouncingScrollPhysics(),
+                              ),
+                              padding: const EdgeInsets.fromLTRB(6, 6, 6, 24),
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                return _buildChatItem(filtered[index], isDark);
+                              },
+                            ),
+                          ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showDeleteChatDialog(BuildContext context, String chatId, String userName) {
@@ -524,20 +835,18 @@ class _InboxViewState extends ConsumerState<InboxView> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              setState(() {
-                _isLoading = true;
-              });
+              setState(() => _isLoading = true);
               try {
                 final chatService = ChatService();
                 await chatService.softDeleteChatRoom(chatId);
-                await _loadChatRooms();
+                await _loadChatRooms(forceRefresh: true);
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to delete chat: $e')),
-                );
-                setState(() {
-                  _isLoading = false;
-                });
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to delete chat: $e')),
+                  );
+                }
+                if (mounted) setState(() => _isLoading = false);
               }
             },
             style: ElevatedButton.styleFrom(
@@ -556,21 +865,61 @@ class _InboxViewState extends ConsumerState<InboxView> {
     if (widget.embedded) {
       return _buildInboxBody(context);
     }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF8FAFC),
       appBar: AppBar(
+        toolbarHeight: 46.0,
         title: const Text(
-          'Messages',
-          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+          'Chats',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.bold,
+            letterSpacing: -0.3,
+          ),
         ),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        systemOverlayStyle: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            onPressed: _loadChatRooms,
+            onPressed: () => _loadChatRooms(forceRefresh: true),
+            tooltip: 'Refresh',
           ),
         ],
-        elevation: 1,
       ),
-      body: _buildInboxBody(context),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.22, 1.0],
+            colors: isDark
+                ? [
+                    const Color(0xFF221115),
+                    const Color(0xFF140D10),
+                    const Color(0xFF0F0F12),
+                  ]
+                : [
+                    const Color(0xFFFFEDE1),
+                    const Color(0xFFFFF7F2),
+                    const Color(0xFFF8FAFC),
+                  ],
+          ),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 46.0),
+            child: _buildInboxBody(context),
+          ),
+        ),
+      ),
     );
   }
 }

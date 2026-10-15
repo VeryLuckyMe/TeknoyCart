@@ -12,11 +12,10 @@ import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/views/cart_view.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/core/providers/notification_provider.dart';
-import 'package:teknoycart/core/models/notification_item.dart';
-import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
 import 'tabs/browse_tab.dart';
 import 'tabs/sell_tab.dart';
 import 'tabs/profile_tab.dart';
+import 'notifications_view.dart';
 
 // Export for compatibility with other modules & tests
 export 'tabs/profile_tab.dart' show userCompletedDealsCountProvider, TextStyles;
@@ -64,13 +63,13 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         tab = const BrowseTab();
         break;
       case 1:
-        tab = const InboxView(embedded: true);
+        tab = InboxView(embedded: true, onNavigateTab: _onTabSelected);
         break;
       case 2:
         tab = SellTab(onNavigateTab: _onTabSelected);
         break;
       case 3:
-        tab = const OrderHistoryView(embedded: true);
+        tab = OrderHistoryView(embedded: true, onNavigateTab: _onTabSelected);
         break;
       case 4:
         tab = ProfileTab(onNavigateTab: _onTabSelected);
@@ -92,7 +91,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       if (data.event == AuthChangeEvent.passwordRecovery) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            _showSetNewPasswordSheet(context);
+            _showSetNewPasswordSheet();
           }
         });
       }
@@ -102,7 +101,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       final uri = Uri.base;
       if (uri.fragment.contains('type=recovery') || uri.queryParameters['type'] == 'recovery') {
         if (mounted) {
-          _showSetNewPasswordSheet(context);
+          _showSetNewPasswordSheet();
         }
       }
     });
@@ -114,7 +113,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     super.dispose();
   }
 
-  void _showSetNewPasswordSheet(BuildContext context) {
+  void _showSetNewPasswordSheet() {
     final passCtrl = TextEditingController();
     showModalBottomSheet(
       context: context,
@@ -202,571 +201,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   }
 
   void _showNotificationsSheet(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    String selectedCategory = 'All';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Consumer(
-          builder: (context, ref, _) {
-            final notificationsAsync = ref.watch(notificationProvider);
-            final unreadCount = ref.watch(unreadNotificationCountProvider);
-
-            return Container(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.78,
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF141418) : const Color(0xFFFFFFFF),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                boxShadow: TeknoyTheme.kElevationHigh,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white24 : Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Text(
-                            'Notifications',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (unreadCount > 0) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: TeknoyTheme.citMaroon,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                '$unreadCount',
-                                style: const TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      if (unreadCount > 0)
-                        TextButton(
-                          onPressed: () async {
-                            HapticFeedback.lightImpact();
-                            try {
-                              await ref.read(notificationProvider.notifier).markAllAsRead();
-                            } catch (e) {
-                              if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Failed to mark all as read. Please try again.'),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          child: const Text(
-                            'Mark all as read',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              color: TeknoyTheme.citMaroon,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  notificationsAsync.when(
-                    loading: () => const SizedBox(height: 8),
-                    error: (_, __) => const SizedBox(height: 8),
-                    data: (items) {
-                      if (items.isEmpty) {
-                        return const SizedBox(height: 8);
-                      }
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(height: 12),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            physics: const BouncingScrollPhysics(),
-                            child: Row(
-                              children: ['All', 'Orders', 'Payments', 'Account'].map((cat) {
-                                final isSelected = selectedCategory == cat;
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 8.0),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(20),
-                                    onTap: () {
-                                      HapticFeedback.selectionClick();
-                                      setSheetState(() {
-                                        selectedCategory = cat;
-                                      });
-                                    },
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 180),
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? TeknoyTheme.citMaroon
-                                            : (isDark ? const Color(0xFF1E1E26) : const Color(0xFFF1F1F5)),
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? TeknoyTheme.citMaroon
-                                              : (isDark ? const Color(0xFF2C2C38) : const Color(0xFFE2E2E8)),
-                                        ),
-                                        boxShadow: isSelected
-                                            ? [
-                                                BoxShadow(
-                                                  color: TeknoyTheme.citMaroon.withValues(alpha: 0.28),
-                                                  blurRadius: 6,
-                                                  offset: const Offset(0, 2),
-                                                ),
-                                              ]
-                                            : null,
-                                      ),
-                                      child: Text(
-                                        cat,
-                                        style: TextStyle(
-                                          fontFamily: 'Inter',
-                                          fontSize: 12,
-                                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                                          color: isSelected
-                                              ? Colors.white
-                                              : (isDark ? Colors.white70 : const Color(0xFF555562)),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                        ],
-                      );
-                    },
-                  ),
-                  Divider(color: isDark ? const Color(0xFF26262B) : const Color(0xFFEAEAEE)),
-                  const SizedBox(height: 6),
-                  Flexible(
-                    child: notificationsAsync.when(
-                      loading: () => const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 40.0),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: TeknoyTheme.citMaroon,
-                          ),
-                        ),
-                      ),
-                      error: (err, _) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 36.0),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.error_outline_rounded, size: 40, color: Colors.grey.shade400),
-                            const SizedBox(height: 8),
-                            const Text('Could not load notifications', style: TextStyle(fontFamily: 'Inter', fontSize: 14)),
-                            const SizedBox(height: 8),
-                            TextButton(
-                              onPressed: () => ref.read(notificationProvider.notifier).refresh(),
-                              child: const Text('Retry', style: TextStyle(color: TeknoyTheme.citMaroon)),
-                            ),
-                          ],
-                        ),
-                      ),
-                      data: (items) {
-                        final filteredItems = items.where((item) {
-                          if (selectedCategory == 'Orders') {
-                            return item.referenceType == 'ORDER' ||
-                                item.type == 'ORDER_STATUS' ||
-                                item.type.startsWith('ORDER');
-                          } else if (selectedCategory == 'Payments') {
-                            return item.type == 'PAYMENT' ||
-                                item.type.contains('PAYMENT') ||
-                                item.type.contains('ESCROW') ||
-                                item.title.contains('Payment') ||
-                                item.title.contains('💰');
-                          } else if (selectedCategory == 'Account') {
-                            return item.referenceType == 'KYC' ||
-                                item.type == 'KYC' ||
-                                item.type == 'SYSTEM';
-                          }
-                          return true;
-                        }).toList();
-
-                        if (filteredItems.isEmpty) {
-                          return Center(
-                            child: SingleChildScrollView(
-                              child: _buildEmptyNotifications(isDark),
-                            ),
-                          );
-                        }
-
-                        return ListView.separated(
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.only(bottom: 12),
-                          itemCount: filteredItems.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 8),
-                          itemBuilder: (context, index) {
-                            final item = filteredItems[index];
-                            return _buildNotificationTile(context, ref, item, isDark);
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyNotifications(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 36.0, horizontal: 16.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.12 : 0.07),
-                  border: Border.all(
-                    color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.25 : 0.14),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.20 : 0.12),
-                ),
-                child: Icon(
-                  Icons.notifications_none_rounded,
-                  size: 26,
-                  color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No new notifications',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white70 : Colors.grey.shade800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Updates on orders, payments, and account status will show up here.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 13,
-              color: isDark ? Colors.white38 : Colors.grey.shade500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNotificationTile(
-    BuildContext context,
-    WidgetRef ref,
-    NotificationItem item,
-    bool isDark,
-  ) {
-    IconData icon;
-    Color iconColor;
-    Color iconBg;
-    String tagLabel;
-    Color tagColor;
-    Color tagBg;
-
-    switch (item.type) {
-      case 'PAYMENT':
-        icon = Icons.account_balance_wallet_rounded;
-        iconColor = TeknoyTheme.citGold;
-        iconBg = TeknoyTheme.citGold.withValues(alpha: 0.16);
-        tagLabel = 'PAYMENT';
-        tagColor = isDark ? TeknoyTheme.citGold : const Color(0xFFB8860B);
-        tagBg = TeknoyTheme.citGold.withValues(alpha: 0.16);
-        break;
-      case 'KYC':
-        icon = Icons.verified_user_rounded;
-        iconColor = const Color(0xFF1E88E5);
-        iconBg = const Color(0xFF1E88E5).withValues(alpha: 0.16);
-        tagLabel = 'VERIFICATION';
-        tagColor = const Color(0xFF1E88E5);
-        tagBg = const Color(0xFF1E88E5).withValues(alpha: 0.16);
-        break;
-      case 'OFFER':
-        icon = Icons.local_offer_rounded;
-        iconColor = Colors.orangeAccent;
-        iconBg = Colors.orangeAccent.withValues(alpha: 0.16);
-        tagLabel = 'OFFER';
-        tagColor = Colors.deepOrange;
-        tagBg = Colors.orangeAccent.withValues(alpha: 0.16);
-        break;
-      case 'ORDER_STATUS':
-      default:
-        icon = Icons.shopping_bag_rounded;
-        iconColor = TeknoyTheme.citMaroon;
-        iconBg = TeknoyTheme.citMaroon.withValues(alpha: 0.14);
-        tagLabel = 'ORDER';
-        tagColor = TeknoyTheme.citMaroon;
-        tagBg = TeknoyTheme.citMaroon.withValues(alpha: 0.12);
-        break;
-    }
-
-    final cardBg = !item.isRead
-        ? (isDark ? const Color(0xFF201316) : const Color(0xFFFFF7F7))
-        : (isDark ? const Color(0xFF191920) : const Color(0xFFFCFCFE));
-
-    final cardBorder = !item.isRead
-        ? Border.all(
-            color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.38 : 0.22),
-            width: 1.0,
-          )
-        : Border.all(
-            color: isDark ? const Color(0xFF262632) : const Color(0xFFEBEBF0),
-            width: 1.0,
-          );
-
-    return Dismissible(
-      key: Key('notif_${item.id}'),
-      direction: item.isRead ? DismissDirection.none : DismissDirection.endToStart,
-      background: Container(
-        margin: const EdgeInsets.symmetric(vertical: 2.0),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(
-          color: TeknoyTheme.citMaroon,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.mark_email_read_rounded, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Text(
-              'Mark Read',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
-      confirmDismiss: (direction) async {
-        HapticFeedback.mediumImpact();
-        try {
-          await ref.read(notificationProvider.notifier).markAsRead(item.id);
-        } catch (_) {}
-        return false;
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 2.0),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(14),
-          border: cardBorder,
-          boxShadow: !item.isRead && !isDark
-              ? [
-                  BoxShadow(
-                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Stack(
-          children: [
-            if (!item.isRead)
-              Positioned(
-                left: 0,
-                top: 12,
-                bottom: 12,
-                child: Container(
-                  width: 4,
-                  decoration: BoxDecoration(
-                    color: TeknoyTheme.citMaroon,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: () async {
-                HapticFeedback.lightImpact();
-                final nav = Navigator.of(context);
-                final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-                if (!item.isRead) {
-                  try {
-                    await ref.read(notificationProvider.notifier).markAsRead(item.id);
-                  } catch (e) {
-                    scaffoldMessenger.showSnackBar(
-                      const SnackBar(content: Text('Could not update notification state')),
-                    );
-                  }
-                }
-
-                nav.pop();
-
-                if (item.referenceType == 'ORDER' && item.referenceId != null && item.referenceId!.isNotEmpty) {
-                  nav.push(
-                    MaterialPageRoute(
-                      builder: (_) => OrderDetailView(
-                        order: {'order_id': item.referenceId!},
-                        isSeller: item.title.contains('Payment') || item.title.contains('Sale') || item.title.contains('New Order'),
-                      ),
-                    ),
-                  );
-                } else if (item.referenceType == 'KYC') {
-                  _onTabSelected(2);
-                } else if (item.referenceType == 'CHAT') {
-                  _onTabSelected(1);
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: iconBg,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(icon, size: 20, color: iconColor),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: tagBg,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  tagLabel,
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.5,
-                                    color: tagColor,
-                                  ),
-                                ),
-                              ),
-                              const Spacer(),
-                              Text(
-                                item.timeAgo,
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 11,
-                                  color: isDark ? Colors.white38 : Colors.grey.shade500,
-                                ),
-                              ),
-                              if (!item.isRead) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  width: 7,
-                                  height: 7,
-                                  decoration: const BoxDecoration(
-                                    color: TeknoyTheme.citMaroon,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            item.title,
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 14,
-                              fontWeight: item.isRead ? FontWeight.w500 : FontWeight.bold,
-                              color: isDark ? Colors.white : Colors.black87,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            item.body,
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 12,
-                              color: isDark ? Colors.white70 : Colors.grey.shade700,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => NotificationsView(
+          onNavigateTab: (idx) => _onTabSelected(idx),
         ),
       ),
     );
@@ -929,9 +367,15 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF0F0F12) : Colors.white,
+        toolbarHeight: 46.0,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        systemOverlayStyle: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         leading: Builder(
           builder: (context) {
             return IconButton(
@@ -1029,8 +473,12 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 children: [
                   IconButton(
                     icon: Icon(
-                      Icons.notifications_outlined,
-                      color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                      hasUnreadNotifications
+                          ? Icons.notifications_rounded
+                          : Icons.notifications_outlined,
+                      color: isDark
+                          ? (hasUnreadNotifications ? TeknoyTheme.citGold : Colors.white70)
+                          : (hasUnreadNotifications ? TeknoyTheme.citMaroon : const Color(0xFF5A413D)),
                       size: 22,
                     ),
                     onPressed: () {
@@ -1041,11 +489,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   ),
                   if (hasUnreadNotifications)
                     Positioned(
-                      top: 8,
-                      right: 8,
+                      top: 4,
+                      right: 4,
                       child: Container(
-                        width: 8,
-                        height: 8,
+                        padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           color: const Color(0xFFD90429),
                           shape: BoxShape.circle,
@@ -1053,6 +500,26 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                             color: isDark ? const Color(0xFF0F0F12) : Colors.white,
                             width: 1.5,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFD90429).withValues(alpha: 0.4),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     ),
@@ -1066,7 +533,33 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         onSelectTab: _onTabSelected,
         currentTabIndex: _activeTab,
       ),
-      body: _buildActiveTabBody(context),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.22, 1.0],
+            colors: isDark
+                ? [
+                    const Color(0xFF221115),
+                    const Color(0xFF140D10),
+                    const Color(0xFF0F0F12),
+                  ]
+                : [
+                    const Color(0xFFFFEDE1),
+                    const Color(0xFFFFF7F2),
+                    const Color(0xFFF8FAFC),
+                  ],
+          ),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 46.0),
+            child: _buildActiveTabBody(context),
+          ),
+        ),
+      ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(

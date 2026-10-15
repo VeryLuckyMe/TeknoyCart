@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
@@ -350,10 +351,10 @@ class _CartViewState extends ConsumerState<CartView> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Color definitions matching theme
-    const cardBgDark = Color(0xFF1A1A1E);
-    const cardBorderDark = Color(0xFF2A2A30);
+    const cardBgDark = Color(0xFF191922);
+    const cardBorderDark = Color(0xFF262634);
     final cardBg = isDark ? cardBgDark : Colors.white;
-    final cardBorder = isDark ? cardBorderDark : const Color(0xFFE0E0E4);
+    final cardBorder = isDark ? cardBorderDark : const Color(0xFFE8E8F0);
     final emptyTextColor = isDark ? Colors.white60 : Colors.black54;
 
     // Calculate total price of selected items
@@ -365,229 +366,281 @@ class _CartViewState extends ConsumerState<CartView> {
     }
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF101010) : const Color(0xFFF5F5F8),
+      extendBodyBehindAppBar: true,
+      backgroundColor: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text(
+        toolbarHeight: 46.0,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        systemOverlayStyle: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_rounded,
+            color: isDark ? Colors.white : const Color(0xFF1E293B),
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Back',
+        ),
+        title: Text(
           'My Shopping Cart',
           style: TextStyle(
             fontFamily: 'Outfit',
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            letterSpacing: -0.4,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
           ),
         ),
-        backgroundColor: isDark ? const Color(0xFF0F0F12) : Colors.white,
-        elevation: 0,
+        centerTitle: true,
         actions: [
           if (cartItems.isNotEmpty)
-            TextButton(
-              onPressed: () {
-                ref.read(cartProvider.notifier).clearCart();
-                setState(() {
-                  _selectedItemKeys.clear();
-                  _editingSellerIds.clear();
-                  _draftQuantities.clear();
-                });
-              },
-              child: const Text(
-                'Clear All',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  color: TeknoyTheme.citMaroon,
-                  fontWeight: FontWeight.bold,
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: TextButton(
+                onPressed: () {
+                  ref.read(cartProvider.notifier).clearCart();
+                  setState(() {
+                    _selectedItemKeys.clear();
+                    _editingSellerIds.clear();
+                    _draftQuantities.clear();
+                  });
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: TeknoyTheme.citMaroon,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: const Size(48, 36),
+                ),
+                child: const Text(
+                  'Clear All',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    color: TeknoyTheme.citMaroon,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ),
         ],
       ),
-      body: cartItems.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1A1A22) : const Color(0xFFEDEDF4),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.shopping_cart_outlined,
-                        size: 64,
-                        color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Your cart is empty',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Explore pre-loved uniforms, books, and drawing kits on campus!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 14,
-                        color: emptyTextColor,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ProductDiscoveryFeedView(initialTab: 0),
-                          ),
-                          (route) => false,
-                        );
-                      },
-                      icon: const Icon(Icons.storefront_rounded, size: 18),
-                      label: const Text(
-                        'Explore Campus Deals',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: TeknoyTheme.citMaroon,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.22, 1.0],
+            colors: isDark
+                ? [
+                    const Color(0xFF221115),
+                    const Color(0xFF140D10),
+                    const Color(0xFF0F0F12),
+                  ]
+                : [
+                    const Color(0xFFFFEDE1),
+                    const Color(0xFFFFF7F2),
+                    const Color(0xFFF8FAFC),
                   ],
-                ),
-              ),
-            )
-          : Builder(
-              builder: (context) {
-                final Map<String, List<CartItem>> itemsBySeller = {};
-                for (final item in cartItems) {
-                  final sellerKey = item.product.sellerId.isNotEmpty ? item.product.sellerId : 'store-default';
-                  itemsBySeller.putIfAbsent(sellerKey, () => []).add(item);
-                }
-                final sellerKeys = itemsBySeller.keys.toList();
-
-                return Column(
-                  children: [
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: sellerKeys.length,
-                        itemBuilder: (context, index) {
-                          final sellerId = sellerKeys[index];
-                          final storeItems = itemsBySeller[sellerId]!;
-                          return _buildStoreCard(
-                            context: context,
-                            index: index,
-                            sellerId: sellerId,
-                            storeItems: storeItems,
-                            isDark: isDark,
-                            cardBg: cardBg,
-                            cardBorder: cardBorder,
-                          );
-                        },
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF141418) : Colors.white,
-                        border: Border(top: BorderSide(color: cardBorder, width: 1)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
-                            blurRadius: 12,
-                            offset: const Offset(0, -3),
+          ),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 46.0),
+            child: cartItems.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1A1A22) : const Color(0xFFEDEDF4),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.shopping_cart_outlined,
+                              size: 64,
+                              color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            'Your cart is empty',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Explore pre-loved uniforms, books, and drawing kits on campus!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 14,
+                              color: emptyTextColor,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ProductDiscoveryFeedView(initialTab: 0),
+                                ),
+                                (route) => false,
+                              );
+                            },
+                            icon: const Icon(Icons.storefront_rounded, size: 18),
+                            label: const Text(
+                              'Explore Campus Deals',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: TeknoyTheme.citMaroon,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
                           ),
                         ],
                       ),
-                      child: SafeArea(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text(
-                                  'Selected Total',
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '₱${selectedTotal.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: TeknoyTheme.citMaroon,
-                                  ),
+                    ),
+                  )
+                : Builder(
+                    builder: (context) {
+                      final Map<String, List<CartItem>> itemsBySeller = {};
+                      for (final item in cartItems) {
+                        final sellerKey = item.product.sellerId.isNotEmpty ? item.product.sellerId : 'store-default';
+                        itemsBySeller.putIfAbsent(sellerKey, () => []).add(item);
+                      }
+                      final sellerKeys = itemsBySeller.keys.toList();
+
+                      return Column(
+                        children: [
+                          Expanded(
+                            child: ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                              itemCount: sellerKeys.length,
+                              itemBuilder: (context, index) {
+                                final sellerId = sellerKeys[index];
+                                final storeItems = itemsBySeller[sellerId]!;
+                                return _buildStoreCard(
+                                  context: context,
+                                  index: index,
+                                  sellerId: sellerId,
+                                  storeItems: storeItems,
+                                  isDark: isDark,
+                                  cardBg: cardBg,
+                                  cardBorder: cardBorder,
+                                );
+                              },
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF141418) : Colors.white,
+                              border: Border(top: BorderSide(color: cardBorder, width: 1)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.35 : 0.05),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, -4),
                                 ),
                               ],
                             ),
-                            ElevatedButton(
-                              onPressed: _selectedItemKeys.isEmpty
-                                  ? null
-                                  : () {
-                                      _commitAllPendingDrafts();
-                                      final checkoutItems = _toCheckoutItems(
-                                          cartItems.where((i) => _selectedItemKeys.contains(i.cartKey)));
-                                      if (checkoutItems.map((i) => i.product.sellerId).toSet().length > 1) {
-                                        _showMultiStoreCheckoutChooser(context, itemsBySeller);
-                                        return;
-                                      }
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => CheckoutView(
-                                            items: checkoutItems,
-                                            isDirectBuy: false,
-                                          ),
+                            child: SafeArea(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text(
+                                        'Selected Total',
+                                        style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 12,
+                                          color: Colors.grey,
                                         ),
-                                      );
-                                    },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: TeknoyTheme.citMaroon,
-                                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 15),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                elevation: 0,
-                              ),
-                              child: Text(
-                                _selectedItemKeys.isEmpty
-                                    ? 'Checkout Selected'
-                                    : 'Checkout Selected (${_selectedItemKeys.length})',
-                                style: const TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: Colors.white,
-                                ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '₱${selectedTotal.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                          color: TeknoyTheme.citMaroon,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: _selectedItemKeys.isEmpty
+                                        ? null
+                                        : () {
+                                            _commitAllPendingDrafts();
+                                            final checkoutItems = _toCheckoutItems(
+                                                cartItems.where((i) => _selectedItemKeys.contains(i.cartKey)));
+                                            if (checkoutItems.map((i) => i.product.sellerId).toSet().length > 1) {
+                                              _showMultiStoreCheckoutChooser(context, itemsBySeller);
+                                              return;
+                                            }
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => CheckoutView(
+                                                  items: checkoutItems,
+                                                  isDirectBuy: false,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: TeknoyTheme.citMaroon,
+                                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 15),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                      elevation: 0,
+                                    ),
+                                    child: Text(
+                                      _selectedItemKeys.isEmpty
+                                          ? 'Checkout Selected'
+                                          : 'Checkout Selected (${_selectedItemKeys.length})',
+                                      style: const TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -772,8 +825,8 @@ class _CartViewState extends ConsumerState<CartView> {
         border: Border.all(color: cardBorder, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
-            blurRadius: 8,
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+            blurRadius: 10,
             offset: const Offset(0, 2),
           ),
         ],
@@ -785,7 +838,7 @@ class _CartViewState extends ConsumerState<CartView> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E26) : const Color(0xFFF9F9FC),
+              color: isDark ? const Color(0xFF1E1E26) : const Color(0xFFFAFAFD),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
               border: Border(bottom: BorderSide(color: cardBorder, width: 0.8)),
             ),
@@ -822,7 +875,7 @@ class _CartViewState extends ConsumerState<CartView> {
                             fontFamily: 'Outfit',
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -961,10 +1014,11 @@ class _CartViewState extends ConsumerState<CartView> {
               children: [
                 Text(
                   item.product.title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

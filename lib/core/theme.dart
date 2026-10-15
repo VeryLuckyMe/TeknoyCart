@@ -84,6 +84,9 @@ class TeknoyTheme {
         onPrimary: Colors.white,
         onSecondary: Colors.black,
       ),
+      hoverColor: const Color(0xFF1E1E26),
+      highlightColor: const Color(0xFF262632),
+      splashColor: citMaroon.withValues(alpha: 0.15),
       
       // Card Theme
       cardTheme: const CardThemeData(
@@ -179,7 +182,7 @@ class TeknoyTheme {
         displayLarge: TextStyle(fontFamily: 'Outfit', fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -1),
         titleLarge: TextStyle(fontFamily: 'Outfit', fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.5),
         titleMedium: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
-        bodyLarge: const TextStyle(fontFamily: 'Inter', fontSize: 15, color: Colors.white, height: 1.4),
+        bodyLarge: TextStyle(fontFamily: 'Inter', fontSize: 15, color: Colors.white, height: 1.4),
         bodyMedium: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.white60, height: 1.4),
         labelLarge: TextStyle(fontFamily: 'Outfit', fontSize: 14, fontWeight: FontWeight.bold, color: citGold, letterSpacing: 0.5),
       ),
@@ -210,6 +213,9 @@ class TeknoyTheme {
         onPrimary: Colors.white,
         onSecondary: Colors.black,
       ),
+      hoverColor: Colors.white.withValues(alpha: 0.85),
+      highlightColor: Colors.white,
+      splashColor: citMaroon.withValues(alpha: 0.05),
       
       // Card Theme
       cardTheme: const CardThemeData(

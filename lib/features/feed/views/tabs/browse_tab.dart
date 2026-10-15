@@ -87,7 +87,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                           maxController.clear();
                           setModalState(() => tempCondition = 'All');
                         },
-                        child: Text(
+                        child: const Text(
                           'Reset',
                           style: TextStyle(
                             fontFamily: 'Inter',
@@ -241,7 +241,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
       children: [
         // Search Input Deck with Filter Tune Button
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          padding: const EdgeInsets.fromLTRB(16.0, 4.0, 16.0, 10.0),
           child: Row(
             children: [
               Expanded(
@@ -352,7 +352,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                 ),
                 child: Stack(
                   children: [
-                    Positioned(
+                    const Positioned(
                       right: -12,
                       bottom: -18,
                       child: Opacity(

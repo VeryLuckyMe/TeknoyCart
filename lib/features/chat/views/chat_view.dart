@@ -50,6 +50,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
     super.initState();
     _agreedPrice = widget.product.price;
     _checkOtherPartyDeleted();
+    _markIncomingAsRead();
 
     if (widget.initialOfferPrice != null && widget.initialOfferPrice! > 0) {
       _negotiationState = 'offered';
@@ -58,6 +59,19 @@ class _ChatViewState extends ConsumerState<ChatView> {
         _sendMessage(customContent: 'Can we agree on ₱${widget.initialOfferPrice!.toStringAsFixed(0)}? Deal?');
       });
     }
+  }
+
+  void _markIncomingAsRead() {
+    if (widget.roomId == 'room-demo' || widget.roomId.startsWith('demo-')) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final currentUserId = ref.read(authStateProvider).valueOrNull?.id ?? SupabaseConfig.client.auth.currentUser?.id;
+      if (currentUserId != null) {
+        ref.read(chatServiceProvider).markMessagesAsRead(
+          roomId: widget.roomId,
+          currentUserId: currentUserId,
+        );
+      }
+    });
   }
 
   Future<void> _checkOtherPartyDeleted() async {
@@ -256,7 +270,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Center(
+        title: const Center(
           child: Text('Propose Offer Price', style: TextStyle(fontFamily: 'Outfit', color: TeknoyTheme.citMaroon, fontWeight: FontWeight.bold, fontSize: 18)),
         ),
         content: Column(
@@ -452,8 +466,8 @@ class _ChatViewState extends ConsumerState<ChatView> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                isMe ? TeknoyTheme.citMaroon : (isDark ? const Color(0xFF1B1B1F) : const Color(0xFFF1F1F4)),
-                                isMe ? TeknoyTheme.citMaroonLight.withValues(alpha: 0.9) : (isDark ? const Color(0xFF24242A) : const Color(0xFFE5E5E9)),
+                                isMe ? TeknoyTheme.citMaroon : (isDark ? const Color(0xFF1B1B1F) : Colors.white),
+                                isMe ? TeknoyTheme.citMaroonLight.withValues(alpha: 0.9) : (isDark ? const Color(0xFF24242A) : const Color(0xFFFAF9F6)),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(20),

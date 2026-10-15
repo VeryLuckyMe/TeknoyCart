@@ -93,7 +93,7 @@ class ChatService {
               .eq('chat_id', chatId)
               .limit(1);
 
-          if (existingMsgs == null || (existingMsgs as List).isEmpty) {
+          if ((existingMsgs as List).isEmpty) {
             await _sendInitialWelcomeMessage(
               chatId,
               sellerId,
@@ -155,7 +155,7 @@ class ChatService {
             .eq('product_id', productId)
             .limit(1);
 
-        if (productVariants != null && (productVariants as List).isNotEmpty) {
+        if ((productVariants as List).isNotEmpty) {
           variantId = productVariants[0]['variant_id'] as String;
         } else {
           final safeProd = productId.length > 8 ? productId.substring(0, 8) : productId;
@@ -323,6 +323,9 @@ class ChatService {
           } else {
             debugPrint("WATCH_MESSAGES_DEBUG: Room data not found for roomId=$roomId");
           }
+
+          // Mark unread messages from other user as read automatically
+          unawaited(markMessagesAsRead(roomId: roomId, currentUserId: currentUser.id));
         } else {
           debugPrint("WATCH_MESSAGES_DEBUG: Current authenticated user is NULL");
         }
@@ -427,6 +430,12 @@ class ChatService {
                 _messageController.add(List.from(_activeMessages));
               }
             }
+
+            // Auto-mark incoming message as read if user is actively in this room
+            final currentUserId = _client.auth.currentUser?.id;
+            if (currentUserId != null && msg.senderId != currentUserId) {
+              unawaited(markMessagesAsRead(roomId: chatId, currentUserId: currentUserId));
+            }
           },
         );
         
@@ -509,7 +518,7 @@ class ChatService {
                 .order('sent_at', ascending: false)
                 .limit(10);
 
-            if (response != null && (response as List).isNotEmpty) {
+            if ((response as List).isNotEmpty) {
               final list = response as List;
               for (final row in list) {
                 final contentStr = row['content'] as String? ?? '';
@@ -667,7 +676,6 @@ class ChatService {
             ? 'Clarence'
             : 'the seller');
 
-    const String responseTime = '10 minutes';
     const int stock = 3; // fallback stock for demo/unknown products
 
     // 0. Bargaining / Tawad / Offer Inquiry
@@ -808,6 +816,26 @@ class ChatService {
     } catch (e) {
       debugPrint("SOFT_DELETE_CHAT_ROOM_ERROR: $e");
       rethrow;
+    }
+  }
+
+  /// Marks all incoming unread messages in a room as read for the current user.
+  Future<void> markMessagesAsRead({
+    required String roomId,
+    required String currentUserId,
+  }) async {
+    if (roomId == 'room-demo' || roomId.startsWith('demo-')) {
+      return;
+    }
+    try {
+      await _client
+          .from('messages')
+          .update({'is_read': true})
+          .eq('chat_id', roomId)
+          .neq('sender_id', currentUserId)
+          .eq('is_read', false);
+    } catch (e) {
+      debugPrint("MARK_MESSAGES_AS_READ_ERROR for room $roomId: $e");
     }
   }
 

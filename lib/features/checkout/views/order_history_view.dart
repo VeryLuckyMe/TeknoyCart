@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
@@ -11,10 +12,17 @@ import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:teknoycart/core/config/api_config.dart';
 
 /// Orders Hub — unified view for buyers ("My Purchases") and sellers ("Incoming Orders").
-/// Shows full order details including buyer/seller name, pickup schedule, payment method, and action buttons.
+/// Refactored to eliminate nested box containers, introducing fluid status filter chips,
+/// a procedural 3D Campus Parcel empty state, and modern card typography.
 class OrderHistoryView extends ConsumerStatefulWidget {
   final bool embedded;
-  const OrderHistoryView({super.key, this.embedded = false});
+  final void Function(int tabIndex)? onNavigateTab;
+
+  const OrderHistoryView({
+    super.key,
+    this.embedded = false,
+    this.onNavigateTab,
+  });
 
   @override
   ConsumerState<OrderHistoryView> createState() => _OrderHistoryViewState();
@@ -33,6 +41,9 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
   List<Map<String, dynamic>> _buyerOrders = [];
   List<Map<String, dynamic>> _sellerOrders = [];
   bool _isSeller = false;
+
+  String _selectedBuyerFilter = 'All';
+  String _selectedSellerFilter = 'All';
 
   @override
   void initState() {
@@ -93,7 +104,10 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
 
   Future<void> _fetchBuyerOrders({bool forceRefresh = false}) async {
     final user = ref.read(authStateProvider).valueOrNull;
-    if (user == null) { setState(() => _isLoadingBuyer = false); return; }
+    if (user == null) {
+      setState(() => _isLoadingBuyer = false);
+      return;
+    }
 
     // Instant zero-latency render from memory cache
     if (!forceRefresh && _cachedBuyerOrders != null && _cachedBuyerUserId == user.id) {
@@ -118,51 +132,71 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
             pickup_day,
             pickup_time,
             payment_method,
-            seller_confirmed_at,
-            buyer_confirmed_at,
             seller_id,
-            handoff_otp,
-            otp_created_at,
-            otp_failed_attempts,
-            seller_handed_off,
-            buyer_confirmed_receipt,
+            is_out_of_stock,
             product_variants (
-              variant_value,
+              variant_id,
               products (
+                product_id,
                 name,
-                product_images (image_url, is_primary)
+                stock_qty,
+                product_images (
+                  image_url,
+                  is_primary
+                )
               )
             )
           ''')
           .eq('buyer_id', user.id)
           .order('created_at', ascending: false);
 
-      final List<dynamic> ordersList = response as List;
-      final Set<String> sellerIds = ordersList
-          .map((o) => o['seller_id']?.toString())
-          .whereType<String>()
-          .toSet();
+      final orderList = (response as List<dynamic>).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+      // Collect seller IDs for batch user lookup
+      final sellerIds = orderList
+          .map((o) => o['seller_id'] as String?)
+          .where((id) => id != null && id.isNotEmpty)
+          .cast<String>()
+          .toSet()
+          .toList();
 
       final Map<String, Map<String, dynamic>> sellerMap = {};
       if (sellerIds.isNotEmpty) {
         try {
-          final sellerRes = await SupabaseConfig.client
+          final usersRes = await SupabaseConfig.client
               .from('users')
-              .select('user_id, full_name, contact, gcash_number')
-              .filter('user_id', 'in', sellerIds.toList());
-          for (final s in (sellerRes as List)) {
-            sellerMap[s['user_id'].toString()] = Map<String, dynamic>.from(s);
+              .select('user_id, full_name, contact')
+              .filter('user_id', 'in', sellerIds);
+          for (final u in (usersRes as List)) {
+            sellerMap[u['user_id']] = Map<String, dynamic>.from(u as Map);
           }
         } catch (_) {}
       }
 
-      final List<Map<String, dynamic>> enriched = [];
-      for (final order in ordersList) {
-        final o = Map<String, dynamic>.from(order);
-        final seller = sellerMap[o['seller_id']?.toString()];
-        o['seller_name'] = seller?['full_name'] ?? 'Seller';
+      // Collect seller IDs to check store names
+      final Map<String, String> storeMap = {};
+      if (sellerIds.isNotEmpty) {
+        try {
+          final sellersRes = await SupabaseConfig.client
+              .from('sellers')
+              .select('seller_id, store_name')
+              .filter('seller_id', 'in', sellerIds);
+          for (final s in (sellersRes as List)) {
+            storeMap[s['seller_id']] = s['store_name'] ?? '';
+          }
+        } catch (_) {}
+      }
+
+      final enriched = <Map<String, dynamic>>[];
+      for (final o in orderList) {
+        final sid = o['seller_id'] as String?;
+        final seller = sid != null ? sellerMap[sid] : null;
+        final storeName = sid != null ? storeMap[sid] : null;
+
+        o['seller_name'] = (storeName != null && storeName.isNotEmpty)
+            ? storeName
+            : (seller?['full_name'] ?? 'Seller');
         o['seller_contact'] = seller?['contact'];
-        o['seller_gcash'] = seller?['gcash_number'];
         enriched.add(o);
       }
 
@@ -173,16 +207,22 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       _cachedBuyerOrders = enriched;
       _cachedBuyerUserId = user.id;
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load purchases: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load purchases: $e')),
+        );
+      }
       setState(() => _isLoadingBuyer = false);
     }
   }
 
   Future<void> _fetchSellerOrders({bool forceRefresh = false}) async {
     final user = ref.read(authStateProvider).valueOrNull;
-    if (user == null) { setState(() => _isLoadingSeller = false); return; }
+    if (user == null) {
+      setState(() => _isLoadingSeller = false);
+      return;
+    }
 
-    // Instant zero-latency render from memory cache
     if (!forceRefresh && _cachedSellerOrders != null && _cachedSellerUserId == user.id) {
       setState(() {
         _sellerOrders = _cachedSellerOrders!;
@@ -205,48 +245,52 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
             pickup_day,
             pickup_time,
             payment_method,
-            seller_confirmed_at,
-            buyer_confirmed_at,
             buyer_id,
-            handoff_otp,
-            otp_created_at,
-            otp_failed_attempts,
-            seller_handed_off,
-            buyer_confirmed_receipt,
+            is_out_of_stock,
             product_variants (
-              variant_value,
+              variant_id,
               products (
+                product_id,
                 name,
-                product_images (image_url, is_primary)
+                stock_qty,
+                product_images (
+                  image_url,
+                  is_primary
+                )
               )
             )
           ''')
           .eq('seller_id', user.id)
           .order('created_at', ascending: false);
 
-      final List<dynamic> ordersList = response as List;
-      final Set<String> buyerIds = ordersList
-          .map((o) => o['buyer_id']?.toString())
-          .whereType<String>()
-          .toSet();
+      final orderList = (response as List<dynamic>).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+      // Collect buyer IDs for batch user lookup
+      final buyerIds = orderList
+          .map((o) => o['buyer_id'] as String?)
+          .where((id) => id != null && id.isNotEmpty)
+          .cast<String>()
+          .toSet()
+          .toList();
 
       final Map<String, Map<String, dynamic>> buyerMap = {};
       if (buyerIds.isNotEmpty) {
         try {
-          final buyerRes = await SupabaseConfig.client
+          final usersRes = await SupabaseConfig.client
               .from('users')
               .select('user_id, full_name, contact')
-              .filter('user_id', 'in', buyerIds.toList());
-          for (final b in (buyerRes as List)) {
-            buyerMap[b['user_id'].toString()] = Map<String, dynamic>.from(b);
+              .filter('user_id', 'in', buyerIds);
+          for (final u in (usersRes as List)) {
+            buyerMap[u['user_id']] = Map<String, dynamic>.from(u as Map);
           }
         } catch (_) {}
       }
 
-      final List<Map<String, dynamic>> enriched = [];
-      for (final order in ordersList) {
-        final o = Map<String, dynamic>.from(order);
-        final buyer = buyerMap[o['buyer_id']?.toString()];
+      final enriched = <Map<String, dynamic>>[];
+      for (final o in orderList) {
+        final bid = o['buyer_id'] as String?;
+        final buyer = bid != null ? buyerMap[bid] : null;
+
         o['buyer_name'] = buyer?['full_name'] ?? 'Buyer';
         o['buyer_contact'] = buyer?['contact'];
         enriched.add(o);
@@ -259,7 +303,11 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       _cachedSellerOrders = enriched;
       _cachedSellerUserId = user.id;
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load incoming orders: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load incoming orders: $e')),
+        );
+      }
       setState(() => _isLoadingSeller = false);
     }
   }
@@ -299,10 +347,18 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
           throw Exception(msg);
         }
       }
-      await _fetchSellerOrders();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order accepted! The buyer has been notified.'), backgroundColor: Colors.green));
+      await _fetchSellerOrders(forceRefresh: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Order accepted! The buyer has been notified.'), backgroundColor: Colors.green),
+        );
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to accept: $e'), backgroundColor: Colors.red));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to accept: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -322,13 +378,15 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
           ],
         ),
         content: Text(
-          'Are you sure you want to decline this order${itemName != null ? " for \"$itemName\"" : ""}? The buyer will be notified and this action cannot be undone.',
+          itemName != null
+              ? 'Are you sure you want to decline the order for "$itemName"? The buyer will be notified immediately.'
+              : 'Are you sure you want to decline this order?',
           style: const TextStyle(fontFamily: 'Inter', fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Keep Order', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600, color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(fontFamily: 'Outfit', color: Colors.grey)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -342,24 +400,38 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         ],
       ),
     );
-    if (confirmed == true) {
-      _declineOrder(orderId);
-    }
-  }
 
-  Future<void> _declineOrder(String orderId) async {
+    if (confirmed != true) return;
+
     try {
-      final rpcRes = await SupabaseConfig.client.rpc(
-        'cancel_order_as_seller',
-        params: {'p_order_id': orderId, 'p_reason': 'Declined by seller'},
+      final token = await SecureTokenService.getBearerToken();
+      final url = Uri.parse('${ApiConfig.ordersUrl}/$orderId/decline');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'reason': 'Declined by seller'}),
       );
-      if (rpcRes is Map && rpcRes['success'] == false) {
-        throw Exception(rpcRes['error'] ?? 'Failed to decline order');
+      if (response.statusCode >= 400) {
+        String msg = 'Failed to decline order';
+        try {
+          final parsed = jsonDecode(response.body);
+          if (parsed is Map && parsed['message'] != null) msg = parsed['message'].toString();
+        } catch (_) {}
+        throw Exception(msg);
       }
-      await _fetchSellerOrders();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order declined.')));
+      await _fetchSellerOrders(forceRefresh: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order declined.')));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to decline: $e'), backgroundColor: Colors.red));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to decline: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -391,6 +463,240 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     return product?['name'] ?? 'Unknown Product';
   }
 
+  List<Map<String, dynamic>> _filterOrders(List<Map<String, dynamic>> list, String filter) {
+    if (filter == 'All') return list;
+    return list.where((order) {
+      final status = (order['status'] as String? ?? '').trim().toUpperCase();
+      switch (filter) {
+        case 'In Escrow 🔒':
+          return status == 'ESCROWED' || status == 'PAYMENT_SUBMITTED';
+        case 'Awaiting ⏳':
+          return status == 'PENDING_SELLER_ACCEPT' || status == 'PLACED' || status == 'AWAITING_PAYMENT';
+        case 'To Pickup 🤝':
+          return status == 'MEETUP_SCHEDULED' ||
+              status == 'HANDOFF_PENDING' ||
+              status == 'SELLER_ACCEPTED' ||
+              status == 'APPROVED' ||
+              status == 'ACCEPTED';
+        case 'Completed ✅':
+          return status == 'COMPLETED' ||
+              status == 'PAYMENT_VERIFIED' ||
+              status == 'RETURN_COMPLETED';
+        case 'Cancelled ❌':
+          return status == 'CANCELLED' ||
+              status == 'DECLINED' ||
+              status == 'REJECTED' ||
+              status == 'REFUNDED' ||
+              status == 'REFUND_COMPLETED';
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
+  Widget _buildFilterBar({required bool isDark, required bool isSeller}) {
+    final filters = ['All', 'In Escrow 🔒', 'Awaiting ⏳', 'To Pickup 🤝', 'Completed ✅', 'Cancelled ❌'];
+    final selectedFilter = isSeller ? _selectedSellerFilter : _selectedBuyerFilter;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2.0, bottom: 6.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: filters.map((filter) {
+            final isSelected = selectedFilter == filter;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    if (isSeller) {
+                      _selectedSellerFilter = filter;
+                    } else {
+                      _selectedBuyerFilter = filter;
+                    }
+                  });
+                },
+                borderRadius: BorderRadius.circular(24),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? (isDark ? const Color(0xFF321318) : Colors.white)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: isDark
+                                  ? Colors.black.withValues(alpha: 0.3)
+                                  : TeknoyTheme.citMaroon.withValues(alpha: 0.08),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Text(
+                    filter,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 13,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected
+                          ? TeknoyTheme.citMaroon
+                          : (isDark ? Colors.white60 : const Color(0xFF64748B)),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrdersEmptyState({
+    required bool isDark,
+    required bool isSeller,
+    required String filter,
+  }) {
+    return Center(
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Procedural 3D Campus Parcel Illustration
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    TeknoyTheme.citGold.withValues(alpha: isDark ? 0.2 : 0.15),
+                    TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.05 : 0.04),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF2D1B16) : const Color(0xFFE8D5C4),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 12,
+                            height: 48,
+                            color: TeknoyTheme.citMaroon,
+                          ),
+                        ),
+                        Center(
+                          child: Container(
+                            width: 52,
+                            height: 12,
+                            color: TeknoyTheme.citMaroon,
+                          ),
+                        ),
+                        Center(
+                          child: Container(
+                            width: 18,
+                            height: 18,
+                            decoration: const BoxDecoration(
+                              color: TeknoyTheme.citGold,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.school_rounded,
+                              size: 11,
+                              color: Color(0xFF4A3800),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              filter == 'All'
+                  ? (isSeller ? 'No incoming orders' : 'No purchases yet')
+                  : 'No orders under $filter',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isSeller
+                  ? 'Orders placed for your campus items will appear here for you to accept.'
+                  : 'Pre-loved uniforms, textbooks, and campus supplies will show up here once ordered.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 13,
+                color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                height: 1.4,
+              ),
+            ),
+            if (!isSeller) ...[
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  if (widget.onNavigateTab != null) {
+                    widget.onNavigateTab!(0);
+                  } else if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                },
+                icon: const Icon(Icons.shopping_bag_outlined, size: 18),
+                label: const Text('Browse Campus Deals'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: TeknoyTheme.citMaroon,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildOrderCard({
     required Map<String, dynamic> order,
     required bool isDark,
@@ -413,154 +719,232 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     final pickupDay = order['pickup_day'] as String? ?? '—';
     final pickupTime = order['pickup_time'] as String? ?? '—';
     final rawPayment = order['payment_method'] as String? ?? 'CASH_ON_PICKUP';
-    // FIX #3: Consistent terminology — campus meetup uses pickup, not delivery.
     final paymentMethod = (rawPayment == 'GCASH' || rawPayment == 'GCash') ? 'GCash' : 'Cash on Pickup';
 
     return TweenAnimationBuilder<double>(
-      duration: const Duration(milliseconds: 350),
+      duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCubic,
       tween: Tween(begin: 0, end: 1),
-      builder: (context, v, child) => Opacity(opacity: v, child: Transform.translate(offset: Offset(0, 12 * (1 - v)), child: child)),
-      child: GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(
-          builder: (_) => OrderDetailView(order: order, isSeller: isSeller),
-        )).then((_) => isSeller ? _fetchSellerOrders() : _fetchBuyerOrders()),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 14),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF141418) : Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isPending
-                  ? Colors.orange.withValues(alpha: 0.4)
-                  : (isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF)),
-              width: isPending ? 1.5 : 1,
-            ),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+      builder: (context, v, child) => Opacity(
+        opacity: v,
+        child: Transform.translate(offset: Offset(0, 10 * (1 - v)), child: child),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF141418) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isPending
+                ? Colors.orange.withValues(alpha: 0.35)
+                : (isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF)),
+            width: isPending ? 1.5 : 1,
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header row: image + product name + status
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: imageUrl != null
-                          ? Image.network(imageUrl, width: 56, height: 56, fit: BoxFit.cover)
-                          : Container(width: 56, height: 56, color: Colors.grey.withValues(alpha: 0.15), child: const Icon(Icons.receipt_long_rounded, color: Colors.grey)),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(productName, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
-                          const SizedBox(height: 4),
-                          Text('₱ ${order['total_amount']}', style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon, fontSize: 14)),
-                        ],
-                      ),
-                    ),
-                    OrderUiHelper.buildStatusBadge(
-                      status: status,
-                      isOutOfStock: _isItemOutOfStock(order),
-                      fontSize: 10,
-                    ),
-                  ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => OrderDetailView(order: order, isSeller: isSeller),
                 ),
-                const SizedBox(height: 12),
-                // Info grid
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF7F7FA),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
+              ).then((_) => isSeller ? _fetchSellerOrders(forceRefresh: true) : _fetchBuyerOrders(forceRefresh: true));
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Row: Image + Product Name + Status Badge
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _infoRow(Icons.person_outline_rounded, otherPartyLabel, otherPartyName, isDark),
-                      if (otherPartyContact != null) ...[
-                        const SizedBox(height: 6),
-                        _infoRow(Icons.phone_outlined, 'Contact', otherPartyContact, isDark),
-                      ],
-                      const SizedBox(height: 6),
-                      _infoRow(Icons.location_on_outlined, 'Pickup', pickupLocation, isDark),
-                      const SizedBox(height: 6),
-                      _infoRow(Icons.schedule_rounded, 'Schedule', '$pickupDay · $pickupTime', isDark),
-                      const SizedBox(height: 6),
-                      _infoRow(Icons.account_balance_wallet_outlined, 'Payment', paymentMethod, isDark),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: imageUrl != null
+                            ? Image.network(imageUrl, width: 54, height: 54, fit: BoxFit.cover)
+                            : Container(
+                                width: 54,
+                                height: 54,
+                                color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF1F5F9),
+                                child: const Icon(Icons.receipt_long_rounded, color: Colors.grey),
+                              ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              productName,
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15.5,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '₱ ${order['total_amount']}',
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.bold,
+                                color: TeknoyTheme.citMaroon,
+                                fontSize: 14.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      OrderUiHelper.buildStatusBadge(
+                        status: status,
+                        isOutOfStock: _isItemOutOfStock(order),
+                        fontSize: 10,
+                      ),
                     ],
                   ),
-                ),
-                // Seller-only: Accept/Decline buttons
-                if (isSeller && isPending) ...[
+
+                  // Fluid Info Rows (No nested box-within-a-box container!)
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _confirmAndDeclineOrder(order['order_id'], productName),
-                          icon: const Icon(Icons.close_rounded, size: 16),
-                          label: const Text('Decline', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red,
-                            side: const BorderSide(color: Colors.red),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                        ),
+                      Icon(
+                        Icons.location_on_outlined,
+                        size: 14,
+                        color: isDark ? const Color(0xFFFF8585) : TeknoyTheme.citMaroon,
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 6),
                       Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _acceptOrder(order['order_id']),
-                          icon: const Icon(Icons.check_rounded, size: 16, color: Colors.white),
-                          label: const Text('Accept', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(
+                          '$pickupLocation • $pickupDay · $pickupTime',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white70 : const Color(0xFF334155),
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
-                ],
-                // "Tap for details" hint
-                if (!isPending || !isSeller) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 5),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      Text('Tap for details', style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: isDark ? Colors.white30 : Colors.black38)),
-                      const SizedBox(width: 4),
-                      Icon(Icons.arrow_forward_ios_rounded, size: 10, color: isDark ? Colors.white30 : Colors.black38),
+                      Icon(
+                        Icons.person_outline_rounded,
+                        size: 14,
+                        color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '$otherPartyLabel: $otherPartyName • $paymentMethod',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 12,
+                            color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (otherPartyContact != null && otherPartyContact.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Icon(Icons.phone_outlined, size: 12, color: isDark ? Colors.white38 : const Color(0xFF94A3B8)),
+                        const SizedBox(width: 3),
+                        Text(
+                          otherPartyContact,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11.5,
+                            color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
+
+                  // Seller-only: Accept/Decline action buttons
+                  if (isSeller && isPending) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _confirmAndDeclineOrder(order['order_id'], productName),
+                            icon: const Icon(Icons.close_rounded, size: 16),
+                            label: const Text('Decline', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _acceptOrder(order['order_id']),
+                            icon: const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+                            label: const Text('Accept', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  // Subtle Footer Link
+                  if (!isPending || !isSeller) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Tap for details',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11.5,
+                            color: isDark ? Colors.white30 : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 10,
+                          color: isDark ? Colors.white30 : const Color(0xFF94A3B8),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _infoRow(IconData icon, String label, String value, bool isDark) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 14, color: isDark ? Colors.white54 : Colors.black45),
-        const SizedBox(width: 8),
-        Text('$label: ', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: isDark ? Colors.white54 : Colors.black45)),
-        Expanded(
-          child: Text(value, style: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.black87), overflow: TextOverflow.ellipsis),
-        ),
-      ],
     );
   }
 
@@ -579,14 +963,48 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         return buyerList;
       }
       return Scaffold(
+        extendBodyBehindAppBar: true,
+        backgroundColor: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF8FAFC),
         appBar: AppBar(
+          toolbarHeight: 46.0,
           title: const Text(
             'My Purchases',
             style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
           ),
           centerTitle: true,
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          systemOverlayStyle: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         ),
-        body: buyerList,
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: const [0.0, 0.22, 1.0],
+              colors: isDark
+                  ? [
+                      const Color(0xFF221115),
+                      const Color(0xFF140D10),
+                      const Color(0xFF0F0F12),
+                    ]
+                  : [
+                      const Color(0xFFFFEDE1),
+                      const Color(0xFFFFF7F2),
+                      const Color(0xFFF8FAFC),
+                    ],
+            ),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 46.0),
+              child: buyerList,
+            ),
+          ),
+        ),
       );
     }
 
@@ -643,7 +1061,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       return Column(
         children: [
           Container(
-            color: isDark ? const Color(0xFF0F0F12) : Colors.white,
+            color: Colors.transparent,
             child: tabBar,
           ),
           Expanded(child: tabViews),
@@ -652,65 +1070,109 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     }
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF8FAFC),
       appBar: AppBar(
+        toolbarHeight: 46.0,
         title: const Text(
           'Orders Hub',
           style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        systemOverlayStyle: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         bottom: tabBar,
       ),
-      body: tabViews,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.22, 1.0],
+            colors: isDark
+                ? [
+                    const Color(0xFF221115),
+                    const Color(0xFF140D10),
+                    const Color(0xFF0F0F12),
+                  ]
+                : [
+                    const Color(0xFFFFEDE1),
+                    const Color(0xFFFFF7F2),
+                    const Color(0xFFF8FAFC),
+                  ],
+          ),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 46.0 + kTextTabBarHeight),
+            child: tabViews,
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildBuyerPurchasesList(bool isDark) {
-    return RefreshIndicator(
-      onRefresh: () => _fetchBuyerOrders(forceRefresh: true),
-      color: TeknoyTheme.citMaroon,
-      child: _isLoadingBuyer
-          ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
-          : _buyerOrders.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.shopping_bag_outlined, size: 56, color: isDark ? Colors.white24 : Colors.black26),
-                      const SizedBox(height: 12),
-                      Text('No purchases yet', style: TextStyle(fontFamily: 'Outfit', fontSize: 16, color: isDark ? Colors.white54 : Colors.black54)),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _buyerOrders.length,
-                  itemBuilder: (context, i) => _buildOrderCard(order: _buyerOrders[i], isDark: isDark, isSeller: false),
-                ),
+    final filtered = _filterOrders(_buyerOrders, _selectedBuyerFilter);
+    return Container(
+      color: Colors.transparent,
+      child: Column(
+        children: [
+          _buildFilterBar(isDark: isDark, isSeller: false),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => _fetchBuyerOrders(forceRefresh: true),
+              color: TeknoyTheme.citMaroon,
+              child: _isLoadingBuyer
+                  ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
+                  : filtered.isEmpty
+                      ? _buildOrdersEmptyState(isDark: isDark, isSeller: false, filter: _selectedBuyerFilter)
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, i) => _buildOrderCard(order: filtered[i], isDark: isDark, isSeller: false),
+                        ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildSellerOrdersList(bool isDark) {
-    return RefreshIndicator(
-      onRefresh: () => _fetchSellerOrders(forceRefresh: true),
-      color: TeknoyTheme.citMaroon,
-      child: _isLoadingSeller
-          ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
-          : _sellerOrders.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.inbox_outlined, size: 56, color: isDark ? Colors.white24 : Colors.black26),
-                      const SizedBox(height: 12),
-                      Text('No incoming orders', style: TextStyle(fontFamily: 'Outfit', fontSize: 16, color: isDark ? Colors.white54 : Colors.black54)),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _sellerOrders.length,
-                  itemBuilder: (context, i) => _buildOrderCard(order: _sellerOrders[i], isDark: isDark, isSeller: true),
-                ),
+    final filtered = _filterOrders(_sellerOrders, _selectedSellerFilter);
+    return Container(
+      color: Colors.transparent,
+      child: Column(
+        children: [
+          _buildFilterBar(isDark: isDark, isSeller: true),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => _fetchSellerOrders(forceRefresh: true),
+              color: TeknoyTheme.citMaroon,
+              child: _isLoadingSeller
+                  ? const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon))
+                  : filtered.isEmpty
+                      ? _buildOrdersEmptyState(isDark: isDark, isSeller: true, filter: _selectedSellerFilter)
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, i) => _buildOrderCard(order: filtered[i], isDark: isDark, isSeller: true),
+                        ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

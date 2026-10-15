@@ -227,7 +227,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                       const SizedBox(height: 6),
                       DropdownButtonFormField<String>(
                         isExpanded: true,
-                        value: selectedDept,
+                        initialValue: selectedDept,
                         dropdownColor: isDark ? const Color(0xFF222228) : Colors.white,
                         decoration: InputDecoration(
                           prefixIcon: const Icon(Icons.school_outlined, size: 20),
@@ -861,7 +861,6 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     final dealsAsync = ref.watch(userCompletedDealsCountProvider(rawId));
     final dealsCount = dealsAsync.valueOrNull ?? 0;
 
-    final String role = user?.role ?? 'BUYER';
     final bool isVerified = user?.isSellerVerified ?? false;
     final isSeller = user?.isSeller ?? false;
     final String studentId = user?.studentId ?? 'Pending';
@@ -870,7 +869,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     final String storeName = rawStoreName.trim().isNotEmpty ? rawStoreName.trim() : 'Not Configured';
 
         return Container(
-          color: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF7F7FA),
+          color: Colors.transparent,
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
@@ -1693,11 +1692,11 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
-                const Icon(Icons.hourglass_top_rounded, color: Color(0xFFD97706), size: 20),
-                const SizedBox(width: 8),
-                const Text(
+                Icon(Icons.hourglass_top_rounded, color: Color(0xFFD97706), size: 20),
+                SizedBox(width: 8),
+                Text(
                   'Vendor KYC Under Review',
                   style: TextStyle(
                     fontFamily: 'Outfit',
