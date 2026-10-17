@@ -133,13 +133,14 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
             pickup_time,
             payment_method,
             seller_id,
-            is_out_of_stock,
             product_variants (
               variant_id,
+              inventory (
+                stock_qty
+              ),
               products (
                 product_id,
                 name,
-                stock_qty,
                 product_images (
                   image_url,
                   is_primary
@@ -246,13 +247,14 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
             pickup_time,
             payment_method,
             buyer_id,
-            is_out_of_stock,
             product_variants (
               variant_id,
+              inventory (
+                stock_qty
+              ),
               products (
                 product_id,
                 name,
-                stock_qty,
                 product_images (
                   image_url,
                   is_primary
@@ -439,11 +441,15 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     if (order['is_out_of_stock'] == true) return true;
     final variantRaw = order['product_variants'];
     if (variantRaw is Map) {
-      final productRaw = variantRaw['products'];
-      if (productRaw is Map) {
-        final int stock = int.tryParse(productRaw['stock_qty']?.toString() ?? '0') ?? 0;
-        final String name = (productRaw['name'] as String? ?? '').toLowerCase();
-        if (stock <= 0 || name.contains('msi')) return true;
+      final inv = variantRaw['inventory'];
+      if (inv != null) {
+        int stock = 0;
+        if (inv is List && inv.isNotEmpty && inv[0] is Map) {
+          stock = (inv[0]['stock_qty'] as num?)?.toInt() ?? 0;
+        } else if (inv is Map) {
+          stock = (inv['stock_qty'] as num?)?.toInt() ?? 0;
+        }
+        if (stock <= 0) return true;
       }
     }
     return false;
