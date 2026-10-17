@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:teknoycart/core/config/api_config.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/models/product.dart';
 
@@ -328,7 +329,7 @@ final productCacheServiceProvider = Provider<ProductCacheService>((ref) {
   return ProductCacheService();
 });
 
-/// Fallback demo products shown when Supabase is unreachable.
+/// Bundled sample products — served only with --dart-define=DEMO_MODE=true (see [ApiConfig.demoMode]).
 final List<Product> _fallbackProducts = [
   Product(
     id: 'prod-1',
@@ -623,14 +624,19 @@ class ProductListNotifier
 
       _cacheService.saveToLocalCache(products);
       state = AsyncValue.data(products);
-    } catch (e) {
-      // Network/DB error — fall back to cache or demo data
+    } catch (e, st) {
+      // Network/DB error — serve the last real result from cache when available.
+      // Bundled sample products are only used with --dart-define=DEMO_MODE=true;
+      // otherwise the feed shows its honest offline/error state.
       final local = _cacheService.getLocalCache();
       if (local != null && local.isNotEmpty) {
         state = AsyncValue.data(local);
-      } else {
+      } else if (ApiConfig.demoMode) {
         _cacheService.saveToLocalCache(_fallbackProducts);
         state = AsyncValue.data(List.from(_fallbackProducts));
+      } else {
+        debugPrint('PRODUCTS_FETCH_FAILED: $e');
+        state = AsyncValue.error(e, st);
       }
     }
   }

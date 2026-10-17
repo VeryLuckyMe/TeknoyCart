@@ -1,14 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/core/config/api_config.dart';
 import 'package:teknoycart/core/models/review.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 
 /// Notifier managing all customer reviews in TeknoyCart
 class ReviewsNotifier extends StateNotifier<List<Review>> {
-  ReviewsNotifier() : super(_initialMockReviews) {
+  ReviewsNotifier({bool seedDemo = ApiConfig.demoMode})
+      : super(seedDemo ? _initialMockReviews : const <Review>[]) {
     _loadFromSupabase();
   }
 
-  /// Initial sample reviews for seed products to provide rich UI/UX out of the box
+  /// Bundled sample reviews — served only with --dart-define=DEMO_MODE=true (see [ApiConfig.demoMode]).
   static final List<Review> _initialMockReviews = [
     Review(
       id: 'rev-seed-1',
@@ -99,7 +101,7 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
         state = [...dbReviews, ...preserved];
       }
     } catch (_) {
-      // Keep resilient initial mock reviews if Supabase table is not yet created
+      // Offline or table not yet created: keep whatever state holds (empty unless demo mode).
     }
   }
 

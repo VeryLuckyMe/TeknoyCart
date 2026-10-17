@@ -119,8 +119,20 @@ void main() {
   });
 
   group('Reviews Riverpod Provider & State Management Tests', () {
-    test('ReviewsNotifier loads initial seed reviews and filters by product', () {
+    test('ReviewsNotifier starts empty when demo seeding is off', () {
       final container = ProviderContainer();
+
+      // Demo seeding is opt-in via --dart-define=DEMO_MODE=true; the default
+      // test/runtime state is an honest, empty review list.
+      expect(container.read(reviewsNotifierProvider), isEmpty);
+    });
+
+    test('ReviewsNotifier loads seed reviews in demo mode and filters by product', () {
+      final container = ProviderContainer(
+        overrides: [
+          reviewsNotifierProvider.overrideWith((ref) => ReviewsNotifier(seedDemo: true)),
+        ],
+      );
       final prod1Reviews = container.read(reviewsForProductProvider('prod-1'));
 
       expect(prod1Reviews.isNotEmpty, isTrue);
@@ -193,6 +205,9 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
+          overrides: [
+            reviewsNotifierProvider.overrideWith((ref) => ReviewsNotifier(seedDemo: true)),
+          ],
           child: MaterialApp(
             home: Scaffold(
               body: SingleChildScrollView(
@@ -260,8 +275,11 @@ void main() {
       addTearDown(() => tester.view.resetPhysicalSize());
 
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
+        ProviderScope(
+          overrides: [
+            reviewsNotifierProvider.overrideWith((ref) => ReviewsNotifier(seedDemo: true)),
+          ],
+          child: const MaterialApp(
             home: Scaffold(
               body: BuyerReviewsSheet(
                 sellerId: 'usr-seller',
