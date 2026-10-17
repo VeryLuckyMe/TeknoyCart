@@ -16,4 +16,9 @@ class ApiConfig {
 
   /// Payments endpoint base URL
   static String get paymentsUrl => '$baseUrl/payments';
+
+  /// Compile-time demo switch: when true, providers may serve bundled sample
+  /// data (seed products/reviews) for presentations. Defaults to OFF — never
+  /// enable it in production builds. Turn on with: --dart-define=DEMO_MODE=true
+  static const bool demoMode = bool.fromEnvironment('DEMO_MODE');
 }
