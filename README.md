@@ -38,6 +38,19 @@ Ensure you have the following installed:
 
 ## 🏃 Running the App
 
+### ⚙️ Required configuration flags
+
+There are no hardcoded credentials: every run/build must supply the environment with `--dart-define` flags. A run without them fails fast with a clear startup error.
+
+```bash
+flutter run -d chrome --dart-define=SUPABASE_URL=https://<project-ref>.supabase.co --dart-define=SUPABASE_ANON_KEY=<anon key> --dart-define=BACKEND_URL=https://<backend-host>/api
+```
+
+> [!TIP]
+> Add `--dart-define=DEMO_MODE=true` to serve bundled sample products/reviews for offline demos. Never enable it in production builds.
+
+Append the `--dart-define` flags to every command below.
+
 You can run TeknoyCart on various targets:
 
 ### Option A: Local Web Server (Recommended for fast UI testing)
@@ -62,21 +75,11 @@ flutter run
 
 ## 🔑 Demo & Presentation Accounts
 
-The Supabase Auth database has been pre-seeded with specialized accounts for your capstone presentation. You can log in using:
-
-### 🎓 CIT Representative Account (Auto-Login)
-- **Email**: `capstone.team45@cit.edu`
-- **Password**: `teknoycart2026`
-
-### 🛒 Wildcat Buyer Account
-- **Email**: `wildcat.buyer@cit.edu`
-- **Password**: `teknoycart2026`
+The Supabase Auth database has been pre-seeded with accounts for capstone presentations. Ask the project lead for the current credentials — they are intentionally not stored in this repository.
 
 > [!IMPORTANT]
-> **Domain Restriction Enforced**: 
-> The application and database triggers restrict signups and logins **strictly** to institutional CIT email domains:
-> - `@cit.edu`
-> - ``
+> **Domain restriction enforced**:
+> The application and database triggers restrict signups and logins **strictly** to institutional CIT email addresses (`@cit.edu`).
 
 ---
 
@@ -86,7 +89,7 @@ A quick guide to the main directories inside `lib/`:
 ```
 lib/
 ├── core/
-│   ├── supabase_client.dart   # Contains Supabase URL & Anon Key configurations
+│   ├── supabase_client.dart   # Supabase client bootstrap (reads --dart-define flags)
 │   ├── theme.dart             # Curated CIT Maroon theme values
 │   └── responsive_frame.dart  # Mobile mock framing for desktop web previews
 └── features/
@@ -100,4 +103,8 @@ lib/
 ---
 
 ## 🌐 Supabase Integration
-The backend is completely serverless. The endpoint URL and Anon Keys are already configured out of the box in `lib/core/supabase_client.dart`. You do **not** need to set up any `.env` file to start developing or running the project.
+
+The backend is completely serverless and talks directly to Supabase.
+
+- **Credentials**: provided at build time via `--dart-define=SUPABASE_URL` / `--dart-define=SUPABASE_ANON_KEY` (see the Running section above). There are **no hardcoded fallbacks**; a missing configuration fails fast at startup. Never commit real keys.
+- **Data honesty**: the app renders only what Supabase returns. When the service is unreachable it shows cached data or an explicit offline state — it never fabricates listings (bundled samples require `DEMO_MODE=true`).
