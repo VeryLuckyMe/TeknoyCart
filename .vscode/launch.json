@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "TeknoyCart (Edge)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "edge",
+      "toolArgs": [
+        "--dart-define-from-file=.env.json"
+      ]
+    },
+    {
+      "name": "TeknoyCart (Chrome)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "toolArgs": [
+        "--dart-define-from-file=.env.json"
+      ]
+    },
+    {
+      "name": "TeknoyCart (Windows)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "windows",
+      "toolArgs": [
+        "--dart-define-from-file=.env.json"
+      ]
+    }
+  ]
+}

@@ -43,13 +43,17 @@ Ensure you have the following installed:
 There are no hardcoded credentials: every run/build must supply the environment with `--dart-define` flags. A run without them fails fast with a clear startup error.
 
 ```bash
+# Using .env.json (recommended):
+flutter run -d chrome --dart-define-from-file=.env.json
+
+# Or passing individual flags:
 flutter run -d chrome --dart-define=SUPABASE_URL=https://<project-ref>.supabase.co --dart-define=SUPABASE_ANON_KEY=<anon key> --dart-define=BACKEND_URL=https://<backend-host>/api
 ```
 
 > [!TIP]
 > Add `--dart-define=DEMO_MODE=true` to serve bundled sample products/reviews for offline demos. Never enable it in production builds.
 
-Append the `--dart-define` flags to every command below.
+Append `--dart-define-from-file=.env.json` (or the `--dart-define` flags) to every command below.
 
 You can run TeknoyCart on various targets:
 
