@@ -31,22 +31,22 @@ class _FeedProductCardState extends State<FeedProductCard> {
     Color badgeBg;
     Color badgeText;
     if (product.condition.toLowerCase() == 'new') {
-      badgeBg = const Color(0xFF10B981); // Emerald Green
+      badgeBg = TeknoyTheme.success; // Emerald Green
       badgeText = Colors.white;
     } else if (product.condition.toLowerCase() == 'like new') {
       badgeBg = TeknoyTheme.citGold;
       badgeText = const Color(0xFF533F00);
     } else {
-      badgeBg = isDark ? const Color(0xFF2C2C35) : const Color(0xFFECECEF);
+      badgeBg = isDark ? const Color(0xFF2C2C35) : TeknoyTheme.lightBorder;
       badgeText = isDark ? Colors.white70 : Colors.black87;
     }
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+          color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
           width: 1,
         ),
         boxShadow: TeknoyTheme.kElevationLow,
@@ -107,7 +107,7 @@ class _FeedProductCardState extends State<FeedProductCard> {
                         style: TextStyle(
                           fontFamily: 'Inter',
                           fontWeight: FontWeight.w700,
-                          fontSize: 9.5,
+                          fontSize: 11,
                           color: badgeText,
                           letterSpacing: 0.2,
                         ),
@@ -196,7 +196,7 @@ class _FeedProductCardState extends State<FeedProductCard> {
                               style: TextStyle(
                                 fontFamily: 'Outfit',
                                 fontWeight: FontWeight.w800,
-                                fontSize: 9,
+                                fontSize: 11,
                                 color: Colors.white,
                                 letterSpacing: 0.6,
                               ),
@@ -255,7 +255,7 @@ class _FeedProductCardState extends State<FeedProductCard> {
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontWeight: FontWeight.w500,
-                              fontSize: 8.5,
+                              fontSize: 11,
                               color: isDark ? Colors.white38 : const Color(0xFF8E8895),
                             ),
                           ),
@@ -281,7 +281,7 @@ class _FeedProductCardState extends State<FeedProductCard> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontFamily: 'Inter',
-                                      fontSize: 9.5,
+                                      fontSize: 11,
                                       fontWeight: FontWeight.w600,
                                       color: TeknoyTheme.citMaroon,
                                     ),
@@ -304,7 +304,7 @@ class _FeedProductCardState extends State<FeedProductCard> {
                                         'CIT-U',
                                         style: TextStyle(
                                           fontFamily: 'Inter',
-                                          fontSize: 9,
+                                          fontSize: 11,
                                           fontWeight: FontWeight.w800,
                                           color: TeknoyTheme.citMaroon,
                                         ),
@@ -364,7 +364,7 @@ class _FeedProductCardState extends State<FeedProductCard> {
                                               '${attr.name}: ${attr.value}',
                                               style: TextStyle(
                                                 fontFamily: 'Inter',
-                                                fontSize: 9.5,
+                                                fontSize: 11,
                                                 fontWeight: FontWeight.w600,
                                                 color: isDark ? Colors.white54 : const Color(0xFF5A4978),
                                               ),
@@ -401,8 +401,8 @@ class _FeedProductCardState extends State<FeedProductCard> {
                                   style: TextStyle(
                                     fontFamily: 'Inter',
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 10,
-                                    color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                                    fontSize: 11,
+                                    color: isDark ? Colors.white70 : TeknoyTheme.citMaroonMuted,
                                   ),
                                 ),
                               ],
@@ -412,7 +412,7 @@ class _FeedProductCardState extends State<FeedProductCard> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.5),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF1F1F5),
+                            color: isDark ? TeknoyTheme.darkCardBorder : TeknoyTheme.lightSurfaceMuted,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
@@ -420,8 +420,8 @@ class _FeedProductCardState extends State<FeedProductCard> {
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontWeight: FontWeight.bold,
-                              fontSize: 9.5,
-                              color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                              fontSize: 11,
+                              color: isDark ? Colors.white70 : TeknoyTheme.citMaroonMuted,
                             ),
                           ),
                         ),

@@ -9,19 +9,46 @@ class TeknoyTheme {
   static const Color citMaroon = Color(0xFF800000); // Primary deep institutional Maroon
   static const Color citMaroonLight = Color(0xFFB22222); // Interactive accent Crimson
   static const Color citMaroonDark = Color(0xFF4A0000); // Deep background Burgundy
-  
+
   static const Color citGold = Color(0xFFF5B041); // Vibrant warm gold accent
   static const Color citGoldLight = Color(0xFFFCDD7B); // Glowing warm highlights
-  
+
   // Neutral Tones (HSL Tailored Dark Mode)
-  static const Color darkBg = Color(0xFF0A0A0C); // Ultra sleek dark mode backplate
+  static const Color darkBg = Color(0xFF0F0F12); // Unified app-wide dark canvas (matches the #0F0F12 used across views)
   static const Color darkSurface = Color(0xFF141418); // Floating container surface
   static const Color darkBorder = Color(0xFF22222A); // Micro-divider/border gray
-  
+
   // Neutral Tones (Light Mode)
   static const Color lightBg = Color(0xFFF6F6F9); // Clean campus background
   static const Color lightSurface = Color(0xFFFFFFFF); // Container surface
   static const Color lightBorder = Color(0xFFECECEF); // Micro-divider/border
+
+  // Extended Dark Neutral Scale — view-level live values captured as named tokens (wave 7b; values frozen byte-identical)
+  static const Color darkFill = Color(0xFF14141A); // Deepest fill: page-local form/section backgrounds
+  static const Color darkSurfaceAlt = Color(0xFF16161A); // Card surface used by profile/KYC cards
+  static const Color darkSurfaceHigh = Color(0xFF191922); // Card surface used by cart/inbox/notification cards
+  static const Color darkSurfaceRaised = Color(0xFF1E1E28); // Raised surface: sheets and tray-style containers
+  static const Color darkCardBorder = Color(0xFF1E1E24); // Card outline (dark theme) + dark chip surface
+  static const Color darkHover = Color(0xFF1E1E26); // Pointer hover + secondary dark field fills
+  static const Color darkHighlight = Color(0xFF262632); // Press/highlight wash
+  static const Color darkDivider = Color(0xFF282830); // Card borders/dividers in dark mode
+  static const Color darkInputFill = Color(0xFF101014); // Input fill in the global dark theme
+  static const Color darkSurfaceTop = Color(0xFF16161C); // darkSurfaceGradient top stop
+  static const Color darkSurfaceBottom = Color(0xFF121216); // darkSurfaceGradient bottom stop
+
+  // Extended Light Neutral Scale — same capture rule (wave 7b)
+  static const Color lightBgAlt = Color(0xFFF8FAFC); // Cool-toned page backdrop used by checkout/feed bodies
+  static const Color lightSurfaceMuted = Color(0xFFF1F1F5); // Subtle fill: chips, segmented controls, fields
+  static const Color lightDivider = Color(0xFFE5E7EB); // Card borders/dividers in light mode
+  static const Color lightCardBorder = Color(0xFFE2E2E6); // Card outline (light theme)
+  static const Color lightTextPrimary = Color(0xFF0F172A); // Primary text on light surfaces
+  static const Color lightTextSecondary = Color(0xFF64748B); // Secondary text on light surfaces
+  static const Color lightTextMuted = Color(0xFF94A3B8); // Muted hints/icons on light surfaces
+
+  // Extended Status/Brand — same capture rule (wave 7b)
+  static const Color successDark = Color(0xFF2E7D32); // Text-safe success green for light surfaces
+  static const Color warningDark = Color(0xFFD97706); // Text-safe amber for pending/awaiting states
+  static const Color citMaroonMuted = Color(0xFF5A413D); // Desaturated maroon ink on maroon-tinted light pills
 
   // Status/Alert Colors
   static const Color success = Color(0xFF10B981);
@@ -36,7 +63,6 @@ class TeknoyTheme {
           offset: const Offset(0, 4),
         ),
       ];
-
   static List<BoxShadow> get kElevationHigh => [
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.06),
@@ -64,7 +90,7 @@ class TeknoyTheme {
       );
 
   static Gradient get darkSurfaceGradient => const LinearGradient(
-        colors: [Color(0xFF16161C), Color(0xFF121216)],
+        colors: [darkSurfaceTop, darkSurfaceBottom],
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
       );
@@ -84,8 +110,8 @@ class TeknoyTheme {
         onPrimary: Colors.white,
         onSecondary: Colors.black,
       ),
-      hoverColor: const Color(0xFF1E1E26),
-      highlightColor: const Color(0xFF262632),
+      hoverColor: darkHover,
+      highlightColor: darkHighlight,
       splashColor: citMaroon.withValues(alpha: 0.15),
       
       // Card Theme
@@ -94,7 +120,7 @@ class TeknoyTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: Color(0xFF1E1E24), width: 0.8),
+          side: BorderSide(color: darkCardBorder, width: 0.8),
           borderRadius: BorderRadius.all(Radius.circular(16)),
         ),
       ),
@@ -118,7 +144,7 @@ class TeknoyTheme {
       // Input Decoration Theme (High impact: unifies search, posts, and message inputs)
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF101014),
+        fillColor: darkInputFill,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         hintStyle: const TextStyle(fontFamily: 'Inter', fontSize: 14, color: Colors.white30),
         labelStyle: const TextStyle(fontFamily: 'Outfit', fontSize: 14, color: Colors.white60),
@@ -223,7 +249,7 @@ class TeknoyTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: Color(0xFFE2E2E6), width: 0.8),
+          side: BorderSide(color: lightCardBorder, width: 0.8),
           borderRadius: BorderRadius.all(Radius.circular(16)),
         ),
       ),

@@ -167,7 +167,15 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 ElevatedButton(
                   onPressed: () async {
                     final newPass = passCtrl.text.trim();
-                    if (newPass.length < 6) return;
+                    if (newPass.length < 6) {
+                      HapticFeedback.mediumImpact();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Password must be at least 6 characters.'),
+                        ),
+                      );
+                      return;
+                    }
                     Navigator.pop(ctx);
                     try {
                       await SupabaseConfig.client.auth.updateUser(UserAttributes(password: newPass));
@@ -185,7 +193,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF800000),
+                    backgroundColor: TeknoyTheme.citMaroon,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -300,7 +308,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                           color: const Color(0xFFD90429),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: isDark ? const Color(0xFF0F0F12) : Colors.white,
+                            color: isDark ? TeknoyTheme.darkBg : Colors.white,
                             width: 1.5,
                           ),
                         ),
@@ -368,7 +376,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBgAlt,
       appBar: AppBar(
         toolbarHeight: 46.0,
         backgroundColor: Colors.transparent,
@@ -416,7 +424,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   IconButton(
                     icon: Icon(
                       Icons.shopping_cart_outlined,
-                      color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                      color: isDark ? Colors.white70 : TeknoyTheme.citMaroonMuted,
                       size: 22,
                     ),
                     onPressed: () {
@@ -439,7 +447,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                           color: const Color(0xFFD90429),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: isDark ? const Color(0xFF0F0F12) : Colors.white,
+                            color: isDark ? TeknoyTheme.darkBg : Colors.white,
                             width: 1.5,
                           ),
                         ),
@@ -478,7 +486,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                           : Icons.notifications_outlined,
                       color: isDark
                           ? (hasUnreadNotifications ? TeknoyTheme.citGold : Colors.white70)
-                          : (hasUnreadNotifications ? TeknoyTheme.citMaroon : const Color(0xFF5A413D)),
+                          : (hasUnreadNotifications ? TeknoyTheme.citMaroon : TeknoyTheme.citMaroonMuted),
                       size: 22,
                     ),
                     onPressed: () {
@@ -497,7 +505,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                           color: const Color(0xFFD90429),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: isDark ? const Color(0xFF0F0F12) : Colors.white,
+                            color: isDark ? TeknoyTheme.darkBg : Colors.white,
                             width: 1.5,
                           ),
                           boxShadow: [
@@ -543,12 +551,12 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 ? [
                     const Color(0xFF221115),
                     const Color(0xFF140D10),
-                    const Color(0xFF0F0F12),
+                    TeknoyTheme.darkBg,
                   ]
                 : [
                     const Color(0xFFFFEDE1),
                     const Color(0xFFFFF7F2),
-                    const Color(0xFFF8FAFC),
+                    TeknoyTheme.lightBgAlt,
                   ],
           ),
         ),
@@ -566,10 +574,10 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
           height: 66,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0F0F12) : Colors.white,
+            color: isDark ? TeknoyTheme.darkBg : Colors.white,
             border: Border(
               top: BorderSide(
-                color: isDark ? const Color(0xFF282830) : Colors.grey.withValues(alpha: 0.2),
+                color: isDark ? TeknoyTheme.darkDivider : Colors.grey.withValues(alpha: 0.2),
                 width: 1,
               ),
             ),

@@ -96,7 +96,7 @@ class OrderUiHelper {
       case 'SELLER_ACCEPTED':
       case 'APPROVED':
       case 'ACCEPTED':
-        return const Color(0xFFD97706); // Warm Amber / CIT Gold
+        return TeknoyTheme.warningDark; // Warm Amber / CIT Gold
 
       case 'AWAITING_PAYMENT':
       case 'PAYMENT_SUBMITTED':
@@ -125,7 +125,7 @@ class OrderUiHelper {
       case 'PLACED':
       case 'INQUIRY_SENT':
       default:
-        return const Color(0xFFD97706);
+        return TeknoyTheme.warningDark;
     }
   }
 

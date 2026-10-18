@@ -60,10 +60,10 @@ class OrderStatusStepper extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+          color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
         ),
         boxShadow: [
           BoxShadow(
@@ -362,7 +362,7 @@ class OrderStatusStepper extends StatelessWidget {
                       steps[stepIdx],
                       style: TextStyle(
                         fontFamily: 'Inter',
-                        fontSize: 9,
+                        fontSize: 11,
                         fontWeight: done ? FontWeight.bold : FontWeight.normal,
                         color: done
                             ? TeknoyTheme.citMaroon

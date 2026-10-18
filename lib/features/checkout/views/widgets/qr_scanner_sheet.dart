@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../../../../core/theme.dart';
 
 class QrScannerSheet extends StatefulWidget {
   final ValueChanged<String> onScanned;
@@ -54,7 +55,7 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.72,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -83,6 +84,7 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Close scanner',
                   icon: const Icon(Icons.close_rounded),
                   onPressed: () => Navigator.pop(context),
                 ),

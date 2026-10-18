@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/core/theme.dart';
+import 'package:teknoycart/core/utils/motion.dart';
 import 'package:teknoycart/core/utils/order_ui_helper.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
@@ -490,7 +492,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                     'EST. 3–7 BUSINESS DAYS',
                     style: TextStyle(
                       fontFamily: 'Outfit',
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                       color: TeknoyTheme.citGold,
                       letterSpacing: 0.5,
@@ -593,7 +595,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                         : 'AGREED TAWAD PRICE LOCK',
                     style: TextStyle(
                       fontFamily: 'Outfit',
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                       color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroonDark,
                       letterSpacing: 0.5,
@@ -708,7 +710,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                               OrderUiHelper.formatCondition(_checkoutItems.first.product.condition),
                               style: TextStyle(
                                 fontFamily: 'Outfit',
-                                fontSize: 10,
+                                fontSize: 11,
                                 color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroonDark,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 0.5,
@@ -736,7 +738,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                                     'TAWAD DEAL',
                                     style: TextStyle(
                                       fontFamily: 'Outfit',
-                                      fontSize: 10,
+                                      fontSize: 11,
                                       fontWeight: FontWeight.bold,
                                       color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroonDark,
                                       letterSpacing: 0.5,
@@ -866,7 +868,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                                         'Size: ${item.variantName}',
                                         style: const TextStyle(
                                           fontFamily: 'Outfit',
-                                          fontSize: 10,
+                                          fontSize: 11,
                                           fontWeight: FontWeight.bold,
                                           color: TeknoyTheme.citMaroon,
                                         ),
@@ -897,104 +899,111 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   }
 
   Widget _buildLandmarkCard(CampusLandmark landmark, bool isSelected, bool isDark) {
-    return GestureDetector(
-      onTap: () {
-        setState(() => _selectedLocation = landmark.name);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        width: 175,
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(
-                  colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
+    return AnimatedContainer(
+      duration: Motion.duration(context, const Duration(milliseconds: 220)),
+      width: 175,
+      margin: const EdgeInsets.only(right: 12),
+      decoration: BoxDecoration(
+        gradient: isSelected
+            ? const LinearGradient(
+                colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        color: isSelected
+            ? null
+            : (isDark ? TeknoyTheme.darkSurface : Colors.white),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
           color: isSelected
-              ? null
-              : (isDark ? TeknoyTheme.darkSurface : Colors.white),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isSelected
-                ? TeknoyTheme.citGold
-                : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
-            width: isSelected ? 2.0 : 1.2,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.35),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.1 : 0.02),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+              ? TeknoyTheme.citGold
+              : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
+          width: isSelected ? 2.0 : 1.2,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
+        boxShadow: isSelected
+            ? [
+                BoxShadow(
+                  color: TeknoyTheme.citMaroon.withValues(alpha: 0.35),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.1 : 0.02),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            setState(() => _selectedLocation = landmark.name);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(
-                  landmark.icon,
-                  color: isSelected
-                      ? TeknoyTheme.citGold
-                      : (isDark ? Colors.white70 : TeknoyTheme.citMaroon),
-                  size: 26,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Icon(
+                      landmark.icon,
+                      color: isSelected
+                          ? TeknoyTheme.citGold
+                          : (isDark ? Colors.white70 : TeknoyTheme.citMaroon),
+                      size: 26,
+                    ),
+                    if (isSelected)
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: TeknoyTheme.citGold,
+                        size: 20,
+                      ),
+                  ],
                 ),
-                if (isSelected)
-                  const Icon(
-                    Icons.check_circle_rounded,
-                    color: TeknoyTheme.citGold,
-                    size: 20,
-                  ),
+                const SizedBox(height: 14),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      landmark.name,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? Colors.white : Colors.black87),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      landmark.description,
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 10.5,
+                        color: isSelected
+                            ? Colors.white.withValues(alpha: 0.8)
+                            : (isDark ? Colors.white54 : Colors.black54),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ],
             ),
-            const SizedBox(height: 14),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  landmark.name,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected
-                        ? Colors.white
-                        : (isDark ? Colors.white : Colors.black87),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  landmark.description,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 10.5,
-                    color: isSelected
-                        ? Colors.white.withValues(alpha: 0.8)
-                        : (isDark ? Colors.white54 : Colors.black54),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1047,49 +1056,59 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         return Expanded(
           child: Padding(
             padding: const EdgeInsets.only(right: 8.0),
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedDay = day),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  gradient: isSelected
-                      ? const LinearGradient(
-                          colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : null,
+            child: AnimatedContainer(
+              duration: Motion.duration(context, const Duration(milliseconds: 200)),
+              decoration: BoxDecoration(
+                gradient: isSelected
+                    ? const LinearGradient(
+                        colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: isSelected
+                    ? null
+                    : (isDark ? TeknoyTheme.darkSurface : Colors.white),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
                   color: isSelected
-                      ? null
-                      : (isDark ? TeknoyTheme.darkSurface : Colors.white),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isSelected
-                        ? TeknoyTheme.citGold
-                        : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
-                    width: isSelected ? 1.8 : 1.2,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: TeknoyTheme.citMaroon.withValues(alpha: 0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : null,
+                      ? TeknoyTheme.citGold
+                      : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
+                  width: isSelected ? 1.8 : 1.2,
                 ),
-                child: Text(
-                  day,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                    color: isSelected
-                        ? Colors.white
-                        : (isDark ? Colors.white70 : Colors.black87),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: TeknoyTheme.citMaroon.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Material(
+                type: MaterialType.transparency,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _selectedDay = day);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Center(
+                      child: Text(
+                        day,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 13,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          color: isSelected
+                              ? Colors.white
+                              : (isDark ? Colors.white70 : Colors.black87),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1120,68 +1139,74 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       itemBuilder: (context, index) {
         final slot = slots[index];
         final isSelected = _selectedTimeSlot == slot;
-        return GestureDetector(
-          onTap: () {
-            setState(() => _selectedTimeSlot = slot);
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              gradient: isSelected
-                  ? const LinearGradient(
-                      colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    )
-                  : null,
+        return AnimatedContainer(
+          duration: Motion.duration(context, const Duration(milliseconds: 200)),
+          decoration: BoxDecoration(
+            gradient: isSelected
+                ? const LinearGradient(
+                    colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: isSelected
+                ? null
+                : (isDark ? TeknoyTheme.darkSurface : Colors.white),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
               color: isSelected
-                  ? null
-                  : (isDark ? TeknoyTheme.darkSurface : Colors.white),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: isSelected
-                    ? TeknoyTheme.citGold
-                    : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
-                width: isSelected ? 1.8 : 1.2,
-              ),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: TeknoyTheme.citMaroon.withValues(alpha: 0.25),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : null,
+                  ? TeknoyTheme.citGold
+                  : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
+              width: isSelected ? 1.8 : 1.2,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.schedule_rounded,
-                  size: 14,
-                  color: isSelected
-                      ? TeknoyTheme.citGold
-                      : (isDark ? Colors.white38 : Colors.black38),
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    slot,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 11.5,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected
-                          ? Colors.white
-                          : (isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: TeknoyTheme.citMaroon.withValues(alpha: 0.25),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  ]
+                : null,
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedTimeSlot = slot);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.schedule_rounded,
+                      size: 14,
+                      color: isSelected
+                          ? TeknoyTheme.citGold
+                          : (isDark ? Colors.white38 : Colors.black38),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        slot,
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 11.5,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          color: isSelected
+                              ? Colors.white
+                              : (isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         );
@@ -1196,64 +1221,214 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     return Column(
       children: [
         // Cash on Pickup Card
-        GestureDetector(
-          onTap: () => setState(() => _selectedPaymentMethod = 'Cash on Pickup'),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
+        AnimatedContainer(
+          duration: Motion.duration(context, const Duration(milliseconds: 200)),
+          decoration: BoxDecoration(
+            color: isCash
+                ? (isDark ? const Color(0xFF1F0F12) : const Color(0xFFFFF8F7))
+                : (isDark ? TeknoyTheme.darkSurface : Colors.white),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
               color: isCash
-                  ? (isDark ? const Color(0xFF1F0F12) : const Color(0xFFFFF8F7))
-                  : (isDark ? TeknoyTheme.darkSurface : Colors.white),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isCash
-                    ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
-                    : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
-                width: isCash ? 1.8 : 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: isCash
-                      ? TeknoyTheme.citMaroon.withValues(alpha: 0.12)
-                      : Colors.black.withValues(alpha: isDark ? 0.1 : 0.02),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+                  ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                  : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
+              width: isCash ? 1.8 : 1.2,
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: isCash
-                        ? const LinearGradient(
-                            colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
-                        : null,
-                    color: isCash
-                        ? null
-                        : (isDark ? TeknoyTheme.darkBorder : const Color(0xFFF1F1F4)),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.payments_rounded,
-                    color: isCash ? TeknoyTheme.citGold : (isDark ? Colors.white70 : Colors.black87),
-                    size: 20,
-                  ),
+            boxShadow: [
+              BoxShadow(
+                color: isCash
+                    ? TeknoyTheme.citMaroon.withValues(alpha: 0.12)
+                    : Colors.black.withValues(alpha: isDark ? 0.1 : 0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedPaymentMethod = 'Cash on Pickup');
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: isCash
+                            ? const LinearGradient(
+                                colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : null,
+                        color: isCash
+                            ? null
+                            : (isDark ? TeknoyTheme.darkBorder : const Color(0xFFF1F1F4)),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.payments_rounded,
+                        color: isCash ? TeknoyTheme.citGold : (isDark ? Colors.white70 : Colors.black87),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Cash on Pickup',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Legible, high-contrast Recommended Badge
+                              // Light: citMaroonDark text on gold fill (8.22:1 AAA)
+                              // Dark: citGold text on dark warm fill (8.5:1 AAA)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? const Color(0xFF251C12)
+                                      : TeknoyTheme.citGold.withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: TeknoyTheme.citGold.withValues(alpha: 0.45),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: Text(
+                                  'RECOMMENDED',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroonDark,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Pay with exact physical cash upon verifying goods at the campus landmark.',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11.5,
+                              color: isDark ? Colors.white60 : Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isCash
+                            ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                            : Colors.transparent,
+                        border: Border.all(
+                          color: isCash
+                              ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                              : (isDark ? Colors.white38 : Colors.black26),
+                          width: 2,
+                        ),
+                      ),
+                      child: isCash
+                          ? Icon(
+                              Icons.check,
+                              size: 14,
+                              color: isDark ? Colors.black : Colors.white,
+                            )
+                          : null,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // GCash Card
+        AnimatedContainer(
+          duration: Motion.duration(context, const Duration(milliseconds: 200)),
+          decoration: BoxDecoration(
+            color: isGcash
+                ? (isDark ? const Color(0xFF1F0F12) : const Color(0xFFFFF8F7))
+                : (isDark ? TeknoyTheme.darkSurface : Colors.white),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isGcash
+                  ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                  : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
+              width: isGcash ? 1.8 : 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isGcash
+                    ? TeknoyTheme.citMaroon.withValues(alpha: 0.12)
+                    : Colors.black.withValues(alpha: isDark ? 0.1 : 0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedPaymentMethod = 'GCash');
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: isGcash
+                            ? const LinearGradient(
+                                colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : null,
+                        color: isGcash
+                            ? null
+                            : (isDark ? TeknoyTheme.darkBorder : const Color(0xFFF1F1F4)),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.account_balance_wallet_rounded,
+                        color: isGcash ? TeknoyTheme.citGold : (isDark ? Colors.white70 : Colors.black87),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Cash on Pickup',
+                            'GCash Transfer',
                             style: TextStyle(
                               fontFamily: 'Outfit',
                               fontWeight: FontWeight.bold,
@@ -1261,176 +1436,44 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                               color: isDark ? Colors.white : Colors.black87,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          // Legible, high-contrast Recommended Badge
-                          // Light: citMaroonDark text on gold fill (8.22:1 AAA)
-                          // Dark: citGold text on dark warm fill (8.5:1 AAA)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? const Color(0xFF251C12)
-                                  : TeknoyTheme.citGold.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: TeknoyTheme.citGold.withValues(alpha: 0.45),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Text(
-                              'RECOMMENDED',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroonDark,
-                                letterSpacing: 0.5,
-                              ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Direct e-wallet payment. Seller verification and reference receipt required.',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11.5,
+                              color: isDark ? Colors.white60 : Colors.black54,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Pay with exact physical cash upon verifying goods at the campus landmark.',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 11.5,
-                          color: isDark ? Colors.white60 : Colors.black54,
+                    ),
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isGcash
+                            ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                            : Colors.transparent,
+                        border: Border.all(
+                          color: isGcash
+                              ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
+                              : (isDark ? Colors.white38 : Colors.black26),
+                          width: 2,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isCash
-                        ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
-                        : Colors.transparent,
-                    border: Border.all(
-                      color: isCash
-                          ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
-                          : (isDark ? Colors.white38 : Colors.black26),
-                      width: 2,
+                      child: isGcash
+                          ? Icon(
+                              Icons.check,
+                              size: 14,
+                              color: isDark ? Colors.black : Colors.white,
+                            )
+                          : null,
                     ),
-                  ),
-                  child: isCash
-                      ? Icon(
-                          Icons.check,
-                          size: 14,
-                          color: isDark ? Colors.black : Colors.white,
-                        )
-                      : null,
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-
-        // GCash Card
-        GestureDetector(
-          onTap: () => setState(() => _selectedPaymentMethod = 'GCash'),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: isGcash
-                  ? (isDark ? const Color(0xFF1F0F12) : const Color(0xFFFFF8F7))
-                  : (isDark ? TeknoyTheme.darkSurface : Colors.white),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isGcash
-                    ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
-                    : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
-                width: isGcash ? 1.8 : 1.2,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: isGcash
-                      ? TeknoyTheme.citMaroon.withValues(alpha: 0.12)
-                      : Colors.black.withValues(alpha: isDark ? 0.1 : 0.02),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: isGcash
-                        ? const LinearGradient(
-                            colors: [TeknoyTheme.citMaroon, TeknoyTheme.citMaroonLight],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
-                        : null,
-                    color: isGcash
-                        ? null
-                        : (isDark ? TeknoyTheme.darkBorder : const Color(0xFFF1F1F4)),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.account_balance_wallet_rounded,
-                    color: isGcash ? TeknoyTheme.citGold : (isDark ? Colors.white70 : Colors.black87),
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'GCash Transfer',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Direct e-wallet payment. Seller verification and reference receipt required.',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 11.5,
-                          color: isDark ? Colors.white60 : Colors.black54,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isGcash
-                        ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
-                        : Colors.transparent,
-                    border: Border.all(
-                      color: isGcash
-                          ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
-                          : (isDark ? Colors.white38 : Colors.black26),
-                      width: 2,
-                    ),
-                  ),
-                  child: isGcash
-                      ? Icon(
-                          Icons.check,
-                          size: 14,
-                          color: isDark ? Colors.black : Colors.white,
-                        )
-                      : null,
-                ),
-              ],
             ),
           ),
         ),
@@ -1779,7 +1822,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       bottomNavigationBar: Container(
         padding: EdgeInsets.fromLTRB(20, 12, 20, 12 + MediaQuery.of(context).padding.bottom),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF141418) : Colors.white,
+          color: isDark ? TeknoyTheme.darkSurface : Colors.white,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
@@ -1789,7 +1832,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           ],
           border: Border(
             top: BorderSide(
-              color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+              color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
               width: 1,
             ),
           ),

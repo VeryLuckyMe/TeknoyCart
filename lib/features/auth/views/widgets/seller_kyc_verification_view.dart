@@ -1,5 +1,5 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/theme.dart';
@@ -474,13 +474,13 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                color: TeknoyTheme.success.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.verified_rounded,
                 size: 56,
-                color: Color(0xFF10B981),
+                color: TeknoyTheme.success,
               ),
             ),
             const SizedBox(height: 24),
@@ -575,7 +575,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
               decoration: BoxDecoration(
                 color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB)),
+                border: Border.all(color: isDark ? TeknoyTheme.darkDivider : TeknoyTheme.lightDivider),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -668,10 +668,10 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB),
+            color: isDark ? TeknoyTheme.darkDivider : TeknoyTheme.lightDivider,
             width: 1,
           ),
         ),
@@ -681,6 +681,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
           Row(
             children: [
               IconButton(
+                tooltip: 'Previous step',
                 onPressed: _previousStep,
                 icon: const Icon(Icons.arrow_back_rounded, size: 20),
                 style: IconButton.styleFrom(
@@ -731,7 +732,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                   decoration: BoxDecoration(
                     color: isCompleted || isCurrent
                         ? TeknoyTheme.citMaroon
-                        : (isDark ? Colors.white12 : const Color(0xFFE5E7EB)),
+                        : (isDark ? Colors.white12 : TeknoyTheme.lightDivider),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -748,7 +749,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
   // ─────────────────────────────────────────────────────────────
   Widget _buildIntroStep(bool isDark) {
     final cardBg = isDark ? const Color(0xFF1A1A20) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB);
+    final cardBorder = isDark ? TeknoyTheme.darkDivider : TeknoyTheme.lightDivider;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -762,14 +763,14 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
               padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                color: TeknoyTheme.error.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                border: Border.all(color: TeknoyTheme.error.withValues(alpha: 0.3)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 20),
+                  const Icon(Icons.warning_amber_rounded, color: TeknoyTheme.error, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -781,7 +782,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                             fontFamily: 'Outfit',
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFFEF4444),
+                            color: TeknoyTheme.error,
                           ),
                         ),
                         const SizedBox(height: 3),
@@ -870,7 +871,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
           const SizedBox(height: 12),
           _buildBenefitRow(
             icon: Icons.savings_outlined,
-            iconColor: const Color(0xFF10B981),
+            iconColor: TeknoyTheme.success,
             title: 'Zero Commission Fees',
             desc: 'You keep 100% of your earnings. No listing fees, no middleman cuts.',
             isDark: isDark,
@@ -1093,8 +1094,8 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
   // ─────────────────────────────────────────────────────────────
   Widget _buildSelfieStep(bool isDark) {
     final hasFile = _selfieFile != null;
-    final cardBg = isDark ? const Color(0xFF16161A) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB);
+    final cardBg = isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white;
+    final cardBorder = isDark ? TeknoyTheme.darkDivider : TeknoyTheme.lightDivider;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -1182,6 +1183,9 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: _officerNameController,
+                    keyboardType: TextInputType.name,
+                    textCapitalization: TextCapitalization.words,
+                    textInputAction: TextInputAction.next,
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 13,
@@ -1197,6 +1201,8 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _officerPositionController,
+                    textCapitalization: TextCapitalization.words,
+                    textInputAction: TextInputAction.done,
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 13,
@@ -1258,8 +1264,8 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
   // STEP 3: REVIEW DOCUMENTS & HONOR CODE AGREEMENT
   // ─────────────────────────────────────────────────────────────
   Widget _buildReviewAndSubmitStep(bool isDark) {
-    final cardBg = isDark ? const Color(0xFF16161A) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB);
+    final cardBg = isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white;
+    final cardBorder = isDark ? TeknoyTheme.darkDivider : TeknoyTheme.lightDivider;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -1468,15 +1474,15 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
     required bool isDark,
   }) {
     final hasFile = file != null;
-    final cardBg = isDark ? const Color(0xFF16161A) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF282830) : const Color(0xFFE5E7EB);
+    final cardBg = isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white;
+    final cardBorder = isDark ? TeknoyTheme.darkDivider : TeknoyTheme.lightDivider;
 
     if (hasFile) {
       return Container(
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF10B981), width: 1.5),
+          border: Border.all(color: TeknoyTheme.success, width: 1.5),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -1511,7 +1517,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF10B981),
+                      color: TeknoyTheme.success,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Row(
@@ -1738,7 +1744,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
   Widget _buildChecklistGuideline(String text, bool isDark) {
     return Row(
       children: [
-        const Icon(Icons.check_circle_outline_rounded, size: 14, color: Color(0xFF10B981)),
+        const Icon(Icons.check_circle_outline_rounded, size: 14, color: TeknoyTheme.success),
         const SizedBox(width: 8),
         Expanded(
           child: Text(

@@ -77,7 +77,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ Profile details updated live in Supabase!'),
+          content: Text('Profile details updated live in Supabase!'),
           backgroundColor: TeknoyTheme.success,
         ),
       );
@@ -137,7 +137,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                   maxHeight: MediaQuery.of(context).size.height * 0.90,
                 ),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF16161A) : Colors.white,
+                  color: isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                 boxShadow: TeknoyTheme.kElevationHigh,
                 border: Border(
@@ -209,6 +209,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                             ),
                           ),
                           IconButton(
+                            tooltip: 'Close',
                             icon: const Icon(Icons.close_rounded, size: 20),
                             onPressed: () => Navigator.pop(modalContext),
                           ),
@@ -535,7 +536,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                             await ref.read(authNotifierProvider.notifier).logout();
                             messenger.showSnackBar(
                               const SnackBar(
-                                content: Text('✅ Account successfully deleted.'),
+                                content: Text('Account successfully deleted.'),
                                 backgroundColor: TeknoyTheme.success,
                               ),
                             );
@@ -572,7 +573,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
       builder: (ctx) => Container(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF16161A) : Colors.white,
+          color: isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           border: Border(
             top: BorderSide(
@@ -721,7 +722,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
       builder: (ctx) => Container(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF16161A) : Colors.white,
+          color: isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           border: Border(
             top: BorderSide(
@@ -1235,7 +1236,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     required bool isVerified,
     required bool isDark,
   }) {
-    final cardBg = isDark ? const Color(0xFF16161A) : Colors.white;
+    final cardBg = isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white;
     final cardBorder = isDark ? const Color(0xFF26262E) : const Color(0xFFE2E2E8);
 
     return Container(
@@ -1393,7 +1394,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                                 Clipboard.setData(ClipboardData(text: studentId));
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('📋 Student ID copied to clipboard'),
+                                    content: Text('Student ID copied to clipboard'),
                                     duration: Duration(seconds: 1),
                                   ),
                                 );
@@ -1484,7 +1485,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                               : Icons.school_outlined,
                           size: 16,
                           color: isSeller
-                              ? (isVerified ? const Color(0xFFD97706) : Colors.amber.shade700)
+                              ? (isVerified ? TeknoyTheme.warningDark : Colors.amber.shade700)
                               : TeknoyTheme.citMaroon,
                         ),
                         const SizedBox(width: 8),
@@ -1592,7 +1593,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF16161A) : Colors.white,
+          color: isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isDark ? const Color(0xFF26262E) : const Color(0xFFE2E2E8),
@@ -1694,7 +1695,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           children: [
             const Row(
               children: [
-                Icon(Icons.hourglass_top_rounded, color: Color(0xFFD97706), size: 20),
+                Icon(Icons.hourglass_top_rounded, color: TeknoyTheme.warningDark, size: 20),
                 SizedBox(width: 8),
                 Text(
                   'Vendor KYC Under Review',
@@ -1726,7 +1727,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                 },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFFB45309),
-                  side: const BorderSide(color: Color(0xFFD97706)),
+                  side: const BorderSide(color: TeknoyTheme.warningDark),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
@@ -1816,7 +1817,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     required int dealsCount,
     required bool isDark,
   }) {
-    final cardBg = isDark ? const Color(0xFF16161A) : Colors.white;
+    final cardBg = isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white;
     final cardBorder = isDark ? const Color(0xFF26262E) : const Color(0xFFE2E2E8);
 
     return Container(
@@ -1932,11 +1933,11 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                               fontFamily: 'Outfit',
                               fontSize: 19,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFFD97706),
+                              color: TeknoyTheme.warningDark,
                             ),
                           ),
                           const SizedBox(width: 3),
-                          const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF59E0B)),
+                          const Icon(Icons.star_rounded, size: 16, color: TeknoyTheme.warning),
                         ],
                       ),
                       const SizedBox(height: 3),
@@ -1967,7 +1968,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     required List<Widget> children,
     required bool isDark,
   }) {
-    final cardBg = isDark ? const Color(0xFF16161A) : Colors.white;
+    final cardBg = isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white;
     final cardBorder = isDark ? const Color(0xFF26262E) : const Color(0xFFE2E2E8);
 
     return Column(

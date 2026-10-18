@@ -157,11 +157,12 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
         0;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0A0A0C) : const Color(0xFFF6F6F9),
+      backgroundColor: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBg,
       appBar: AppBar(
         backgroundColor: TeknoyTheme.citMaroon,
         elevation: 0,
         leading: IconButton(
+          tooltip: 'Back',
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
@@ -222,10 +223,10 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      body: CustomScrollView(
+        slivers: [
+          SliverList.list(
+            children: [
             // ── 1. Premium Store Header Card (Dark Red / Maroon Container) ──
             Container(
               decoration: const BoxDecoration(
@@ -462,10 +463,10 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
               child: Container(
                 height: 48,
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF141418) : Colors.white,
+                  color: isDark ? TeknoyTheme.darkSurface : Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                    color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
                   ),
                   boxShadow: [
                     if (!isDark)
@@ -611,6 +612,8 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                   ),
                 ),
               ),
+            ],
+          ),
 
             // ── 5. Products Grid ──
             productsAsync.when(
@@ -633,8 +636,9 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                 }
 
                 if (sellerProducts.isEmpty) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 16),
+                  return SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 16),
                     child: Center(
                       child: Column(
                         children: [
@@ -667,14 +671,13 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                         ],
                       ),
                     ),
+                    ),
                   );
                 }
 
-                return Padding(
+                return SliverPadding(
                   padding: const EdgeInsets.all(16.0),
-                  child: GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
+                  sliver: SliverGrid.builder(
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
                       childAspectRatio: 0.68,
@@ -695,10 +698,10 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                         },
                         child: Container(
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF141418) : Colors.white,
+                            color: isDark ? TeknoyTheme.darkSurface : Colors.white,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                              color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
                             ),
                             boxShadow: [
                               if (!isDark)
@@ -716,21 +719,24 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                   ),
                 );
               },
-              loading: () => const Padding(
-                padding: EdgeInsets.all(40.0),
-                child: Center(
-                  child: CircularProgressIndicator(color: TeknoyTheme.citMaroon),
+              loading: () => const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.all(40.0),
+                  child: Center(
+                    child: CircularProgressIndicator(color: TeknoyTheme.citMaroon),
+                  ),
                 ),
               ),
-              error: (err, _) => Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Center(
-                  child: Text('Error loading catalog: $err', style: const TextStyle(color: Colors.red)),
+              error: (err, _) => SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Center(
+                    child: Text('Error loading catalog: $err', style: const TextStyle(color: Colors.red)),
+                  ),
                 ),
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -815,6 +821,7 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
             child: product.imageUrl != null && product.imageUrl!.isNotEmpty
                 ? Image.network(
                     product.imageUrl!,
+                    semanticLabel: 'Photo of ${product.title}',
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: TeknoyTheme.citMaroon.withValues(alpha: 0.05),

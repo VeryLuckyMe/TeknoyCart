@@ -35,7 +35,7 @@ Future<void> showProductFilterSheet(BuildContext context, WidgetRef ref) {
               bottom: MediaQuery.of(context).viewInsets.bottom + 24,
             ),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF141418) : Colors.white,
+              color: isDark ? TeknoyTheme.darkSurface : Colors.white,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               boxShadow: [
                 BoxShadow(

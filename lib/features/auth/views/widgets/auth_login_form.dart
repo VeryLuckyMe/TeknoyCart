@@ -70,6 +70,7 @@ class _AuthLoginFormState extends State<AuthLoginForm> {
           enabled: !isLocked,
           obscureText: _obscurePassword,
           suffixIcon: IconButton(
+            tooltip: _obscurePassword ? 'Show password' : 'Hide password',
             icon: Icon(
               _obscurePassword
                   ? Icons.visibility_off_outlined
@@ -305,7 +306,7 @@ class _AuthLoginFormState extends State<AuthLoginForm> {
                       end: Alignment.bottomRight,
                     ),
               color: isLocked
-                  ? (isDark ? Colors.white12 : const Color(0xFFE5E7EB))
+                  ? (isDark ? Colors.white12 : TeknoyTheme.lightDivider)
                   : null,
               boxShadow: isLocked
                   ? []

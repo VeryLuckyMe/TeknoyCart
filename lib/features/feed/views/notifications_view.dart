@@ -27,8 +27,8 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
     final notificationsAsync = ref.watch(notificationProvider);
     final unreadCount = ref.watch(unreadNotificationCountProvider);
 
-    final bgColor = isDark ? const Color(0xFF0F0F14) : const Color(0xFFF8FAFC);
-    final cardBg = isDark ? const Color(0xFF191922) : Colors.white;
+    final bgColor = isDark ? const Color(0xFF0F0F14) : TeknoyTheme.lightBgAlt;
+    final cardBg = isDark ? TeknoyTheme.darkSurfaceHigh : Colors.white;
     final cardBorder = isDark ? const Color(0xFF262634) : const Color(0xFFE8E8F0);
 
     return Scaffold(
@@ -58,7 +58,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                 fontFamily: 'Outfit',
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
               ),
             ),
             if (unreadCount > 0) ...[
@@ -126,7 +126,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
               IconButton(
                 icon: Icon(
                   Icons.settings_outlined,
-                  color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                  color: isDark ? Colors.white70 : TeknoyTheme.lightTextSecondary,
                   size: 22,
                 ),
                 tooltip: 'Notification Settings',
@@ -162,12 +162,12 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                 ? [
                     const Color(0xFF221115),
                     const Color(0xFF140D10),
-                    const Color(0xFF0F0F12),
+                    TeknoyTheme.darkBg,
                   ]
                 : [
                     const Color(0xFFFFEDE1),
                     const Color(0xFFFFF7F2),
-                    const Color(0xFFF8FAFC),
+                    TeknoyTheme.lightBgAlt,
                   ],
           ),
         ),
@@ -202,7 +202,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                         decoration: BoxDecoration(
                           color: isSelected
                               ? TeknoyTheme.citMaroon
-                              : (isDark ? const Color(0xFF1E1E28) : const Color(0xFFF1F5F9)),
+                              : (isDark ? TeknoyTheme.darkSurfaceRaised : const Color(0xFFF1F5F9)),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color: isSelected
@@ -284,8 +284,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                     return item.type == 'PAYMENT' ||
                         item.type.contains('PAYMENT') ||
                         item.type.contains('ESCROW') ||
-                        item.title.contains('Payment') ||
-                        item.title.contains('💰');
+                        item.title.contains('Payment');
                   } else if (_selectedCategory == 'Account') {
                     return item.referenceType == 'KYC' ||
                         item.type == 'KYC' ||
@@ -538,7 +537,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                                   fontFamily: 'Outfit',
                                   fontSize: 14.5,
                                   fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
-                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -550,7 +549,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                               style: TextStyle(
                                 fontFamily: 'Inter',
                                 fontSize: 11.5,
-                                color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                                color: isDark ? Colors.white38 : TeknoyTheme.lightTextMuted,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -687,7 +686,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                     width: 10,
                     height: 22,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF475569) : const Color(0xFF94A3B8),
+                      color: isDark ? const Color(0xFF475569) : TeknoyTheme.lightTextMuted,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -700,7 +699,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                     width: 16,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEF4444),
+                      color: TeknoyTheme.error,
                       borderRadius: BorderRadius.circular(3),
                     ),
                   ),
@@ -715,7 +714,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
               fontFamily: 'Outfit',
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
             ),
           ),
           const SizedBox(height: 6),
@@ -726,7 +725,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
               fontFamily: 'Outfit',
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white54 : const Color(0xFF64748B),
+              color: isDark ? Colors.white54 : TeknoyTheme.lightTextSecondary,
             ),
           ),
           const SizedBox(height: 8),
@@ -736,7 +735,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
             style: TextStyle(
               fontFamily: 'Inter',
               fontSize: 13,
-              color: isDark ? Colors.white60 : const Color(0xFF64748B),
+              color: isDark ? Colors.white60 : TeknoyTheme.lightTextSecondary,
               height: 1.4,
             ),
           ),
@@ -747,7 +746,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
             style: TextStyle(
               fontFamily: 'Inter',
               fontSize: 12,
-              color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+              color: isDark ? Colors.white38 : TeknoyTheme.lightTextMuted,
               height: 1.4,
             ),
           ),
@@ -780,7 +779,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
+        color: TeknoyTheme.lightTextPrimary,
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
@@ -843,7 +842,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                       fontFamily: 'Outfit',
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -860,7 +859,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E1E28) : const Color(0xFFF8FAFC),
+                      color: isDark ? TeknoyTheme.darkSurfaceRaised : TeknoyTheme.lightBgAlt,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: isDark ? const Color(0xFF2A2A38) : const Color(0xFFE2E8F0),
@@ -900,7 +899,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 12,
-                      color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                      color: isDark ? Colors.white38 : TeknoyTheme.lightTextMuted,
                     ),
                   ),
                   const SizedBox(height: 20),

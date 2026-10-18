@@ -48,7 +48,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                     color: isDark ? const Color(0xFF18181C) : Colors.white,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: isDark ? const Color(0xFF282830) : const Color(0xFFE0E0E0),
+                      color: isDark ? TeknoyTheme.darkDivider : const Color(0xFFE0E0E0),
                       width: 1,
                     ),
                   ),
@@ -75,12 +75,13 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                       hintStyle: TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 14,
-                        color: isDark ? Colors.white38 : const Color(0xFF5A413D).withValues(alpha: 0.7),
+                        color: isDark ? Colors.white38 : TeknoyTheme.citMaroonMuted.withValues(alpha: 0.7),
                       ),
-                      prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF5A413D)),
+                      prefixIcon: const Icon(Icons.search_rounded, color: TeknoyTheme.citMaroonMuted),
                       suffixIcon: searchQuery.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear_rounded, color: Color(0xFF5A413D)),
+                              tooltip: 'Clear search',
+                              icon: const Icon(Icons.clear_rounded, color: TeknoyTheme.citMaroonMuted),
                               onPressed: () => ref.read(searchQueryProvider.notifier).state = '',
                             )
                           : null,
@@ -91,16 +92,19 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                 ),
               ),
               const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => showProductFilterSheet(context, ref),
-                child: Container(
+              Semantics(
+                button: true,
+                label: hasAdvancedFilters ? 'Filters, active' : 'Filters',
+                child: GestureDetector(
+                  onTap: () => showProductFilterSheet(context, ref),
+                  child: Container(
                   height: 48,
                   width: 48,
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF18181C) : Colors.white,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: isDark ? const Color(0xFF282830) : const Color(0xFFE0E0E0),
+                      color: isDark ? TeknoyTheme.darkDivider : const Color(0xFFE0E0E0),
                       width: 1,
                     ),
                   ),
@@ -129,6 +133,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                     ],
                   ),
                 ),
+              ),
               ),
             ],
           ),
@@ -307,7 +312,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                     border: isSelected
                         ? null
                         : Border.all(
-                            color: isDark ? const Color(0xFF282830) : const Color(0xFFE0E0E0),
+                            color: isDark ? TeknoyTheme.darkDivider : const Color(0xFFE0E0E0),
                             width: 1,
                           ),
                   ),
@@ -343,7 +348,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                           width: 72,
                           height: 72,
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF1F1F5),
+                            color: isDark ? TeknoyTheme.darkCardBorder : TeknoyTheme.lightSurfaceMuted,
                             shape: BoxShape.circle,
                           ),
                           child: Icon(

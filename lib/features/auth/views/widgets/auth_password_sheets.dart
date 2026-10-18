@@ -176,6 +176,7 @@ class AuthPasswordSheets {
                         labelText: 'New Password',
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
                         suffixIcon: IconButton(
+                          tooltip: obscureNew ? 'Show password' : 'Hide password',
                           icon: Icon(obscureNew ? Icons.visibility_off_outlined : Icons.visibility_outlined),
                           onPressed: () => setModalState(() => obscureNew = !obscureNew),
                         ),
@@ -190,6 +191,7 @@ class AuthPasswordSheets {
                         labelText: 'Confirm New Password',
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
                         suffixIcon: IconButton(
+                          tooltip: obscureConfirm ? 'Show password' : 'Hide password',
                           icon: Icon(obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined),
                           onPressed: () => setModalState(() => obscureConfirm = !obscureConfirm),
                         ),
@@ -228,7 +230,7 @@ class AuthPasswordSheets {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('✅ Password updated successfully! Please log in with your new password.'),
+                                content: Text('Password updated successfully! Please log in with your new password.'),
                                 backgroundColor: Colors.green,
                               ),
                             );

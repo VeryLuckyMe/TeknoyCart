@@ -33,13 +33,14 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
             InteractiveViewer(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: Image.network(imageUrl, fit: BoxFit.contain),
+                child: Image.network(imageUrl, fit: BoxFit.contain, semanticLabel: 'Review photo'),
               ),
             ),
             Positioned(
               top: 10,
               right: 10,
               child: IconButton(
+                tooltip: 'Close',
                 icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
                 onPressed: () => Navigator.pop(ctx),
               ),
@@ -97,10 +98,10 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+          color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
         ),
         boxShadow: TeknoyTheme.kElevationLow,
       ),
@@ -187,7 +188,7 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF191922) : const Color(0xFFF9F9FB),
+                color: isDark ? TeknoyTheme.darkSurfaceHigh : const Color(0xFFF9F9FB),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
@@ -515,6 +516,7 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
                                 borderRadius: BorderRadius.circular(8),
                                 child: Image.network(
                                   url,
+                                  semanticLabel: 'Review photo',
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded, size: 24),
                                 ),
@@ -531,7 +533,7 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF14141A) : const Color(0xFFF1F1F5),
+                          color: isDark ? TeknoyTheme.darkFill : TeknoyTheme.lightSurfaceMuted,
                           borderRadius: BorderRadius.circular(8),
                           border: Border(
                             left: BorderSide(color: TeknoyTheme.citMaroon, width: 3),
@@ -629,7 +631,7 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
           decoration: BoxDecoration(
             color: isSelected
                 ? TeknoyTheme.citMaroon
-                : (isDark ? const Color(0xFF1E1E28) : const Color(0xFFF1F1F5)),
+                : (isDark ? TeknoyTheme.darkSurfaceRaised : TeknoyTheme.lightSurfaceMuted),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isSelected ? TeknoyTheme.citMaroon : Colors.transparent,

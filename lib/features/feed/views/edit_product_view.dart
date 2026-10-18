@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/core/widgets/image_placeholder.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/models/product.dart';
@@ -710,8 +711,9 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
         ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: isDark ? const Color(0xFF141418) : Colors.white,
+        backgroundColor: isDark ? TeknoyTheme.darkSurface : Colors.white,
         leading: IconButton(
+          tooltip: 'Back',
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.pop(context),
         ),
@@ -792,7 +794,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                     decoration: BoxDecoration(
-                                      color: isDark ? const Color(0xFF1E1E26) : const Color(0xFFEEEEF2),
+                                      color: isDark ? TeknoyTheme.darkHover : const Color(0xFFEEEEF2),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Row(
@@ -1064,7 +1066,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                                           isDense: true,
                                           contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
                                           filled: true,
-                                          fillColor: isDark ? const Color(0xFF1E1E26) : Colors.white,
+                                          fillColor: isDark ? TeknoyTheme.darkHover : Colors.white,
                                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                         ),
                                       ),
@@ -1157,7 +1159,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
       bottomSheet: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF141418) : Colors.white,
+          color: isDark ? TeknoyTheme.darkSurface : Colors.white,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
@@ -1205,9 +1207,9 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF)),
+        border: Border.all(color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1255,7 +1257,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                     width: 95,
                     height: 105,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E1E26) : const Color(0xFFF7F7F9),
+                      color: isDark ? TeknoyTheme.darkHover : const Color(0xFFF7F7F9),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: isDark ? Colors.white12 : Colors.black12, style: BorderStyle.solid),
                     ),
@@ -1294,7 +1296,15 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                         child: photo.isLocal && photo.localBytes != null
                             ? Image.memory(photo.localBytes!, fit: BoxFit.cover)
                             : (photo.imageUrl != null
-                                ? Image.network(photo.imageUrl!, fit: BoxFit.cover)
+                                ? Image.network(
+                                    photo.imageUrl!,
+                                    semanticLabel: 'Product photo ${index + 1}',
+                                    fit: BoxFit.cover,
+                                    loadingBuilder: (_, child, progress) => progress == null
+                                        ? child
+                                        : const ImagePlaceholder(icon: Icons.image_outlined),
+                                    errorBuilder: (_, __, ___) => const ImagePlaceholder(),
+                                  )
                                 : Container(color: Colors.grey)),
                       ),
                     ),
@@ -1330,7 +1340,11 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                           color: Colors.black54,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.close_rounded, size: 12, color: Colors.white),
+                        child: Semantics(
+                          label: 'Remove photo',
+                          button: true,
+                          child: const Icon(Icons.close_rounded, size: 12, color: Colors.white),
+                        ),
                       ),
                     ),
                   ),
@@ -1389,7 +1403,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
-              backgroundColor: isDark ? const Color(0xFF1E1E26) : const Color(0xFFF3F3F5),
+              backgroundColor: isDark ? TeknoyTheme.darkHover : const Color(0xFFF3F3F5),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               onSelected: (val) {
                 setState(() {
@@ -1480,7 +1494,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E26) : const Color(0xFFF7F7F9),
+        color: isDark ? TeknoyTheme.darkHover : const Color(0xFFF7F7F9),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06)),
       ),
@@ -1527,7 +1541,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: isDark ? Colors.white24 : Colors.black12),
       ),
@@ -1539,7 +1553,12 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
             borderRadius: const BorderRadius.horizontal(left: Radius.circular(9)),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Icon(Icons.remove, size: 16, color: onDecrement != null ? TeknoyTheme.citMaroon : Colors.grey),
+              child: Semantics(
+                label: 'Decrease quantity',
+                button: true,
+                enabled: onDecrement != null,
+                child: Icon(Icons.remove, size: 16, color: onDecrement != null ? TeknoyTheme.citMaroon : Colors.grey),
+              ),
             ),
           ),
           Container(
@@ -1553,9 +1572,13 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
           InkWell(
             onTap: onIncrement,
             borderRadius: const BorderRadius.horizontal(right: Radius.circular(9)),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Icon(Icons.add, size: 16, color: TeknoyTheme.citMaroon),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Semantics(
+                label: 'Increase quantity',
+                button: true,
+                child: const Icon(Icons.add, size: 16, color: TeknoyTheme.citMaroon),
+              ),
             ),
           ),
         ],
@@ -1638,7 +1661,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? TeknoyTheme.citMaroon
-                            : (isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC)),
+                            : (isDark ? TeknoyTheme.darkFill : const Color(0xFFFAFAFC)),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: isSelected
@@ -1776,7 +1799,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                       decoration: BoxDecoration(
                         color: isMatch
                             ? TeknoyTheme.citMaroon
-                            : (isDark ? const Color(0xFF191922) : const Color(0xFFF1F1F5)),
+                            : (isDark ? TeknoyTheme.darkSurfaceHigh : TeknoyTheme.lightSurfaceMuted),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: isMatch
@@ -1819,6 +1842,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
               ).copyWith(
                 suffixIcon: ctrl.text.isNotEmpty
                     ? IconButton(
+                        tooltip: 'Clear',
                         icon: const Icon(Icons.clear_rounded, size: 16),
                         onPressed: () => setState(() => ctrl.clear()),
                       )
@@ -1851,7 +1875,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
       prefixText: prefixText,
       prefixStyle: const TextStyle(fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
       filled: true,
-      fillColor: isDark ? const Color(0xFF1E1E26) : const Color(0xFFF7F7F9),
+      fillColor: isDark ? TeknoyTheme.darkHover : const Color(0xFFF7F7F9),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),

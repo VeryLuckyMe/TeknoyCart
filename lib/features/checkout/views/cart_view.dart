@@ -190,14 +190,21 @@ class _CartViewState extends ConsumerState<CartView> {
     required IconData icon,
     required Color color,
     required bool isDark,
+    required String tooltip,
   }) =>
       IconButton(
-        onPressed: onPressed,
+        tooltip: tooltip,
+        onPressed: onPressed == null
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                onPressed();
+              },
         icon: Icon(icon, size: 15, color: color),
         constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
         padding: const EdgeInsets.all(6),
         style: IconButton.styleFrom(
-          backgroundColor: isDark ? const Color(0xFF22222A) : const Color(0xFFF5F5F8),
+          backgroundColor: isDark ? TeknoyTheme.darkBorder : const Color(0xFFF5F5F8),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
             side: BorderSide(
@@ -208,7 +215,7 @@ class _CartViewState extends ConsumerState<CartView> {
         ),
       );
 
-  Widget _productThumb(String? url, Color cardBorder, bool isDark) {
+  Widget _productThumb(String? url, Color cardBorder, bool isDark, {String? semanticLabel}) {
     final icon = Center(
       child: Icon(Icons.inventory_2_outlined, size: 24, color: isDark ? Colors.white30 : Colors.black26),
     );
@@ -223,7 +230,12 @@ class _CartViewState extends ConsumerState<CartView> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: (url != null && url.isNotEmpty)
-            ? Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => icon)
+            ? Image.network(
+                url,
+                fit: BoxFit.cover,
+                semanticLabel: semanticLabel,
+                errorBuilder: (_, __, ___) => icon,
+              )
             : icon,
       ),
     );
@@ -288,6 +300,7 @@ class _CartViewState extends ConsumerState<CartView> {
                   return InkWell(
                     borderRadius: BorderRadius.circular(10),
                     onTap: () {
+                      HapticFeedback.selectionClick();
                       Navigator.pop(ctx);
                       if (!isCurrent) {
                         ref.read(cartProvider.notifier).updateVariant(
@@ -351,7 +364,7 @@ class _CartViewState extends ConsumerState<CartView> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Color definitions matching theme
-    const cardBgDark = Color(0xFF191922);
+    const cardBgDark = TeknoyTheme.darkSurfaceHigh;
     const cardBorderDark = Color(0xFF262634);
     final cardBg = isDark ? cardBgDark : Colors.white;
     final cardBorder = isDark ? cardBorderDark : const Color(0xFFE8E8F0);
@@ -367,7 +380,7 @@ class _CartViewState extends ConsumerState<CartView> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBgAlt,
       appBar: AppBar(
         toolbarHeight: 46.0,
         backgroundColor: Colors.transparent,
@@ -390,7 +403,7 @@ class _CartViewState extends ConsumerState<CartView> {
             fontWeight: FontWeight.w800,
             fontSize: 20,
             letterSpacing: -0.4,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
+            color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
           ),
         ),
         centerTitle: true,
@@ -435,12 +448,12 @@ class _CartViewState extends ConsumerState<CartView> {
                 ? [
                     const Color(0xFF221115),
                     const Color(0xFF140D10),
-                    const Color(0xFF0F0F12),
+                    TeknoyTheme.darkBg,
                   ]
                 : [
                     const Color(0xFFFFEDE1),
                     const Color(0xFFFFF7F2),
-                    const Color(0xFFF8FAFC),
+                    TeknoyTheme.lightBgAlt,
                   ],
           ),
         ),
@@ -553,7 +566,7 @@ class _CartViewState extends ConsumerState<CartView> {
                           Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF141418) : Colors.white,
+                              color: isDark ? TeknoyTheme.darkSurface : Colors.white,
                               border: Border(top: BorderSide(color: cardBorder, width: 1)),
                               boxShadow: [
                                 BoxShadow(
@@ -735,7 +748,7 @@ class _CartViewState extends ConsumerState<CartView> {
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF22222A) : const Color(0xFFF7F7FA),
+                    color: isDark ? TeknoyTheme.darkBorder : const Color(0xFFF7F7FA),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: isDark ? const Color(0xFF2E2E38) : const Color(0xFFE4E4EC),
@@ -838,7 +851,7 @@ class _CartViewState extends ConsumerState<CartView> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E26) : const Color(0xFFFAFAFD),
+              color: isDark ? TeknoyTheme.darkHover : const Color(0xFFFAFAFD),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
               border: Border(bottom: BorderSide(color: cardBorder, width: 0.8)),
             ),
@@ -852,11 +865,14 @@ class _CartViewState extends ConsumerState<CartView> {
                     tristate: true,
                     activeColor: TeknoyTheme.citMaroon,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                    onChanged: (_) => setState(() {
-                      isStoreAllSelected
-                          ? _selectedItemKeys.removeAll(allStoreKeys)
-                          : _selectedItemKeys.addAll(allStoreKeys);
-                    }),
+                    onChanged: (_) {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        isStoreAllSelected
+                            ? _selectedItemKeys.removeAll(allStoreKeys)
+                            : _selectedItemKeys.addAll(allStoreKeys);
+                      });
+                    },
                   ),
                 ),
                 Icon(
@@ -875,7 +891,7 @@ class _CartViewState extends ConsumerState<CartView> {
                             fontFamily: 'Outfit',
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -949,21 +965,20 @@ class _CartViewState extends ConsumerState<CartView> {
             ),
           ),
           // Items in Store
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: storeItems.length,
-            separatorBuilder: (_, __) => Divider(height: 1, color: cardBorder.withValues(alpha: 0.5)),
-            itemBuilder: (context, itemIdx) {
-              final item = storeItems[itemIdx];
-              return _buildCartItemTile(
-                context: context,
-                item: item,
-                isDark: isDark,
-                cardBorder: cardBorder,
-                isEditing: isStoreEditing,
-              );
-            },
+          Column(
+            children: [
+              for (var itemIdx = 0; itemIdx < storeItems.length; itemIdx++) ...[
+                if (itemIdx > 0)
+                  Divider(height: 1, color: cardBorder.withValues(alpha: 0.5)),
+                _buildCartItemTile(
+                  context: context,
+                  item: storeItems[itemIdx],
+                  isDark: isDark,
+                  cardBorder: cardBorder,
+                  isEditing: isStoreEditing,
+                ),
+              ],
+            ],
           ),
         ],
       ),
@@ -997,6 +1012,7 @@ class _CartViewState extends ConsumerState<CartView> {
                 activeColor: TeknoyTheme.citMaroon,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                 onChanged: (val) {
+                  HapticFeedback.selectionClick();
                   setState(() {
                     val == true ? _selectedItemKeys.add(item.cartKey) : _selectedItemKeys.remove(item.cartKey);
                   });
@@ -1005,7 +1021,7 @@ class _CartViewState extends ConsumerState<CartView> {
             ),
           ),
           const SizedBox(width: 4),
-          _productThumb(item.product.imageUrl, cardBorder, isDark),
+          _productThumb(item.product.imageUrl, cardBorder, isDark, semanticLabel: 'Photo of ${item.product.title}'),
           const SizedBox(width: 12),
           // Product Info
           Expanded(
@@ -1018,7 +1034,7 @@ class _CartViewState extends ConsumerState<CartView> {
                     fontFamily: 'Outfit',
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1036,7 +1052,10 @@ class _CartViewState extends ConsumerState<CartView> {
                 if (item.variantName != null && item.variantName!.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   InkWell(
-                    onTap: () => _showChangeVariantSheet(context, item),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      _showChangeVariantSheet(context, item);
+                    },
                     borderRadius: BorderRadius.circular(8),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1109,7 +1128,7 @@ class _CartViewState extends ConsumerState<CartView> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF22222A) : const Color(0xFFF1F1F6),
+                    color: isDark ? TeknoyTheme.darkBorder : const Color(0xFFF1F1F6),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: isDark ? Colors.white12 : const Color(0xFFE2E2EA),
@@ -1148,7 +1167,10 @@ class _CartViewState extends ConsumerState<CartView> {
                   constraints: const BoxConstraints(minWidth: 44, minHeight: 36),
                   padding: const EdgeInsets.all(6),
                   tooltip: 'Remove item',
-                  onPressed: () => _showRemoveItemConfirmationSheet(context, item),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    _showRemoveItemConfirmationSheet(context, item);
+                  },
                 ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1166,6 +1188,7 @@ class _CartViewState extends ConsumerState<CartView> {
                           ? (isDark ? Colors.white70 : Colors.black87)
                           : Colors.red.shade400,
                       isDark: isDark,
+                      tooltip: currentQty > 1 ? 'Decrease quantity' : 'Remove item',
                     ),
                     Container(
                       constraints: const BoxConstraints(minWidth: 34),
@@ -1189,6 +1212,7 @@ class _CartViewState extends ConsumerState<CartView> {
                           ? (isDark ? Colors.white24 : Colors.grey.shade400)
                           : (isDark ? Colors.white70 : Colors.black87),
                       isDark: isDark,
+                      tooltip: 'Increase quantity',
                     ),
                   ],
                 ),

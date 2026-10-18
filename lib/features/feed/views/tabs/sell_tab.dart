@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/core/widgets/image_placeholder.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:teknoycart/core/theme.dart';
@@ -782,7 +783,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                         decoration: BoxDecoration(
                           color: isSelected
                               ? TeknoyTheme.citMaroon
-                              : (isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC)),
+                              : (isDark ? TeknoyTheme.darkFill : const Color(0xFFFAFAFC)),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: isSelected
@@ -931,7 +932,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? TeknoyTheme.citMaroon
-                            : (isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC)),
+                            : (isDark ? TeknoyTheme.darkFill : const Color(0xFFFAFAFC)),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: isSelected
@@ -1078,7 +1079,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                       decoration: BoxDecoration(
                         color: isMatch
                             ? TeknoyTheme.citMaroon
-                            : (isDark ? const Color(0xFF191922) : const Color(0xFFF1F1F5)),
+                            : (isDark ? TeknoyTheme.darkSurfaceHigh : TeknoyTheme.lightSurfaceMuted),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: isMatch
@@ -1120,9 +1121,10 @@ class _SellTabState extends ConsumerState<SellTab> {
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 filled: true,
-                fillColor: isDark ? const Color(0xFF14141A) : const Color(0xFFFAFAFC),
+                fillColor: isDark ? TeknoyTheme.darkFill : const Color(0xFFFAFAFC),
                 suffixIcon: ctrl.text.isNotEmpty
                     ? IconButton(
+                        tooltip: 'Clear',
                         icon: const Icon(Icons.clear_rounded, size: 16),
                         onPressed: () => setState(() => ctrl.clear()),
                       )
@@ -1144,7 +1146,7 @@ class _SellTabState extends ConsumerState<SellTab> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF191922) : const Color(0xFFF9F9FB),
+        color: isDark ? TeknoyTheme.darkSurfaceHigh : const Color(0xFFF9F9FB),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: TeknoyTheme.citMaroon.withValues(alpha: 0.25),
@@ -1209,7 +1211,7 @@ class _SellTabState extends ConsumerState<SellTab> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF14141A) : Colors.white,
+              color: isDark ? TeknoyTheme.darkFill : Colors.white,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isDark ? Colors.white12 : Colors.black12,
@@ -1285,7 +1287,7 @@ class _SellTabState extends ConsumerState<SellTab> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF14141A) : Colors.white,
+                  color: isDark ? TeknoyTheme.darkFill : Colors.white,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
@@ -1312,6 +1314,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                     const SizedBox(width: 8),
                     const Spacer(),
                     IconButton(
+                      tooltip: 'Decrease quantity',
                       icon: const Icon(Icons.remove_circle_outline_rounded, size: 20),
                       color: TeknoyTheme.citMaroon,
                       onPressed: () {
@@ -1345,6 +1348,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                       ),
                     ),
                     IconButton(
+                      tooltip: 'Increase quantity',
                       icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
                       color: TeknoyTheme.citMaroon,
                       onPressed: () {
@@ -1383,7 +1387,7 @@ class _SellTabState extends ConsumerState<SellTab> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E1E28) : Colors.white,
+        backgroundColor: isDark ? TeknoyTheme.darkSurfaceRaised : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
@@ -1616,7 +1620,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                     decoration: BoxDecoration(
                       color: isSelected
                           ? TeknoyTheme.citMaroon
-                          : (isDark ? const Color(0xFF191922) : const Color(0xFFF3F3F7)),
+                          : (isDark ? TeknoyTheme.darkSurfaceHigh : const Color(0xFFF3F3F7)),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: isSelected
@@ -1991,7 +1995,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                         Container(
                           height: 48,
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF191922) : const Color(0xFFFAFAFC),
+                            color: isDark ? TeknoyTheme.darkSurfaceHigh : const Color(0xFFFAFAFC),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
                           ),
@@ -1999,6 +2003,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               IconButton(
+                                tooltip: 'Decrease stock',
                                 icon: const Icon(Icons.remove_rounded, size: 18),
                                 color: currentStock > 1 ? TeknoyTheme.citMaroon : Colors.grey,
                                 onPressed: currentStock > 1
@@ -2014,6 +2019,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                                 style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
                               ),
                               IconButton(
+                                tooltip: 'Increase stock',
                                 icon: const Icon(Icons.add_rounded, size: 18),
                                 color: TeknoyTheme.citMaroon,
                                 onPressed: () {
@@ -2057,7 +2063,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                       decoration: BoxDecoration(
                         color: isCurrent
                             ? (isDark ? TeknoyTheme.citMaroon.withValues(alpha: 0.22) : const Color(0xFFFDF2F2))
-                            : (isDark ? const Color(0xFF1E1E26) : const Color(0xFFF1F1F5)),
+                            : (isDark ? TeknoyTheme.darkHover : TeknoyTheme.lightSurfaceMuted),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: isCurrent ? TeknoyTheme.citMaroon : Colors.transparent,
@@ -2209,7 +2215,7 @@ class _SellTabState extends ConsumerState<SellTab> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Container(
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF0F0F4),
+                  color: isDark ? TeknoyTheme.darkCardBorder : const Color(0xFFF0F0F4),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 padding: const EdgeInsets.all(4),
@@ -2413,7 +2419,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                                   decoration: BoxDecoration(
                                     color: isCurrent
                                         ? (isDark ? TeknoyTheme.citMaroon.withValues(alpha: 0.22) : const Color(0xFFFDF2F2))
-                                        : (isDark ? const Color(0xFF1E1E26) : const Color(0xFFF1F1F5)),
+                                        : (isDark ? TeknoyTheme.darkHover : TeknoyTheme.lightSurfaceMuted),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
                                       color: isCurrent ? TeknoyTheme.citMaroon : Colors.transparent,
@@ -2530,7 +2536,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
                                   decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF1E1E26) : const Color(0xFFF1F1F5),
+                                    color: isDark ? TeknoyTheme.darkHover : TeknoyTheme.lightSurfaceMuted,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
@@ -2709,9 +2715,23 @@ class _SellTabState extends ConsumerState<SellTab> {
                           child: kIsWeb
                               ? Image.network(
                                   file.path,
+                                  semanticLabel: isCover ? 'Cover photo preview' : 'Photo preview',
                                   width: 110,
                                   height: 140,
                                   fit: BoxFit.cover,
+                                  loadingBuilder: (_, child, progress) => progress == null
+                                      ? child
+                                      : const ImagePlaceholder(
+                                          width: 110,
+                                          height: 140,
+                                          icon: Icons.image_outlined,
+                                          iconSize: 24,
+                                        ),
+                                  errorBuilder: (_, __, ___) => const ImagePlaceholder(
+                                    width: 110,
+                                    height: 140,
+                                    iconSize: 24,
+                                  ),
                                 )
                               : Image.file(
                                   File(file.path),

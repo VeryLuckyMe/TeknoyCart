@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:teknoycart/core/widgets/image_placeholder.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:teknoycart/core/theme.dart';
 
@@ -55,9 +56,23 @@ class ChatInputBar extends StatelessWidget {
                     child: kIsWeb
                         ? Image.network(
                             pendingImageFile!.path,
+                            semanticLabel: 'Attachment preview',
                             width: 48,
                             height: 48,
                             fit: BoxFit.cover,
+                            loadingBuilder: (_, child, progress) => progress == null
+                                ? child
+                                : const ImagePlaceholder(
+                                    width: 48,
+                                    height: 48,
+                                    icon: Icons.image_outlined,
+                                    iconSize: 16,
+                                  ),
+                            errorBuilder: (_, __, ___) => const ImagePlaceholder(
+                              width: 48,
+                              height: 48,
+                              iconSize: 16,
+                            ),
                           )
                         : Image.file(
                             File(pendingImageFile!.path),
@@ -100,6 +115,7 @@ class ChatInputBar extends StatelessWidget {
                         ),
                 ),
                 IconButton(
+                  tooltip: 'Remove attachment',
                   icon: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
                   onPressed: () {
                     HapticFeedback.lightImpact();
@@ -139,7 +155,7 @@ class ChatInputBar extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF3F3F6),
+                          color: isDark ? TeknoyTheme.darkCardBorder : const Color(0xFFF3F3F6),
                           borderRadius: BorderRadius.circular(18),
                           border: Border.all(
                             color: isDark ? Colors.white12 : const Color(0xFFE2E2E8),
@@ -203,6 +219,7 @@ class ChatInputBar extends StatelessWidget {
                     children: [
                       // Attachment Icon — real image picker
                       IconButton(
+                        tooltip: 'Attach image',
                         icon: const Icon(
                           Icons.add_circle_outline_rounded,
                           color: TeknoyTheme.citMaroon,
@@ -256,6 +273,7 @@ class ChatInputBar extends StatelessWidget {
                         backgroundColor: TeknoyTheme.citMaroon,
                         radius: 22,
                         child: IconButton(
+                          tooltip: 'Send message',
                           icon: const Icon(
                             Icons.send_rounded,
                             color: Colors.white,

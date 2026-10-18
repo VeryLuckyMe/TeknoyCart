@@ -283,7 +283,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
     switch (_selectedFilter) {
       case 'Unread':
         return _chatRooms.where((r) => r['is_unread'] == true).toList();
-      case 'Deals 🤝':
+      case 'Deals':
         return _chatRooms.where((r) {
           final msg = (r['last_message'] as String? ?? '').toLowerCase();
           return msg.contains('deal') || msg.contains('offer') || msg.contains('₱');
@@ -299,7 +299,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
   }
 
   Widget _buildFilterBar(bool isDark) {
-    final filters = ['All', 'Unread', 'Deals 🤝', 'Buying', 'Selling'];
+    final filters = ['All', 'Unread', 'Deals', 'Buying', 'Selling'];
     return Padding(
       padding: const EdgeInsets.only(top: 2.0, bottom: 6.0),
       child: SingleChildScrollView(
@@ -346,7 +346,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                       color: isSelected
                           ? TeknoyTheme.citMaroon
-                          : (isDark ? Colors.white60 : const Color(0xFF64748B)),
+                          : (isDark ? Colors.white60 : TeknoyTheme.lightTextSecondary),
                     ),
                   ),
                 ),
@@ -445,14 +445,14 @@ class _InboxViewState extends ConsumerState<InboxView> {
             Text(
               _selectedFilter == 'Unread'
                   ? 'No unread messages'
-                  : _selectedFilter == 'Deals 🤝'
+                  : _selectedFilter == 'Deals'
                       ? 'No active deal offers'
                       : 'No conversations yet',
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -464,7 +464,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
               style: TextStyle(
                 fontFamily: 'Inter',
                 fontSize: 13,
-                color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                color: isDark ? Colors.white54 : TeknoyTheme.lightTextSecondary,
                 height: 1.4,
               ),
             ),
@@ -510,22 +510,22 @@ class _InboxViewState extends ConsumerState<InboxView> {
     final isOffer = lastMsg.startsWith('Can we agree on ₱') || lastMsg.contains('? Deal?');
 
     // Muted preview styles
-    Color previewColor = isDark ? Colors.white60 : const Color(0xFF64748B);
+    Color previewColor = isDark ? Colors.white60 : TeknoyTheme.lightTextSecondary;
     FontWeight previewWeight = FontWeight.normal;
     String displayText = lastMsg;
 
     if (isGcashProof) {
       previewColor = Colors.blue;
       previewWeight = FontWeight.w600;
-      displayText = '🧾 GCash Receipt Attached';
+      displayText = 'GCash Receipt Attached';
     } else if (isAccepted) {
       previewColor = TeknoyTheme.success;
       previewWeight = FontWeight.w600;
-      displayText = '🤝 Deal Accepted! Ready for Checkout';
+      displayText = 'Deal Accepted! Ready for Checkout';
     } else if (isOffer) {
-      previewColor = const Color(0xFFD97706);
+      previewColor = TeknoyTheme.warningDark;
       previewWeight = FontWeight.w600;
-      displayText = '🏷️ Tawad Offer: $lastMsg';
+      displayText = 'Tawad Offer: $lastMsg';
     }
 
     // Soft warm tint for unread chats (matching reference mockup)
@@ -544,7 +544,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           hoverColor: isDark
-              ? const Color(0xFF1E1E26)
+              ? TeknoyTheme.darkHover
               : Colors.white,
           highlightColor: isDark
               ? const Color(0xFF262632)
@@ -608,7 +608,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                           radius: 26,
                           backgroundImage: NetworkImage(product.imageUrl ?? ''),
                           backgroundColor: isDark
-                              ? const Color(0xFF1E1E24)
+                              ? TeknoyTheme.darkCardBorder
                               : const Color(0xFFEDEEEF),
                         ),
                         if (isUserOnline)
@@ -619,7 +619,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                               width: 13,
                               height: 13,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF10B981),
+                                color: TeknoyTheme.success,
                                 shape: BoxShape.circle,
                                 border: Border.all(
                                   color: isUnread
@@ -627,7 +627,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                                           ? const Color(0xFF1E1215)
                                           : const Color(0xFFFFF7F0))
                                       : (isDark
-                                          ? const Color(0xFF0F0F12)
+                                          ? TeknoyTheme.darkBg
                                           : Colors.white),
                                   width: 2.2,
                                 ),
@@ -660,7 +660,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                                       fontFamily: 'Outfit',
                                       fontWeight: FontWeight.bold,
                                       fontSize: 15.5,
-                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                      color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -697,7 +697,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                               fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
                               color: isUnread
                                   ? (isDark ? const Color(0xFFFF8585) : const Color(0xFFEA580C))
-                                  : (isDark ? Colors.white38 : const Color(0xFF94A3B8)),
+                                  : (isDark ? Colors.white38 : TeknoyTheme.lightTextMuted),
                             ),
                           ),
                         ],
@@ -713,7 +713,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
                           fontFamily: 'Inter',
                           fontSize: 11.5,
                           fontWeight: FontWeight.w500,
-                          color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                          color: isDark ? Colors.white38 : TeknoyTheme.lightTextMuted,
                         ),
                       ),
                       const SizedBox(height: 3),
@@ -868,7 +868,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBgAlt,
       appBar: AppBar(
         toolbarHeight: 46.0,
         title: const Text(
@@ -903,12 +903,12 @@ class _InboxViewState extends ConsumerState<InboxView> {
                 ? [
                     const Color(0xFF221115),
                     const Color(0xFF140D10),
-                    const Color(0xFF0F0F12),
+                    TeknoyTheme.darkBg,
                   ]
                 : [
                     const Color(0xFFFFEDE1),
                     const Color(0xFFFFF7F2),
-                    const Color(0xFFF8FAFC),
+                    TeknoyTheme.lightBgAlt,
                   ],
           ),
         ),

@@ -66,15 +66,26 @@ class FeedTrendingBanner extends StatelessWidget {
                               )
                             ],
                           ),
-                          child: const Text(
-                            '🔥 EXCLUSIVE OFFER',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w800,
-                              fontSize: 10,
-                              color: Color(0xFF6F5400),
-                              letterSpacing: 0.8,
-                            ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.local_fire_department_rounded,
+                                size: 12,
+                                color: Color(0xFF6F5400),
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'EXCLUSIVE OFFER',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10,
+                                  color: Color(0xFF6F5400),
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -97,7 +108,7 @@ class FeedTrendingBanner extends StatelessWidget {
                             fontFamily: 'Inter',
                             fontWeight: FontWeight.w500,
                             fontSize: 11,
-                            color: isDark ? Colors.white60 : const Color(0xFF5A413D),
+                            color: isDark ? Colors.white60 : TeknoyTheme.citMaroonMuted,
                           ),
                         ),
                       ],

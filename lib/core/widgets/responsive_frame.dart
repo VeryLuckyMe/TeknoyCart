@@ -28,7 +28,7 @@ class ResponsiveMobileFrame extends StatelessWidget {
         final phoneHeight = (constraints.maxHeight - 24.0).clamp(650.0, 940.0) - (phoneBorderWidth * 2);
 
         return Scaffold(
-          backgroundColor: isDark ? const Color(0xFF0C0C0F) : const Color(0xFFF1F1F5),
+          backgroundColor: isDark ? const Color(0xFF0C0C0F) : TeknoyTheme.lightSurfaceMuted,
           body: Stack(
             children: [
               // 1. Beautiful artistic ambient background behind the phone container
@@ -40,9 +40,9 @@ class ResponsiveMobileFrame extends StatelessWidget {
                       end: Alignment.bottomRight,
                       colors: isDark
                           ? [
-                              const Color(0xFF0F0F12),
+                              TeknoyTheme.darkBg,
                               const Color(0xFF330000), // Rich institutional Maroon deep glow
-                              const Color(0xFF0F0F12),
+                              TeknoyTheme.darkBg,
                               const Color(0xFF1E1400), // Rich Gold ambient hint
                             ]
                           : [

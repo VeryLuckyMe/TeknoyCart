@@ -73,7 +73,7 @@ class _SellerReplyDialogState extends ConsumerState<SellerReplyDialog> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AlertDialog(
-      backgroundColor: isDark ? const Color(0xFF1E1E28) : Colors.white,
+      backgroundColor: isDark ? TeknoyTheme.darkSurfaceRaised : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Row(
         children: [
@@ -103,7 +103,7 @@ class _SellerReplyDialogState extends ConsumerState<SellerReplyDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF14141A) : const Color(0xFFF7F7FA),
+                color: isDark ? TeknoyTheme.darkFill : const Color(0xFFF7F7FA),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
               ),

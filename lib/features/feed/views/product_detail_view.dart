@@ -407,6 +407,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                               ),
                             ),
                             IconButton(
+                              tooltip: 'Close',
                               icon: const Icon(Icons.close_rounded, size: 22),
                               visualDensity: VisualDensity.compact,
                               onPressed: isSubmitting ? null : () => Navigator.pop(sheetContext),
@@ -419,7 +420,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF141418) : const Color(0xFFF7F7FA),
+                            color: isDark ? TeknoyTheme.darkSurface : const Color(0xFFF7F7FA),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
                               color: isDark ? Colors.white10 : const Color(0xFFE8E8EE),
@@ -436,6 +437,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                                   child: product.imageUrl != null && product.imageUrl!.isNotEmpty
                                       ? Image.network(
                                           product.imageUrl!,
+                                          semanticLabel: 'Photo of ${product.title}',
                                           fit: BoxFit.cover,
                                           errorBuilder: (_, __, ___) =>
                                               const Icon(Icons.inventory_2_outlined, color: Colors.grey),
@@ -530,7 +532,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF141418) : Colors.white,
+                            color: isDark ? TeknoyTheme.darkSurface : Colors.white,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: currentOfferVal >= originalPrice && currentOfferVal > 0
@@ -834,7 +836,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
           decoration: BoxDecoration(
             color: isSelected
                 ? TeknoyTheme.citMaroon
-                : (isDark ? const Color(0xFF22222A) : const Color(0xFFF6F6F9)),
+                : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBg),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected
@@ -1011,7 +1013,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
     final images = _getProductImages();
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF7F7F9),
+      backgroundColor: isDark ? TeknoyTheme.darkBg : const Color(0xFFF7F7F9),
       body: Stack(
         children: [
           // Main Scrollable Content
@@ -1021,7 +1023,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               SliverAppBar(
                 expandedHeight: 320,
                 pinned: true,
-                backgroundColor: isDark ? const Color(0xFF141418) : Colors.white,
+                backgroundColor: isDark ? TeknoyTheme.darkSurface : Colors.white,
                 elevation: 0,
                 leading: Padding(
                   padding: const EdgeInsets.only(left: 12.0),
@@ -1029,6 +1031,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                     child: CircleAvatar(
                       backgroundColor: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.85),
                       child: IconButton(
+                        tooltip: 'Back',
                         icon: Icon(
                           Icons.arrow_back_rounded,
                           color: isDark ? Colors.white : Colors.black87,
@@ -1043,6 +1046,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                   CircleAvatar(
                     backgroundColor: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.85),
                     child: IconButton(
+                      tooltip: _isFavorite ? 'Remove from favorites' : 'Add to favorites',
                       icon: Icon(
                         _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                         color: TeknoyTheme.citMaroon,
@@ -1067,6 +1071,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                   CircleAvatar(
                     backgroundColor: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.85),
                     child: IconButton(
+                      tooltip: 'Share product',
                       icon: Icon(
                         Icons.share_rounded,
                         color: isDark ? Colors.white : Colors.black87,
@@ -1095,23 +1100,28 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                               itemCount: images.length,
                               onPageChanged: (idx) => setState(() => _currentImageIndex = idx),
                               itemBuilder: (context, index) {
-                                return GestureDetector(
-                                  onTap: () => _openImageLightbox(context, images, index),
-                                  child: Container(
-                                    color: isDark ? const Color(0xFF141418) : const Color(0xFFF7F7FA),
-                                    child: Center(
-                                      child: Hero(
-                                        tag: index == 0 ? 'product_image_${product.id}' : 'product_image_${product.id}_$index',
-                                        child: Image.network(
-                                          images[index],
-                                          fit: BoxFit.contain,
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                          errorBuilder: (_, __, ___) => Center(
-                                            child: Icon(
-                                              Icons.image_not_supported_rounded,
-                                              size: 64,
-                                              color: isDark ? Colors.white24 : Colors.grey.shade400,
+                                return Semantics(
+                                  button: true,
+                                  label: 'View photo ${index + 1}',
+                                  child: GestureDetector(
+                                    onTap: () => _openImageLightbox(context, images, index),
+                                    child: Container(
+                                      color: isDark ? TeknoyTheme.darkSurface : const Color(0xFFF7F7FA),
+                                      child: Center(
+                                        child: Hero(
+                                          tag: index == 0 ? 'product_image_${product.id}' : 'product_image_${product.id}_$index',
+                                          child: Image.network(
+                                            images[index],
+                                            fit: BoxFit.contain,
+                                            width: double.infinity,
+                                            height: double.infinity,
+                                            excludeFromSemantics: true,
+                                            errorBuilder: (_, __, ___) => Center(
+                                              child: Icon(
+                                                Icons.image_not_supported_rounded,
+                                                size: 64,
+                                                color: isDark ? Colors.white24 : Colors.grey.shade400,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -1122,7 +1132,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                               },
                             )
                           : Container(
-                              color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFEDE8F5),
+                              color: isDark ? TeknoyTheme.darkCardBorder : const Color(0xFFEDE8F5),
                               child: Center(
                                 child: Icon(
                                   Icons.inventory_2_outlined,
@@ -1168,10 +1178,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF141418) : Colors.white,
+                        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
                         border: Border(
                           bottom: BorderSide(
-                            color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
                           ),
                         ),
                       ),
@@ -1199,7 +1209,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF1F1F5),
+                                  color: isDark ? TeknoyTheme.darkCardBorder : TeknoyTheme.lightSurfaceMuted,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -1208,7 +1218,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                                     fontFamily: 'Outfit',
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                                    color: isDark ? Colors.white70 : TeknoyTheme.citMaroonMuted,
                                   ),
                                 ),
                               ),
@@ -1397,10 +1407,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                       margin: const EdgeInsets.only(top: 10),
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF141418) : Colors.white,
+                        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
                         border: Border(
                           bottom: BorderSide(
-                            color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
                           ),
                         ),
                       ),
@@ -1444,7 +1454,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF141418) : Colors.white,
+                        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
                       ),
                       child: ProductReviewsSection(product: widget.product),
                     ),
@@ -1493,10 +1503,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
           ),
         ),
       ),
@@ -1601,10 +1611,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
           ),
         ),
       ),
@@ -1651,6 +1661,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
+                  tooltip: 'Decrease quantity',
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.remove_rounded, size: 18),
                   color: _quantity > 1 ? TeknoyTheme.citMaroon : Colors.grey,
@@ -1669,6 +1680,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Increase quantity',
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.add_rounded, size: 18),
                   color: (_quantity < maxAllowed && _availableStock > 0)
@@ -1693,10 +1705,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
           ),
         ),
       ),
@@ -1757,10 +1769,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
           ),
         ),
       ),
@@ -1873,10 +1885,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
           ),
         ),
       ),
@@ -1996,10 +2008,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
             MediaQuery.of(context).padding.bottom + 8,
           ),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF141418) : Colors.white,
+            color: isDark ? TeknoyTheme.darkSurface : Colors.white,
             border: Border(
               top: BorderSide(
-                color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
               ),
             ),
             boxShadow: [
@@ -2036,10 +2048,14 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                               color: TeknoyTheme.citMaroon,
                             ),
                           )
-                        : Icon(
-                            Icons.chat_bubble_outline_rounded,
-                            color: isDark ? Colors.white70 : TeknoyTheme.citMaroon,
-                            size: 20,
+                        : Semantics(
+                            label: 'Message seller',
+                            button: true,
+                            child: Icon(
+                              Icons.chat_bubble_outline_rounded,
+                              color: isDark ? Colors.white70 : TeknoyTheme.citMaroon,
+                              size: 20,
+                            ),
                           ),
                   ),
                 ),
@@ -2129,7 +2145,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                       backgroundColor: _availableStock > 0
                           ? TeknoyTheme.citMaroon
                           : (product.isPreorderEnabled
-                              ? const Color(0xFFD97706)
+                              ? TeknoyTheme.warningDark
                               : (isDark ? Colors.white12 : Colors.grey.shade300)),
                       disabledBackgroundColor: isDark ? Colors.white12 : Colors.grey.shade300,
                       foregroundColor: (_availableStock > 0 || product.isPreorderEnabled)
@@ -2216,6 +2232,7 @@ class _ProductImageLightboxState extends State<_ProductImageLightbox> {
                 child: Center(
                   child: Image.network(
                     widget.images[index],
+                    semanticLabel: 'Photo ${index + 1} of ${widget.images.length}',
                     fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) => const Center(
                       child: Icon(Icons.image_not_supported_rounded, color: Colors.white54, size: 64),
@@ -2245,6 +2262,7 @@ class _ProductImageLightboxState extends State<_ProductImageLightbox> {
                     backgroundColor: Colors.white24,
                     radius: 20,
                     child: IconButton(
+                      tooltip: 'Close',
                       icon: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
                       onPressed: () => Navigator.pop(context),
                     ),

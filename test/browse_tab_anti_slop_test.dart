@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/tabs/browse_tab.dart';
+import 'package:teknoycart/features/feed/views/widgets/feed_trending_banner.dart';
 import 'package:teknoycart/core/models/product.dart';
 
 void main() {
@@ -44,7 +45,9 @@ void main() {
 
     // 2. Verify redundant FeedTrendingBanner with external picsum image is NOT present
     expect(find.text('Pre-Loved\nEngineering Books'), findsNothing);
-    expect(find.text('🔥 EXCLUSIVE OFFER'), findsNothing);
+    expect(find.text('EXCLUSIVE OFFER'), findsNothing);
+    // Strongest guard: the redundant banner widget itself must not be mounted
+    expect(find.byType(FeedTrendingBanner), findsNothing);
 
     // 3. Tap Spotlight Hero and verify interactive category filter trigger
     final heroFinder = find.text('Save 50% on Engineering Drawing Boards');

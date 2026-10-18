@@ -120,26 +120,29 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                                       width: 1,
                                     ),
                                   ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.verified_user_rounded,
-                                        size: 11,
-                                        color: TeknoyTheme.citGold,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        user.studentId != null ? 'VERIFIED STUDENT' : 'CIT-U TECH MEMBER',
-                                        style: const TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: 8,
-                                          fontWeight: FontWeight.bold,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.verified_user_rounded,
+                                          size: 11,
                                           color: TeknoyTheme.citGold,
-                                          letterSpacing: 0.5,
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          user.studentId != null ? 'VERIFIED STUDENT' : 'CIT-U TECH MEMBER',
+                                          style: const TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: TeknoyTheme.citGold,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 6),

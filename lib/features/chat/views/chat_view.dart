@@ -8,6 +8,7 @@ import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/core/theme.dart';
+import 'package:teknoycart/core/utils/motion.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -765,13 +766,13 @@ class _ChatViewState extends ConsumerState<ChatView> {
                         decoration: BoxDecoration(
                           color: isMe
                               ? (isReceipt ? Colors.transparent : (isFailed ? TeknoyTheme.citMaroon.withValues(alpha: 0.85) : TeknoyTheme.citMaroon))
-                              : (isDark ? const Color(0xFF141418) : Colors.white),
+                              : (isDark ? TeknoyTheme.darkSurface : Colors.white),
                           border: isReceipt
                               ? null
                               : Border.all(
                                   color: isMe 
                                       ? (isFailed ? Colors.red.withValues(alpha: 0.3) : Colors.transparent) 
-                                      : (isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF)),
+                                      : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
                                   width: 1,
                                 ),
                           borderRadius: BorderRadius.only(
@@ -824,26 +825,30 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                         bottomLeft: isMe ? const Radius.circular(16) : Radius.zero,
                                         bottomRight: isMe ? Radius.zero : const Radius.circular(16),
                                       ),
-                                      child: CachedNetworkImage(
-                                        imageUrl: msg.imageUrl!,
-                                        width: MediaQuery.of(context).size.width * 0.65,
-                                        fit: BoxFit.cover,
-                                        placeholder: (context, url) => Container(
+                                      child: Semantics(
+                                        label: 'Photo',
+                                        image: true,
+                                        child: CachedNetworkImage(
+                                          imageUrl: msg.imageUrl!,
                                           width: MediaQuery.of(context).size.width * 0.65,
-                                          height: 180,
-                                          decoration: BoxDecoration(
-                                            color: isDark ? const Color(0xFF1A1A1F) : Colors.grey.shade200,
-                                            borderRadius: BorderRadius.circular(16),
+                                          fit: BoxFit.cover,
+                                          placeholder: (context, url) => Container(
+                                            width: MediaQuery.of(context).size.width * 0.65,
+                                            height: 180,
+                                            decoration: BoxDecoration(
+                                              color: isDark ? const Color(0xFF1A1A1F) : Colors.grey.shade200,
+                                              borderRadius: BorderRadius.circular(16),
+                                            ),
+                                            child: const Center(
+                                              child: CircularProgressIndicator(color: TeknoyTheme.citMaroon, strokeWidth: 2),
+                                            ),
                                           ),
-                                          child: const Center(
-                                            child: CircularProgressIndicator(color: TeknoyTheme.citMaroon, strokeWidth: 2),
+                                          errorWidget: (context, url, error) => Container(
+                                            width: MediaQuery.of(context).size.width * 0.65,
+                                            height: 120,
+                                            color: Colors.grey.shade300,
+                                            child: const Icon(Icons.broken_image_rounded, size: 40, color: Colors.grey),
                                           ),
-                                        ),
-                                        errorWidget: (context, url, error) => Container(
-                                          width: MediaQuery.of(context).size.width * 0.65,
-                                          height: 120,
-                                          color: Colors.grey.shade300,
-                                          child: const Icon(Icons.broken_image_rounded, size: 40, color: Colors.grey),
                                         ),
                                       ),
                                     ),
@@ -874,7 +879,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                     builder: (context) => Container(
                                       padding: const EdgeInsets.all(24),
                                       decoration: BoxDecoration(
-                                        color: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF9F9FB),
+                                        color: isDark ? TeknoyTheme.darkBg : const Color(0xFFF9F9FB),
                                         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
                                       ),
                                       child: Column(
@@ -902,10 +907,10 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                           Container(
                                             padding: const EdgeInsets.all(20),
                                             decoration: BoxDecoration(
-                                              color: isDark ? const Color(0xFF141418) : Colors.blue.shade50,
+                                              color: isDark ? TeknoyTheme.darkSurface : Colors.blue.shade50,
                                               borderRadius: BorderRadius.circular(16),
                                               border: Border.all(
-                                                color: isDark ? const Color(0xFF22222A) : Colors.blue.shade200,
+                                                color: isDark ? TeknoyTheme.darkBorder : Colors.blue.shade200,
                                               ),
                                             ),
                                             child: Column(
@@ -1201,7 +1206,20 @@ class _TypingDotsState extends State<_TypingDots>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Honor the platform "reduce motion" setting: hold the dots steady
+    // instead of pulsing indefinitely (WCAG 2.3.3).
+    if (Motion.reduce(context)) {
+      _controller.stop();
+      _controller.value = 0.5;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
   }
 
   @override

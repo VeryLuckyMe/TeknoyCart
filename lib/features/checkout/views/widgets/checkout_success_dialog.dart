@@ -174,7 +174,7 @@ class CheckoutSuccessDialog extends StatelessWidget {
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: isDark ? Colors.white70 : const Color(0xFF5A413D),
+                  foregroundColor: isDark ? Colors.white70 : TeknoyTheme.citMaroonMuted,
                   side: BorderSide(
                     color: isDark ? Colors.white24 : const Color(0xFFD6CBC8),
                     width: 1.2,

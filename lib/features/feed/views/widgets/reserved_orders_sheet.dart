@@ -259,7 +259,7 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.82,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -310,6 +310,7 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Close',
                   icon: const Icon(Icons.close_rounded),
                   onPressed: () => Navigator.pop(context),
                 ),
@@ -364,7 +365,7 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
                           fontFamily: 'Outfit',
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
-                          color: available > 0 ? const Color(0xFF2E7D32) : Colors.red,
+                          color: available > 0 ? TeknoyTheme.successDark : Colors.red,
                         ),
                       ),
                       const SizedBox(height: 2),

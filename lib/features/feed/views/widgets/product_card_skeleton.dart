@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme.dart';
+import '../../../../core/utils/motion.dart';
 
 /// Shimmer skeleton matching FeedProductCard for smooth loading states (MED-04).
 class ProductGridSkeleton extends StatefulWidget {
@@ -22,10 +23,23 @@ class _ProductGridSkeletonState extends State<ProductGridSkeleton>
     _shimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    )..repeat();
+    );
     _shimmerAnimation = Tween<double>(begin: -1.0, end: 2.0).animate(
       CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOutSine),
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Honor the platform "reduce motion" setting: keep a calm, static sheen
+    // instead of an endlessly sweeping shimmer (WCAG 2.3.3).
+    if (Motion.reduce(context)) {
+      _shimmerController.stop();
+      _shimmerController.value = 0.5;
+    } else if (!_shimmerController.isAnimating) {
+      _shimmerController.repeat();
+    }
   }
 
   @override
@@ -69,7 +83,7 @@ class ProductCardSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final baseColor = isDark ? const Color(0xFF1E1E24) : const Color(0xFFECECF0);
+    final baseColor = isDark ? TeknoyTheme.darkCardBorder : const Color(0xFFECECF0);
     final highlightColor = isDark ? const Color(0xFF2D2D36) : const Color(0xFFF7F7FA);
 
     final gradient = LinearGradient(
@@ -80,10 +94,10 @@ class ProductCardSkeleton extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+          color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
           width: 1,
         ),
         boxShadow: TeknoyTheme.kElevationLow,

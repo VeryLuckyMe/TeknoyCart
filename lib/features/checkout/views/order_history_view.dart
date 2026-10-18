@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/core/widgets/image_placeholder.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/utils/order_ui_helper.dart';
@@ -474,21 +475,21 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     return list.where((order) {
       final status = (order['status'] as String? ?? '').trim().toUpperCase();
       switch (filter) {
-        case 'In Escrow 🔒':
+        case 'In Escrow':
           return status == 'ESCROWED' || status == 'PAYMENT_SUBMITTED';
-        case 'Awaiting ⏳':
+        case 'Awaiting':
           return status == 'PENDING_SELLER_ACCEPT' || status == 'PLACED' || status == 'AWAITING_PAYMENT';
-        case 'To Pickup 🤝':
+        case 'To Pickup':
           return status == 'MEETUP_SCHEDULED' ||
               status == 'HANDOFF_PENDING' ||
               status == 'SELLER_ACCEPTED' ||
               status == 'APPROVED' ||
               status == 'ACCEPTED';
-        case 'Completed ✅':
+        case 'Completed':
           return status == 'COMPLETED' ||
               status == 'PAYMENT_VERIFIED' ||
               status == 'RETURN_COMPLETED';
-        case 'Cancelled ❌':
+        case 'Cancelled':
           return status == 'CANCELLED' ||
               status == 'DECLINED' ||
               status == 'REJECTED' ||
@@ -501,7 +502,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
   }
 
   Widget _buildFilterBar({required bool isDark, required bool isSeller}) {
-    final filters = ['All', 'In Escrow 🔒', 'Awaiting ⏳', 'To Pickup 🤝', 'Completed ✅', 'Cancelled ❌'];
+    final filters = ['All', 'In Escrow', 'Awaiting', 'To Pickup', 'Completed', 'Cancelled'];
     final selectedFilter = isSeller ? _selectedSellerFilter : _selectedBuyerFilter;
 
     return Padding(
@@ -556,7 +557,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                       color: isSelected
                           ? TeknoyTheme.citMaroon
-                          : (isDark ? Colors.white60 : const Color(0xFF64748B)),
+                          : (isDark ? Colors.white60 : TeknoyTheme.lightTextSecondary),
                     ),
                   ),
                 ),
@@ -657,7 +658,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                 fontFamily: 'Outfit',
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -669,7 +670,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
               style: TextStyle(
                 fontFamily: 'Inter',
                 fontSize: 13,
-                color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                color: isDark ? Colors.white54 : TeknoyTheme.lightTextSecondary,
                 height: 1.4,
               ),
             ),
@@ -738,12 +739,12 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF141418) : Colors.white,
+          color: isDark ? TeknoyTheme.darkSurface : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isPending
                 ? Colors.orange.withValues(alpha: 0.35)
-                : (isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF)),
+                : (isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
             width: isPending ? 1.5 : 1,
           ),
           boxShadow: [
@@ -779,11 +780,30 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                       ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: imageUrl != null
-                            ? Image.network(imageUrl, width: 54, height: 54, fit: BoxFit.cover)
+                            ? Image.network(
+                                imageUrl,
+                                semanticLabel: 'Product photo',
+                                width: 54,
+                                height: 54,
+                                fit: BoxFit.cover,
+                                loadingBuilder: (_, child, progress) => progress == null
+                                    ? child
+                                    : const ImagePlaceholder(
+                                        width: 54,
+                                        height: 54,
+                                        icon: Icons.image_outlined,
+                                        iconSize: 16,
+                                      ),
+                                errorBuilder: (_, __, ___) => const ImagePlaceholder(
+                                  width: 54,
+                                  height: 54,
+                                  iconSize: 16,
+                                ),
+                              )
                             : Container(
                                 width: 54,
                                 height: 54,
-                                color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF1F5F9),
+                                color: isDark ? TeknoyTheme.darkCardBorder : const Color(0xFFF1F5F9),
                                 child: const Icon(Icons.receipt_long_rounded, color: Colors.grey),
                               ),
                       ),
@@ -798,7 +818,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                                 fontFamily: 'Outfit',
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15.5,
-                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -855,7 +875,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                       Icon(
                         Icons.person_outline_rounded,
                         size: 14,
-                        color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                        color: isDark ? Colors.white38 : TeknoyTheme.lightTextMuted,
                       ),
                       const SizedBox(width: 6),
                       Expanded(
@@ -864,7 +884,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                           style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 12,
-                            color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                            color: isDark ? Colors.white54 : TeknoyTheme.lightTextSecondary,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -872,14 +892,14 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                       ),
                       if (otherPartyContact != null && otherPartyContact.isNotEmpty) ...[
                         const SizedBox(width: 6),
-                        Icon(Icons.phone_outlined, size: 12, color: isDark ? Colors.white38 : const Color(0xFF94A3B8)),
+                        Icon(Icons.phone_outlined, size: 12, color: isDark ? Colors.white38 : TeknoyTheme.lightTextMuted),
                         const SizedBox(width: 3),
                         Text(
                           otherPartyContact,
                           style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 11.5,
-                            color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                            color: isDark ? Colors.white54 : TeknoyTheme.lightTextSecondary,
                           ),
                         ),
                       ],
@@ -933,14 +953,14 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                           style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 11.5,
-                            color: isDark ? Colors.white30 : const Color(0xFF94A3B8),
+                            color: isDark ? Colors.white30 : TeknoyTheme.lightTextMuted,
                           ),
                         ),
                         const SizedBox(width: 4),
                         Icon(
                           Icons.arrow_forward_ios_rounded,
                           size: 10,
-                          color: isDark ? Colors.white30 : const Color(0xFF94A3B8),
+                          color: isDark ? Colors.white30 : TeknoyTheme.lightTextMuted,
                         ),
                       ],
                     ),
@@ -970,7 +990,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       }
       return Scaffold(
         extendBodyBehindAppBar: true,
-        backgroundColor: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF8FAFC),
+        backgroundColor: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBgAlt,
         appBar: AppBar(
           toolbarHeight: 46.0,
           title: const Text(
@@ -994,12 +1014,12 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                   ? [
                       const Color(0xFF221115),
                       const Color(0xFF140D10),
-                      const Color(0xFF0F0F12),
+                      TeknoyTheme.darkBg,
                     ]
                   : [
                       const Color(0xFFFFEDE1),
                       const Color(0xFFFFF7F2),
-                      const Color(0xFFF8FAFC),
+                      TeknoyTheme.lightBgAlt,
                     ],
             ),
           ),
@@ -1077,7 +1097,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: isDark ? const Color(0xFF0F0F12) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBgAlt,
       appBar: AppBar(
         toolbarHeight: 46.0,
         title: const Text(
@@ -1102,12 +1122,12 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                 ? [
                     const Color(0xFF221115),
                     const Color(0xFF140D10),
-                    const Color(0xFF0F0F12),
+                    TeknoyTheme.darkBg,
                   ]
                 : [
                     const Color(0xFFFFEDE1),
                     const Color(0xFFFFF7F2),
-                    const Color(0xFFF8FAFC),
+                    TeknoyTheme.lightBgAlt,
                   ],
           ),
         ),

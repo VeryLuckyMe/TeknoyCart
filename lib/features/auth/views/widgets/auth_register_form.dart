@@ -595,6 +595,7 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
             icon: Icons.lock_outline_rounded,
             obscureText: _obscurePassword,
             suffixIcon: IconButton(
+              tooltip: _obscurePassword ? 'Show password' : 'Hide password',
               icon: Icon(
                 _obscurePassword
                     ? Icons.visibility_off_outlined
@@ -649,6 +650,7 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
             icon: Icons.lock_clock_outlined,
             obscureText: _obscureConfirmPassword,
             suffixIcon: IconButton(
+              tooltip: _obscureConfirmPassword ? 'Show password' : 'Hide password',
               icon: Icon(
                 _obscureConfirmPassword
                     ? Icons.visibility_off_outlined

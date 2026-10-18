@@ -111,5 +111,34 @@ void main() {
 
       expect(typingCalls, greaterThan(0));
     });
+
+    testWidgets('Send and attach buttons expose semantic labels', (tester) async {
+      var sends = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatInputBar(
+              controller: controller,
+              pendingImageFile: null,
+              isUploadingImage: false,
+              isOtherPartyDeleted: false,
+              onClearImage: () {},
+              onShowImageSource: () {},
+              onSendMessage: () => sends++,
+            ),
+          ),
+        ),
+      );
+
+      // Icon-only actions must carry labels for screen readers
+      // (tooltips double as accessibility labels).
+      expect(find.byTooltip('Send message'), findsOneWidget);
+      expect(find.byTooltip('Attach image'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Send message'));
+      await tester.pump();
+      expect(sends, 1);
+    });
   });
 }

@@ -132,7 +132,7 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
   double get _progress => _secondsLeft / _totalSeconds;
 
   Color get _timerColor {
-    if (_secondsLeft > 120) return const Color(0xFF2E7D32);
+    if (_secondsLeft > 120) return TeknoyTheme.successDark;
     if (_secondsLeft > 60) return const Color(0xFFF57F17);
     return const Color(0xFFC62828);
   }
@@ -154,13 +154,13 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2E7D32).withValues(alpha: 0.12),
+                  color: TeknoyTheme.successDark.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.check_circle_rounded,
                   size: 54,
-                  color: Color(0xFF2E7D32),
+                  color: TeknoyTheme.successDark,
                 ),
               ),
               const SizedBox(height: 20),
@@ -170,7 +170,7 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
                   fontFamily: 'Outfit',
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF2E7D32),
+                  color: TeknoyTheme.successDark,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -205,7 +205,7 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
               decoration: BoxDecoration(
                 color: (_expired
                     ? const Color(0xFFC62828)
-                    : const Color(0xFF2E7D32)).withValues(alpha: 0.12),
+                    : TeknoyTheme.successDark).withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -213,7 +213,7 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
                     ? Icons.timer_off_rounded
                     : Icons.mark_email_unread_rounded,
                 size: 42,
-                color: _expired ? const Color(0xFFC62828) : const Color(0xFF2E7D32),
+                color: _expired ? const Color(0xFFC62828) : TeknoyTheme.successDark,
               ),
             ),
             const SizedBox(height: 20),
@@ -324,7 +324,7 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF2E7D32)),
+                    const Icon(Icons.check_circle_rounded, size: 14, color: TeknoyTheme.successDark),
                     const SizedBox(width: 6),
                     Text(
                       'New verification email sent!',

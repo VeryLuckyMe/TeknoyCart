@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/core/widgets/image_placeholder.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
@@ -565,7 +566,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          backgroundColor: isDark ? const Color(0xFF1E1E28) : Colors.white,
+          backgroundColor: isDark ? TeknoyTheme.darkSurfaceRaised : Colors.white,
           title: Row(
             children: [
               Container(
@@ -1384,7 +1385,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                     style: const TextStyle(fontFamily: 'Inter', fontSize: 12.5, height: 1.4),
                     decoration: InputDecoration(
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      fillColor: isDark ? const Color(0xFF141418) : const Color(0xFFF9F9FC),
+                      fillColor: isDark ? TeknoyTheme.darkSurface : const Color(0xFFF9F9FC),
                       filled: true,
                     ),
                   ),
@@ -1680,7 +1681,26 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: imageUrl != null
-                      ? Image.network(imageUrl, width: 72, height: 72, fit: BoxFit.cover)
+                      ? Image.network(
+                          imageUrl,
+                          semanticLabel: 'Product photo',
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (_, child, progress) => progress == null
+                              ? child
+                              : const ImagePlaceholder(
+                                  width: 72,
+                                  height: 72,
+                                  icon: Icons.image_outlined,
+                                  iconSize: 18,
+                                ),
+                          errorBuilder: (_, __, ___) => const ImagePlaceholder(
+                            width: 72,
+                            height: 72,
+                            iconSize: 18,
+                          ),
+                        )
                       : Container(width: 72, height: 72, color: Colors.grey.withValues(alpha: 0.15), child: const Icon(Icons.image_not_supported, color: Colors.grey)),
                 ),
                 const SizedBox(width: 14),
@@ -2585,7 +2605,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1E28) : const Color(0xFFF7F7FA),
+                color: isDark ? TeknoyTheme.darkSurfaceRaised : const Color(0xFFF7F7FA),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.4)),
               ),
@@ -2763,9 +2783,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Colors.white,
+        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF)),
+        border: Border.all(color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 3))],
       ),
       child: child,

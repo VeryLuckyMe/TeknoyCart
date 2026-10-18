@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/core/widgets/image_placeholder.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/utils/order_ui_helper.dart';
@@ -258,7 +259,7 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 14),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF141418) : Colors.white,
+                          color: isDark ? TeknoyTheme.darkSurface : Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
@@ -268,7 +269,7 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                             ),
                           ],
                           border: Border.all(
-                            color: isDark ? const Color(0xFF22222A) : const Color(0xFFECECEF),
+                            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
                             width: 1,
                           ),
                         ),
@@ -282,7 +283,26 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                           leading: imageUrl.isNotEmpty
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(10),
-                                  child: Image.network(imageUrl, width: 64, height: 64, fit: BoxFit.cover),
+                                  child: Image.network(
+                                    imageUrl,
+                                    width: 64,
+                                    height: 64,
+                                    fit: BoxFit.cover,
+                                    semanticLabel: 'Photo of ${item['name'] ?? 'listing'}',
+                                    loadingBuilder: (_, child, progress) => progress == null
+                                        ? child
+                                        : const ImagePlaceholder(
+                                            width: 64,
+                                            height: 64,
+                                            icon: Icons.image_outlined,
+                                            iconSize: 16,
+                                          ),
+                                    errorBuilder: (_, __, ___) => const ImagePlaceholder(
+                                      width: 64,
+                                      height: 64,
+                                      iconSize: 16,
+                                    ),
+                                  ),
                                 )
                               : Container(
                                   width: 64, height: 64, 
@@ -340,7 +360,7 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                           : (isDark ? const Color(0xFF38231B) : const Color(0xFFFFEBEE)),
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: available > 0 ? const Color(0xFF2E7D32).withValues(alpha: 0.4) : Colors.red.withValues(alpha: 0.3),
+                                        color: available > 0 ? TeknoyTheme.successDark.withValues(alpha: 0.4) : Colors.red.withValues(alpha: 0.3),
                                       ),
                                     ),
                                     child: Row(
@@ -349,7 +369,7 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                         Icon(
                                           available > 0 ? Icons.check_circle_outline_rounded : Icons.cancel_outlined, 
                                           size: 11, 
-                                          color: available > 0 ? const Color(0xFF2E7D32) : Colors.red
+                                          color: available > 0 ? TeknoyTheme.successDark : Colors.red
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
@@ -358,7 +378,7 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                                             fontSize: 10,
                                             fontWeight: FontWeight.bold,
                                             fontFamily: 'Inter',
-                                            color: available > 0 ? const Color(0xFF2E7D32) : Colors.red,
+                                            color: available > 0 ? TeknoyTheme.successDark : Colors.red,
                                           ),
                                         ),
                                       ],

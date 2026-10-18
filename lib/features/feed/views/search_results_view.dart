@@ -57,11 +57,11 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
     final hasAdvancedFilters =
         selectedCondition != 'All' || minPrice != null || maxPrice != null;
 
-    const bgColorDark = Color(0xFF0F0F12);
-    const cardBgDark = Color(0xFF191922);
+    const bgColorDark = TeknoyTheme.darkBg;
+    const cardBgDark = TeknoyTheme.darkSurfaceHigh;
     const cardBorderDark = Color(0xFF262634);
 
-    final bgColor = isDark ? bgColorDark : const Color(0xFFF8FAFC);
+    final bgColor = isDark ? bgColorDark : TeknoyTheme.lightBgAlt;
     final cardBg = isDark ? cardBgDark : Colors.white;
     final cardBorder = isDark ? cardBorderDark : const Color(0xFFE8E8F0);
 
@@ -92,7 +92,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
               color: isDark ? const Color(0xFF18181C) : Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isDark ? const Color(0xFF282830) : const Color(0xFFE2E8F0),
+                color: isDark ? TeknoyTheme.darkDivider : const Color(0xFFE2E8F0),
                 width: 1,
               ),
               boxShadow: [
@@ -111,20 +111,21 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
               style: TextStyle(
                 fontFamily: 'Inter',
                 fontSize: 14,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
               ),
               decoration: InputDecoration(
                 hintText: 'Search products or stores...',
                 hintStyle: TextStyle(
                   fontFamily: 'Inter',
                   fontSize: 13,
-                  color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                  color: isDark ? Colors.white38 : TeknoyTheme.lightTextMuted,
                 ),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 prefixIcon: const Icon(Icons.search_rounded, size: 20, color: TeknoyTheme.citMaroon),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
+                        tooltip: 'Clear search',
                         icon: const Icon(Icons.clear_rounded, size: 18, color: Colors.grey),
                         onPressed: () {
                           _searchController.clear();
@@ -147,12 +148,12 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                 ? [
                     const Color(0xFF221115),
                     const Color(0xFF140D10),
-                    const Color(0xFF0F0F12),
+                    TeknoyTheme.darkBg,
                   ]
                 : [
                     const Color(0xFFFFEDE1),
                     const Color(0xFFFFF7F2),
-                    const Color(0xFFF8FAFC),
+                    TeknoyTheme.lightBgAlt,
                   ],
           ),
         ),
@@ -160,12 +161,13 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
           bottom: false,
           child: Padding(
             padding: const EdgeInsets.only(top: 50.0),
-            child: SingleChildScrollView(
+            child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 32.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 0.0),
+                  sliver: SliverList.list(
+                    children: [
                   // ── Section 1: Stores Container
                   Row(
                     children: [
@@ -185,7 +187,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           letterSpacing: -0.3,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
                         ),
                       ),
                     ],
@@ -215,13 +217,13 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF22222A) : const Color(0xFFF1F5F9),
+                                  color: isDark ? TeknoyTheme.darkBorder : const Color(0xFFF1F5F9),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
                                   Icons.storefront_outlined,
                                   size: 26,
-                                  color: isDark ? Colors.white30 : const Color(0xFF94A3B8),
+                                  color: isDark ? Colors.white30 : TeknoyTheme.lightTextMuted,
                                 ),
                               ),
                               const SizedBox(width: 14),
@@ -233,7 +235,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                                   style: TextStyle(
                                     fontFamily: 'Inter',
                                     fontSize: 13,
-                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                    color: isDark ? Colors.white60 : TeknoyTheme.lightTextSecondary,
                                   ),
                                 ),
                               ),
@@ -289,7 +291,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                                                 fontFamily: 'Outfit',
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.bold,
-                                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                                color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
                                               ),
                                             ),
                                             Text(
@@ -299,7 +301,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                                               style: TextStyle(
                                                 fontFamily: 'Inter',
                                                 fontSize: 11,
-                                                color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                                color: isDark ? Colors.white60 : TeknoyTheme.lightTextSecondary,
                                               ),
                                             ),
                                           ],
@@ -372,7 +374,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             letterSpacing: -0.3,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
                           ),
                         ),
                       ),
@@ -444,8 +446,12 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                     ],
                   ),
                   const SizedBox(height: 12),
-
-                  productsAsync.when(
+                    ],
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 32.0),
+                  sliver: productsAsync.when(
                     data: (allProducts) {
                       final matchingProducts = applyProductFilters(
                         allProducts,
@@ -458,8 +464,9 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                       );
 
                       if (matchingProducts.isEmpty) {
-                        return Container(
-                          width: double.infinity,
+                        return SliverToBoxAdapter(
+                          child: Container(
+                            width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
                           decoration: BoxDecoration(
                             color: cardBg,
@@ -479,13 +486,13 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                               Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF22222A) : const Color(0xFFF1F5F9),
+                                  color: isDark ? TeknoyTheme.darkBorder : const Color(0xFFF1F5F9),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
                                   Icons.search_off_rounded,
                                   size: 48,
-                                  color: isDark ? Colors.white30 : const Color(0xFF94A3B8),
+                                  color: isDark ? Colors.white30 : TeknoyTheme.lightTextMuted,
                                 ),
                               ),
                               const SizedBox(height: 14),
@@ -498,7 +505,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                                   fontFamily: 'Outfit',
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
                                 ),
                               ),
                               const SizedBox(height: 6),
@@ -508,7 +515,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                                 style: TextStyle(
                                   fontFamily: 'Inter',
                                   fontSize: 12,
-                                  color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                                  color: isDark ? Colors.white54 : TeknoyTheme.lightTextSecondary,
                                 ),
                               ),
                               if (_activeQuery.isNotEmpty) ...[
@@ -537,12 +544,11 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                               ],
                             ],
                           ),
-                        );
+                        ),
+                      );
                       }
 
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
+                      return SliverGrid.builder(
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
                           childAspectRatio: 0.68,
@@ -585,6 +591,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                                         Positioned.fill(
                                           child: Image.network(
                                             product.imageUrl ?? '',
+                                            semanticLabel: 'Photo of ${product.title}',
                                             fit: BoxFit.cover,
                                             errorBuilder: (_, __, ___) => Container(
                                               color: isDark ? const Color(0xFF222228) : const Color(0xFFF1F5F9),
@@ -642,7 +649,7 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                                                   fontFamily: 'Inter',
                                                   fontSize: 12.5,
                                                   fontWeight: FontWeight.w600,
-                                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                                  color: isDark ? Colors.white : TeknoyTheme.lightTextPrimary,
                                                 ),
                                               ),
                                               if (product.categoryAttributes.isNotEmpty)
@@ -702,11 +709,21 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                         },
                       );
                     },
-                    loading: () => const Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon)),
-                    error: (err, _) => Center(child: Text('Error loading products: $err')),
+                    loading: () => const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(40),
+                        child: Center(child: CircularProgressIndicator(color: TeknoyTheme.citMaroon)),
+                      ),
+                    ),
+                    error: (err, _) => SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(40),
+                        child: Center(child: Text('Error loading products: $err')),
+                      ),
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

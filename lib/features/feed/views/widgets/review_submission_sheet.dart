@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/core/widgets/image_placeholder.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:teknoycart/core/models/review.dart';
 import 'package:teknoycart/core/supabase_client.dart';
@@ -219,7 +220,7 @@ class _ReviewSubmissionSheetState extends ConsumerState<ReviewSubmissionSheet> {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF14141A) : Colors.white,
+        color: isDark ? TeknoyTheme.darkFill : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.only(
@@ -288,6 +289,7 @@ class _ReviewSubmissionSheetState extends ConsumerState<ReviewSubmissionSheet> {
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Close',
                   icon: const Icon(Icons.close_rounded),
                   onPressed: () => Navigator.pop(context),
                 ),
@@ -347,10 +349,15 @@ class _ReviewSubmissionSheetState extends ConsumerState<ReviewSubmissionSheet> {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                          child: Icon(
-                            isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
-                            size: 38,
-                            color: isSelected ? _getRatingColor(_rating) : (isDark ? Colors.white30 : Colors.black26),
+                          child: Semantics(
+                            label: '$starValue ${starValue == 1 ? 'star' : 'stars'}',
+                            selected: isSelected,
+                            button: true,
+                            child: Icon(
+                              isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
+                              size: 38,
+                              color: isSelected ? _getRatingColor(_rating) : (isDark ? Colors.white30 : Colors.black26),
+                            ),
                           ),
                         ),
                       );
@@ -404,7 +411,7 @@ class _ReviewSubmissionSheetState extends ConsumerState<ReviewSubmissionSheet> {
                     decoration: BoxDecoration(
                       color: isSelected
                           ? TeknoyTheme.citMaroon
-                          : (isDark ? const Color(0xFF1E1E28) : const Color(0xFFF1F1F5)),
+                          : (isDark ? TeknoyTheme.darkSurfaceRaised : TeknoyTheme.lightSurfaceMuted),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isSelected ? TeknoyTheme.citMaroon : Colors.transparent,
@@ -525,7 +532,15 @@ class _ReviewSubmissionSheetState extends ConsumerState<ReviewSubmissionSheet> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Image.network(_uploadedImageUrl!, fit: BoxFit.cover),
+                  child: Image.network(
+                    _uploadedImageUrl!,
+                    semanticLabel: 'Selected photo preview',
+                    fit: BoxFit.cover,
+                    loadingBuilder: (_, child, progress) => progress == null
+                        ? child
+                        : const ImagePlaceholder(icon: Icons.image_outlined),
+                    errorBuilder: (_, __, ___) => const ImagePlaceholder(),
+                  ),
                 ),
               )
             else

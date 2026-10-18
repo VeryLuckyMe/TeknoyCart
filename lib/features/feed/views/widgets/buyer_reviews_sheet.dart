@@ -37,13 +37,14 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
             InteractiveViewer(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: Image.network(imageUrl, fit: BoxFit.contain),
+                child: Image.network(imageUrl, fit: BoxFit.contain, semanticLabel: 'Review photo'),
               ),
             ),
             Positioned(
               top: 10,
               right: 10,
               child: IconButton(
+                tooltip: 'Close',
                 icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
                 onPressed: () => Navigator.pop(ctx),
               ),
@@ -90,8 +91,8 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
       return true;
     }).toList();
 
-    final bgColor = isDark ? const Color(0xFF141418) : Colors.white;
-    final cardBg = isDark ? const Color(0xFF1E1E24) : const Color(0xFFF9F9FB);
+    final bgColor = isDark ? TeknoyTheme.darkSurface : Colors.white;
+    final cardBg = isDark ? TeknoyTheme.darkCardBorder : const Color(0xFFF9F9FB);
     final borderColor = isDark ? const Color(0xFF2E2E36) : const Color(0xFFEAEAEE);
 
     return DraggableScrollableSheet(
@@ -172,6 +173,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
                       ),
                     ),
                     IconButton(
+                      tooltip: 'Close',
                       icon: Icon(
                         Icons.close_rounded,
                         color: isDark ? Colors.white70 : Colors.black54,
@@ -222,7 +224,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
                                   final isFull = starIndex <= avgRating.round();
                                   return Icon(
                                     isFull ? Icons.star_rounded : Icons.star_outline_rounded,
-                                    color: const Color(0xFFF59E0B),
+                                    color: TeknoyTheme.warning,
                                     size: 16,
                                   );
                                 }),
@@ -266,7 +268,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
                                           ),
                                         ),
                                       ),
-                                      const Icon(Icons.star_rounded, size: 12, color: Color(0xFFF59E0B)),
+                                      const Icon(Icons.star_rounded, size: 12, color: TeknoyTheme.warning),
                                       const SizedBox(width: 6),
                                       Expanded(
                                         child: ClipRRect(
@@ -353,7 +355,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
       selected: isSelected,
       onSelected: (_) => setState(() => _selectedFilter = filterKey),
       selectedColor: TeknoyTheme.citMaroon,
-      backgroundColor: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF2F2F6),
+      backgroundColor: isDark ? TeknoyTheme.darkCardBorder : const Color(0xFFF2F2F6),
       labelStyle: TextStyle(
         fontFamily: 'Inter',
         fontSize: 12,
@@ -534,7 +536,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
                 children: List.generate(5, (index) {
                   return Icon(
                     index < review.rating ? Icons.star_rounded : Icons.star_outline_rounded,
-                    color: const Color(0xFFF59E0B),
+                    color: TeknoyTheme.warning,
                     size: 16,
                   );
                 }),
@@ -631,6 +633,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
                       borderRadius: BorderRadius.circular(10),
                       child: Image.network(
                         url,
+                        semanticLabel: 'Review photo ${imgIdx + 1}',
                         width: 72,
                         height: 72,
                         fit: BoxFit.cover,
@@ -654,7 +657,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF25252E) : const Color(0xFFF1F1F5),
+                color: isDark ? const Color(0xFF25252E) : TeknoyTheme.lightSurfaceMuted,
                 borderRadius: BorderRadius.circular(12),
                 border: Border(
                   left: BorderSide(
