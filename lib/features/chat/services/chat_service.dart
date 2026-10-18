@@ -110,41 +110,6 @@ class ChatService {
         return chatId;
       }
 
-      // 1. Ensure buyer exists in users table
-      final safeBuyer = buyerId.length > 5 ? buyerId.substring(0, 5) : buyerId;
-      try {
-        final buyerCheck = await _client.from('users').select('user_id').eq('user_id', buyerId).limit(1).maybeSingle();
-        if (buyerCheck == null) {
-          await _client.from('users').insert({
-            'user_id': buyerId,
-            'full_name': 'Wildcat Buyer',
-            'email': 'buyer.$safeBuyer@cit.edu',
-            'password_hash': 'pbkdf2_sha256\$260000\$dummyhashbuyer',
-            'role': 'BUYER',
-            'is_verified': true,
-          });
-        }
-      } catch (e) {
-        debugPrint("ENSURE_BUYER_ERROR: $e");
-      }
-
-      // Ensure seller exists in users table (violates chats_seller_id_fkey otherwise)
-      final safeSeller = sellerId.length > 5 ? sellerId.substring(0, 5) : sellerId;
-      try {
-        final sellerCheck = await _client.from('users').select('user_id').eq('user_id', sellerId).limit(1).maybeSingle();
-        if (sellerCheck == null) {
-          await _client.from('users').insert({
-            'user_id': sellerId,
-            'full_name': 'Wildcat Seller',
-            'email': 'seller.$safeSeller@cit.edu',
-            'password_hash': 'pbkdf2_sha256\$260000\$dummyhashseller',
-            'role': 'SELLER',
-            'is_verified': true,
-          });
-        }
-      } catch (e) {
-        debugPrint("ENSURE_SELLER_ERROR: $e");
-      }
 
       // 2. We need an inquiry first. Check for an existing product variant
       String variantId = 'var-standard';
