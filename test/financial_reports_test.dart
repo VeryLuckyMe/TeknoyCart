@@ -7,6 +7,7 @@ import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/reports/views/financial_reports_view.dart';
+import 'package:teknoycart/features/reports/services/seller_analytics.dart';
 import 'mock_http_client.dart';
 
 void main() {
@@ -73,6 +74,11 @@ void main() {
 
       // Assert presence of transaction log header
       expect(find.text('Completed Transactions Log'), findsOneWidget);
+
+      // Assert presence of the seller analytics upgrades
+      expect(find.text('Conversion Funnel'), findsOneWidget);
+      expect(find.text('Top Products'), findsOneWidget);
+      expect(find.text('Low Stock Alerts'), findsOneWidget);
     });
 
     test('CSV report generation produces valid spreadsheet format', () {
@@ -168,6 +174,134 @@ void main() {
       expect(drawing, 250.0);
       expect(electronics, 800.0);
       expect(others, 100.0);
+    });
+  });
+
+  group('Seller analytics helpers', () {
+    final now = DateTime(2026, 10, 18, 12, 0);
+
+    test('withinReportPeriod applies daily, weekly, monthly and all-time windows', () {
+      expect(
+        withinReportPeriod(DateTime(2026, 10, 18, 8).toIso8601String(), 'Daily', now),
+        isTrue,
+      );
+      expect(
+        withinReportPeriod(DateTime(2026, 10, 17, 23).toIso8601String(), 'Daily', now),
+        isFalse,
+      );
+      expect(
+        withinReportPeriod(DateTime(2026, 10, 15).toIso8601String(), 'Weekly', now),
+        isTrue,
+      );
+      expect(
+        withinReportPeriod(DateTime(2026, 10, 1).toIso8601String(), 'Weekly', now),
+        isFalse,
+      );
+      expect(
+        withinReportPeriod(DateTime(2026, 10, 5).toIso8601String(), 'Monthly', now),
+        isTrue,
+      );
+      expect(
+        withinReportPeriod(DateTime(2026, 8, 1).toIso8601String(), 'Monthly', now),
+        isFalse,
+      );
+      expect(
+        withinReportPeriod(DateTime(2024, 1, 1).toIso8601String(), 'All Time', now),
+        isTrue,
+      );
+      // Missing or unparseable timestamps are never silently dropped
+      expect(withinReportPeriod(null, 'Daily', now), isTrue);
+      expect(withinReportPeriod('not-a-date', 'Daily', now), isTrue);
+    });
+
+    test('SalesFunnel computes conversion rates with zero-guards', () {
+      const funnel = SalesFunnel(inquiries: 10, ordersPlaced: 4, confirmed: 2);
+      expect(funnel.inquiryToOrderRate, closeTo(0.4, 1e-9));
+      expect(funnel.orderToConfirmRate, closeTo(0.5, 1e-9));
+
+      const empty = SalesFunnel(inquiries: 0, ordersPlaced: 0, confirmed: 0);
+      expect(empty.inquiryToOrderRate, 0.0);
+      expect(empty.orderToConfirmRate, 0.0);
+
+      // Rates clamp defensively when data is noisy
+      const noisy = SalesFunnel(inquiries: 2, ordersPlaced: 4, confirmed: 1);
+      expect(noisy.inquiryToOrderRate, 1.0);
+    });
+
+    test('computeTopProducts aggregates revenue, units and limits the ranking', () {
+      final rows = [
+        {'productName': 'Uniform', 'total_amount': 450.0, 'quantity': 1},
+        {'productName': 'Uniform', 'total_amount': 450.0, 'quantity': 2},
+        {'productName': 'Calculator', 'total_amount': 1200.0, 'quantity': 1},
+        {'productName': 'T-Square', 'total_amount': 300.0, 'quantity': 1},
+      ];
+
+      final top = computeTopProducts(rows);
+      expect(top.length, 3);
+      expect(top[0].name, 'Calculator');
+      expect(top[0].revenue, 1200.0);
+      expect(top[1].name, 'Uniform');
+      expect(top[1].orders, 2);
+      expect(top[1].units, 3);
+      expect(top[1].revenue, 900.0);
+      expect(top[2].name, 'T-Square');
+
+      expect(computeTopProducts(rows, limit: 2).length, 2);
+
+      final unnamed = computeTopProducts([
+        {'total_amount': 100.0},
+      ]);
+      expect(unnamed.single.name, 'Merchandise');
+    });
+
+    test('computeLowStockAlerts handles both embed shapes and sorts by stock', () {
+      final products = [
+        {
+          'name': 'CIT-U Uniform',
+          'product_variants': [
+            {
+              'variant_name': 'Size',
+              'variant_value': 'M',
+              'sku': 'UNI-M',
+              'inventory': {'stock_qty': 2, 'low_stock_threshold': 5},
+            },
+            {
+              'variant_name': 'Size',
+              'variant_value': 'L',
+              'sku': 'UNI-L',
+              'inventory': {'stock_qty': 12, 'low_stock_threshold': 5},
+            },
+          ],
+        },
+        {
+          'name': 'Calculator',
+          'product_variants': {
+            'variant_name': 'Color',
+            'variant_value': 'Black',
+            'sku': 'CALC-B',
+            'inventory': [
+              {'stock_qty': 0, 'low_stock_threshold': 3},
+            ],
+          },
+        },
+        {
+          'name': 'No inventory listing',
+          'product_variants': [
+            {'variant_name': 'One', 'variant_value': 'Size', 'sku': 'NO-INV'},
+          ],
+        },
+      ];
+
+      final alerts = computeLowStockAlerts(products);
+      expect(alerts.length, 2);
+      // Lowest stock first
+      expect(alerts.first.productName, 'Calculator');
+      expect(alerts.first.stockQty, 0);
+      expect(alerts.last.sku, 'UNI-M');
+      expect(alerts.last.variantLabel, 'Size: M');
+      expect(alerts.last.stockQty, 2);
+      // Variant above its threshold is not an alert
+      expect(alerts.any((a) => a.sku == 'UNI-L'), isFalse);
     });
   });
 }
