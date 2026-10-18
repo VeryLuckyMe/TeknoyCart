@@ -16,6 +16,15 @@ class ChatService {
   final List<Message> _activeMessages = [];
   RealtimeChannel? _channel;
 
+  // Local broadcast stream for typing signals: (roomId, userId of typer)
+  final _typingController =
+      StreamController<({String roomId, String userId})>.broadcast();
+  DateTime? _lastTypingBroadcastAt;
+
+  /// Emits whenever the other party is typing in a live chat room.
+  Stream<({String roomId, String userId})> get typingEvents =>
+      _typingController.stream;
+
   List<Message> get activeMessages => List.unmodifiable(_activeMessages);
 
   // ── Initialize with seed messages for demo ──
@@ -313,6 +322,7 @@ class ChatService {
                   DateTime.now(),
               roomId: roomId,
               imageUrl: row['image_url'] as String?,
+              isRead: row['is_read'] as bool? ?? false,
             )).toList();
 
         // Preserve in-flight / optimistic pending messages for this room
@@ -374,6 +384,7 @@ class ChatService {
                       DateTime.now(),
               roomId: chatId,
               imageUrl: newRow['image_url'] as String?,
+              isRead: newRow['is_read'] as bool? ?? false,
             );
             
             // Check if this message is already tracked (or exists locally as an optimistic send)
@@ -402,11 +413,76 @@ class ChatService {
               unawaited(markMessagesAsRead(roomId: chatId, currentUserId: currentUserId));
             }
           },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'messages',
+          callback: (payload) {
+            final newRow = payload.newRecord;
+            final msgRoomId = newRow['chat_id'] as String?;
+            if (msgRoomId != chatId) return; // Ignore updates for other rooms
+
+            final msgId = newRow['message_id'] as String?;
+            if (msgId == null) return;
+
+            final index = _activeMessages.indexWhere((m) => m.id == msgId);
+            if (index == -1) return; // Message not tracked locally
+
+            // Read receipts: is_read flips to true once the recipient views the chat
+            final isRead = newRow['is_read'] as bool? ?? false;
+            if (_activeMessages[index].isRead == isRead) return;
+
+            _activeMessages[index] =
+                _activeMessages[index].copyWith(isRead: isRead);
+            _messageController.add(List.from(_activeMessages));
+            debugPrint("READ_RECEIPT_UPDATE: message $msgId is_read=$isRead");
+          },
+        )
+        .onBroadcast(
+          event: 'typing',
+          callback: (payload) {
+            final userId = payload['user_id'] as String?;
+            final roomId = payload['room_id'] as String?;
+            if (userId == null || roomId == null || roomId != chatId) return;
+            if (userId == _client.auth.currentUser?.id) return; // Ignore own signal
+            _typingController.add((roomId: roomId, userId: userId));
+          },
         );
         
     _channel!.subscribe((status, [error]) {
       debugPrint("REALTIME_SUBSCRIPTION_STATUS for $chatId: $status, error: $error");
     });
+  }
+
+  /// Broadcasts a typing signal to the other party through the room's realtime
+  /// channel. Throttled to at most one signal every 2 seconds per client.
+  /// No-op for demo rooms or when the realtime channel is not subscribed yet.
+  Future<void> broadcastTyping({
+    required String roomId,
+    required String userId,
+  }) async {
+    if (roomId == 'room-demo' || roomId.startsWith('demo-')) return;
+
+    final channel = _channel;
+    if (channel == null) return;
+
+    final now = DateTime.now();
+    if (_lastTypingBroadcastAt != null &&
+        now.difference(_lastTypingBroadcastAt!).inMilliseconds < 2000) {
+      return;
+    }
+    _lastTypingBroadcastAt = now;
+
+    try {
+      await channel.sendBroadcastMessage(
+        event: 'typing',
+        payload: {'user_id': userId, 'room_id': roomId},
+      );
+    } catch (e) {
+      // Typing signals are best-effort; never surface failures to the user.
+      debugPrint("TYPING_BROADCAST_ERROR: $e");
+    }
   }
 
   /// Sends a message. For live chat rooms, inserts into Supabase messages table
@@ -462,6 +538,7 @@ class ChatService {
               DateTime.now(),
           roomId: roomId,
           imageUrl: newRow['image_url'] as String?,
+          isRead: newRow['is_read'] as bool? ?? false,
         );
 
         final index = _activeMessages.indexWhere((m) => m.id == userMessage.id);
@@ -809,5 +886,6 @@ class ChatService {
       _client.removeChannel(_channel!);
     }
     _messageController.close();
+    _typingController.close();
   }
 }

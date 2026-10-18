@@ -85,5 +85,31 @@ void main() {
       expect(find.text('Is this still available?'), findsNothing);
       expect(find.textContaining('You cannot reply to this conversation'), findsOneWidget);
     });
+
+    testWidgets('onTyping fires when the user enters text', (tester) async {
+      var typingCalls = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatInputBar(
+              controller: controller,
+              pendingImageFile: null,
+              isUploadingImage: false,
+              isOtherPartyDeleted: false,
+              onClearImage: () {},
+              onShowImageSource: () {},
+              onSendMessage: () {},
+              onTyping: () => typingCalls++,
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField), 'Hi');
+      await tester.pump();
+
+      expect(typingCalls, greaterThan(0));
+    });
   });
 }

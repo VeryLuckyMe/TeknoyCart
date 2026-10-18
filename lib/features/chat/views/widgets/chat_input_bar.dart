@@ -13,6 +13,7 @@ class ChatInputBar extends StatelessWidget {
   final VoidCallback onClearImage;
   final VoidCallback onShowImageSource;
   final VoidCallback onSendMessage;
+  final VoidCallback? onTyping;
 
   static const List<String> quickInquiryPresets = [
     'Is this still available?',
@@ -31,6 +32,7 @@ class ChatInputBar extends StatelessWidget {
     required this.onClearImage,
     required this.onShowImageSource,
     required this.onSendMessage,
+    this.onTyping,
   });
 
   @override
@@ -218,6 +220,9 @@ class ChatInputBar extends StatelessWidget {
                         child: TextField(
                           controller: controller,
                           textInputAction: TextInputAction.send,
+                          onChanged: (value) {
+                            if (value.trim().isNotEmpty) onTyping?.call();
+                          },
                           onSubmitted: (_) {
                             HapticFeedback.lightImpact();
                             onSendMessage();

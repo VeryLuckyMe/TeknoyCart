@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -45,12 +47,18 @@ class _ChatViewState extends ConsumerState<ChatView> {
   bool _isUploadingImage = false;
   XFile? _pendingImageFile;
 
+  // Typing indicator state
+  bool _isOtherPartyTyping = false;
+  Timer? _typingExpiryTimer;
+  StreamSubscription<({String roomId, String userId})>? _typingSubscription;
+
   @override
   void initState() {
     super.initState();
     _agreedPrice = widget.product.price;
     _checkOtherPartyDeleted();
     _markIncomingAsRead();
+    _listenForTypingEvents();
 
     if (widget.initialOfferPrice != null && widget.initialOfferPrice! > 0) {
       _negotiationState = 'offered';
@@ -104,9 +112,39 @@ class _ChatViewState extends ConsumerState<ChatView> {
 
   @override
   void dispose() {
+    _typingSubscription?.cancel();
+    _typingExpiryTimer?.cancel();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Listens for typing broadcasts from the other party in this room and keeps
+  /// the "typing…" pill visible for up to 3 seconds after the last signal.
+  void _listenForTypingEvents() {
+    if (widget.roomId == 'room-demo' || widget.roomId.startsWith('demo-')) return;
+
+    _typingSubscription =
+        ref.read(chatServiceProvider).typingEvents.listen((event) {
+      if (!mounted || event.roomId != widget.roomId) return;
+
+      setState(() => _isOtherPartyTyping = true);
+      _typingExpiryTimer?.cancel();
+      _typingExpiryTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _isOtherPartyTyping = false);
+      });
+    });
+  }
+
+  /// Sends a throttled typing signal to the other party (live rooms only).
+  void _handleTyping() {
+    if (widget.roomId == 'room-demo' || widget.roomId.startsWith('demo-')) return;
+    final currentUserId = ref.read(authStateProvider).valueOrNull?.id ??
+        SupabaseConfig.client.auth.currentUser?.id;
+    if (currentUserId == null) return;
+    unawaited(ref
+        .read(chatServiceProvider)
+        .broadcastTyping(roomId: widget.roomId, userId: currentUserId));
   }
 
   void _sendMessage({String? customContent, String? imageUrl}) {
@@ -1018,9 +1056,17 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                         Icon(
                                           isFailed
                                               ? Icons.error_outline_rounded
-                                              : (isSending ? Icons.access_time_rounded : Icons.done_all_rounded),
+                                              : (isSending
+                                                  ? Icons.access_time_rounded
+                                                  : (msg.isRead
+                                                      ? Icons.done_all_rounded
+                                                      : Icons.done_rounded)),
                                           size: 11,
-                                          color: isFailed ? Colors.red.shade300 : Colors.white.withValues(alpha: 0.55),
+                                          color: isFailed
+                                              ? Colors.red.shade300
+                                              : ((msg.isRead && !isSending)
+                                                  ? TeknoyTheme.citGold
+                                                  : Colors.white.withValues(alpha: 0.55)),
                                         ),
                                       ],
                                     ),
@@ -1082,6 +1128,42 @@ class _ChatViewState extends ConsumerState<ChatView> {
             ),
           ),
 
+          // "Typing…" pill for live rooms (hidden for demo rooms)
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SizeTransition(
+                sizeFactor: animation,
+                alignment: Alignment.topCenter,
+                child: child,
+              ),
+            ),
+            child: _isOtherPartyTyping
+                ? Align(
+                    key: const ValueKey('typing-pill'),
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.only(left: 20, top: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Theme.of(context)
+                              .dividerColor
+                              .withValues(alpha: 0.15),
+                        ),
+                      ),
+                      child: const _TypingDots(),
+                    ),
+                  )
+                : const SizedBox.shrink(key: ValueKey('typing-pill-empty')),
+          ),
+
           ChatInputBar(
             controller: _textController,
             pendingImageFile: _pendingImageFile,
@@ -1093,8 +1175,72 @@ class _ChatViewState extends ConsumerState<ChatView> {
             }),
             onShowImageSource: _showImageSourceSheet,
             onSendMessage: _sendMessage,
+            onTyping: _handleTyping,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A small animated three-dot indicator shown while the other party types.
+class _TypingDots extends StatefulWidget {
+  const _TypingDots();
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dotColor = Theme.of(context).brightness == Brightness.dark
+        ? Colors.white70
+        : Colors.black54;
+
+    return Semantics(
+      label: 'The other party is typing',
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(3, (index) {
+              final phase = (_controller.value - (index * 0.2)) % 1.0;
+              final opacity =
+                  0.35 + 0.65 * (1 - (phase * 2 - 1).abs());
+              return Padding(
+                padding: EdgeInsets.only(right: index == 2 ? 0 : 4),
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: dotColor.withValues(alpha: opacity.clamp(0.35, 1.0)),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              );
+            }),
+          );
+        },
       ),
     );
   }

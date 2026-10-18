@@ -63,6 +63,37 @@ void main() {
       expect(reconstructed.roomId, msg.roomId);
     });
 
+    test('Message model parses is_read read-receipt flag', () {
+      final unread = Message.fromJson({
+        'message_id': 'msg-1',
+        'sender_id': 'seller-uuid',
+        'content': 'Hello!',
+        'sent_at': DateTime(2026, 10, 18, 9, 0).toIso8601String(),
+        'chat_id': 'room-1',
+        'is_read': false,
+      });
+      expect(unread.isRead, isFalse);
+
+      final read = Message.fromJson({
+        'message_id': 'msg-1',
+        'sender_id': 'seller-uuid',
+        'content': 'Hello!',
+        'sent_at': DateTime(2026, 10, 18, 9, 0).toIso8601String(),
+        'chat_id': 'room-1',
+        'is_read': true,
+      });
+      expect(read.isRead, isTrue);
+
+      // copyWith toggles the receipt without touching other fields
+      final flipped = read.copyWith(isRead: false);
+      expect(flipped.isRead, isFalse);
+      expect(flipped.id, read.id);
+      expect(flipped.content, read.content);
+
+      // Serialization keeps the flag
+      expect(read.toJson()['is_read'], isTrue);
+    });
+
     test('Demo auto-reply generates appropriate seller responses', () async {
       final product = Product(
         id: 'prod-test-1',

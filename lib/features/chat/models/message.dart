@@ -9,6 +9,7 @@ class Message {
   final DateTime createdAt;
   final String roomId;
   final String? imageUrl; // Optional GCash receipt / proof attachment
+  final bool isRead; // Read receipt: true once the recipient viewed the message
 
   const Message({
     required this.id,
@@ -18,6 +19,7 @@ class Message {
     required this.createdAt,
     required this.roomId,
     this.imageUrl,
+    this.isRead = false,
   });
 
   /// Factory constructor to create a Message from a Supabase/PostgreSQL JSON object.
@@ -34,6 +36,7 @@ class Message {
           DateTime.now(),
       roomId: json['chat_id'] as String? ?? json['room_id'] as String? ?? '',
       imageUrl: json['image_url'] as String?,
+      isRead: json['is_read'] as bool? ?? false,
     );
   }
 
@@ -45,6 +48,7 @@ class Message {
       'content': content,
       'room_id': roomId, // kept for test/legacy compatibility
       'image_url': imageUrl,
+      'is_read': isRead,
     };
   }
 
@@ -57,6 +61,7 @@ class Message {
     DateTime? createdAt,
     String? roomId,
     String? imageUrl,
+    bool? isRead,
   }) {
     return Message(
       id: id ?? this.id,
@@ -66,6 +71,7 @@ class Message {
       createdAt: createdAt ?? this.createdAt,
       roomId: roomId ?? this.roomId,
       imageUrl: imageUrl ?? this.imageUrl,
+      isRead: isRead ?? this.isRead,
     );
   }
 
