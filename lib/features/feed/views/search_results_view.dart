@@ -5,6 +5,7 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/product_detail_view.dart';
 import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
+import 'package:teknoycart/features/feed/views/widgets/product_filter_sheet.dart';
 
 class SearchResultsView extends ConsumerStatefulWidget {
   final String initialQuery;
@@ -49,6 +50,12 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final productsAsync = ref.watch(productsListProvider);
     final storesAsync = ref.watch(matchingStoresProvider(_activeQuery));
+    final selectedCondition = ref.watch(selectedConditionProvider);
+    final minPrice = ref.watch(minPriceProvider);
+    final maxPrice = ref.watch(maxPriceProvider);
+    final sort = ref.watch(sortOptionProvider);
+    final hasAdvancedFilters =
+        selectedCondition != 'All' || minPrice != null || maxPrice != null;
 
     const bgColorDark = Color(0xFF0F0F12);
     const cardBgDark = Color(0xFF191922);
@@ -356,14 +363,82 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                         child: const Icon(Icons.grid_view_rounded, size: 18, color: TeknoyTheme.citMaroon),
                       ),
                       const SizedBox(width: 10),
-                      Text(
-                        'Matching Products',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.3,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      Expanded(
+                        child: Text(
+                          'Matching Products',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.3,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Filters',
+                        onPressed: () => showProductFilterSheet(context, ref),
+                        icon: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            const Icon(Icons.tune_rounded, size: 20, color: TeknoyTheme.citMaroon),
+                            if (hasAdvancedFilters)
+                              Positioned(
+                                top: -1,
+                                right: -2,
+                                child: Container(
+                                  width: 7,
+                                  height: 7,
+                                  decoration: const BoxDecoration(
+                                    color: TeknoyTheme.citGold,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      PopupMenuButton<ProductSortOption>(
+                        tooltip: 'Sort products',
+                        onSelected: (val) =>
+                            ref.read(sortOptionProvider.notifier).state = val,
+                        itemBuilder: (context) => ProductSortOption.values
+                            .map((option) => PopupMenuItem(
+                                  value: option,
+                                  child: Text(
+                                    option.label,
+                                    style: const TextStyle(fontFamily: 'Inter', fontSize: 13),
+                                  ),
+                                ))
+                            .toList(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1C1C22) : const Color(0xFFEFEFF3),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                sort == ProductSortOption.recommended ? 'Sort' : sort.label,
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white70 : Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                size: 16,
+                                color: isDark ? Colors.white70 : Colors.black87,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -372,17 +447,15 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
 
                   productsAsync.when(
                     data: (allProducts) {
-                      final queryLower = _activeQuery.toLowerCase();
-                      final matchingProducts = allProducts.where((p) {
-                        return queryLower.isEmpty ||
-                            p.title.toLowerCase().contains(queryLower) ||
-                            p.description.toLowerCase().contains(queryLower) ||
-                            p.category.toLowerCase().contains(queryLower) ||
-                            (p.sellerStoreName?.toLowerCase().contains(queryLower) ?? false) ||
-                            p.categoryAttributes.any((attr) =>
-                                attr.value.toLowerCase().contains(queryLower) ||
-                                attr.name.toLowerCase().contains(queryLower));
-                      }).toList();
+                      final matchingProducts = applyProductFilters(
+                        allProducts,
+                        search: _activeQuery,
+                        category: 'All', // Search spans every category
+                        condition: selectedCondition,
+                        minPrice: minPrice,
+                        maxPrice: maxPrice,
+                        sort: sort,
+                      );
 
                       if (matchingProducts.isEmpty) {
                         return Container(

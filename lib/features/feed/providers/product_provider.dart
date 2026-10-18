@@ -39,6 +39,21 @@ final selectedConditionProvider = StateProvider<String>((ref) => 'All');
 final minPriceProvider = StateProvider<double?>((ref) => null);
 final maxPriceProvider = StateProvider<double?>((ref) => null);
 
+/// Sort options shared by the Browse tab and the search results screen.
+enum ProductSortOption {
+  recommended('Recommended'),
+  newest('Newest First'),
+  priceLowHigh('Price: Low to High'),
+  priceHighLow('Price: High to Low');
+
+  const ProductSortOption(this.label);
+
+  final String label;
+}
+
+final sortOptionProvider =
+    StateProvider<ProductSortOption>((ref) => ProductSortOption.recommended);
+
 // ── Category ID mapping from Supabase schema ──
 const _categoryIdToName = {
   1: 'Books',
@@ -850,34 +865,74 @@ final productsListProvider = FutureProvider<List<Product>>((ref) async {
   );
 });
 
+/// Pure filter + sort pipeline shared by the Browse tab, the search results
+/// screen and the unit tests. Keeps every surface consistent (Ponytail H-high).
+List<Product> applyProductFilters(
+  List<Product> products, {
+  required String search,
+  required String category,
+  required String condition,
+  required double? minPrice,
+  required double? maxPrice,
+  required ProductSortOption sort,
+}) {
+  final query = search.trim().toLowerCase();
+
+  final result = products.where((product) {
+    // Search across title, description, store name, category AND attributes
+    final matchesSearch = query.isEmpty ||
+        product.title.toLowerCase().contains(query) ||
+        product.description.toLowerCase().contains(query) ||
+        product.category.toLowerCase().contains(query) ||
+        (product.sellerStoreName?.toLowerCase().contains(query) ?? false) ||
+        product.categoryAttributes.any((attr) =>
+            attr.name.toLowerCase().contains(query) ||
+            attr.value.toLowerCase().contains(query));
+    final matchesCategory = category == 'All' || product.category == category;
+    final matchesCondition = condition == 'All' ||
+        product.condition.toLowerCase() == condition.toLowerCase();
+    final matchesMinPrice = minPrice == null || product.price >= minPrice;
+    final matchesMaxPrice = maxPrice == null || product.price <= maxPrice;
+    return matchesSearch &&
+        matchesCategory &&
+        matchesCondition &&
+        matchesMinPrice &&
+        matchesMaxPrice;
+  }).toList();
+
+  switch (sort) {
+    case ProductSortOption.recommended:
+      break; // Keep the feed's natural (server) order
+    case ProductSortOption.newest:
+      result.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    case ProductSortOption.priceLowHigh:
+      result.sort((a, b) => a.price.compareTo(b.price));
+    case ProductSortOption.priceHighLow:
+      result.sort((a, b) => b.price.compareTo(a.price));
+  }
+
+  return result;
+}
+
 final filteredProductsProvider = Provider<List<Product>>((ref) {
-  final search = ref.watch(searchQueryProvider).toLowerCase();
+  final search = ref.watch(searchQueryProvider);
   final category = ref.watch(selectedCategoryProvider);
   final condition = ref.watch(selectedConditionProvider);
   final minPrice = ref.watch(minPriceProvider);
   final maxPrice = ref.watch(maxPriceProvider);
+  final sort = ref.watch(sortOptionProvider);
   final productsAsync = ref.watch(productsListProvider);
 
   return productsAsync.maybeWhen(
-    data: (products) {
-      return products.where((product) {
-        // Search across title, description, store name, AND category attributes
-        final matchesSearch = search.isEmpty ||
-            product.title.toLowerCase().contains(search) ||
-            product.description.toLowerCase().contains(search) ||
-            (product.sellerStoreName?.toLowerCase().contains(search) ?? false) ||
-            product.categoryAttributes.any((attr) =>
-                attr.name.toLowerCase().contains(search) ||
-                attr.value.toLowerCase().contains(search));
-        final matchesCategory =
-            category == 'All' || product.category == category;
-        final matchesCondition =
-            condition == 'All' || product.condition.toLowerCase() == condition.toLowerCase();
-        final matchesMinPrice = minPrice == null || product.price >= minPrice;
-        final matchesMaxPrice = maxPrice == null || product.price <= maxPrice;
-        return matchesSearch && matchesCategory && matchesCondition && matchesMinPrice && matchesMaxPrice;
-      }).toList();
-    },
+    data: (products) => applyProductFilters(
+      products,
+      search: search,
+      category: category,
+      condition: condition,
+      minPrice: minPrice,
+      maxPrice: maxPrice,
+      sort: sort,
+    ),
     orElse: () => [],
   );
 });
