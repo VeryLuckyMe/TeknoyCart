@@ -162,3 +162,119 @@ List<LowStockAlert> computeLowStockAlerts(
   alerts.sort((a, b) => a.stockQty.compareTo(b.stockQty));
   return alerts.take(limit).toList();
 }
+
+/// Period-aware aggregation for the Financial Reports dashboard.
+///
+/// Runs at render time on already-fetched raw rows, so switching the report
+/// period recomputes instantly (zero network round-trips) and the numbers
+/// always match the period shown in the UI. Keeping the filter out of the
+/// fetch is intentional: the wave-4 fetch hoist froze the data to the first
+/// loaded period because the filter lived inside the one-shot network call.
+Map<String, dynamic> computeSalesSummary({
+  required Iterable<Map<String, dynamic>> orders,
+  required Iterable<Map<String, dynamic>> inquiries,
+  required Iterable<Map<String, dynamic>> products,
+  required String period,
+  DateTime? now,
+}) {
+  final reportNow = now ?? DateTime.now();
+
+  double totalRevenue = 0.0;
+  int completedTransactions = 0;
+  double uniformsRevenue = 0.0;
+  double booksRevenue = 0.0;
+  double drawingRevenue = 0.0;
+  double electronicsRevenue = 0.0;
+  double othersRevenue = 0.0;
+
+  final txns = <Map<String, dynamic>>[];
+  final confirmedRows = <Map<String, dynamic>>[];
+  int ordersPlaced = 0;
+
+  for (final o in orders) {
+    final price =
+        double.tryParse(o['total_amount']?.toString() ?? '0') ?? 0;
+
+    var productName = 'Merchandise';
+    var catId = 5;
+    final variantRaw = o['product_variants'];
+    if (variantRaw is Map) {
+      final productRaw = variantRaw['products'];
+      if (productRaw is Map) {
+        productName = productRaw['name'] as String? ?? 'Merchandise';
+        catId = productRaw['category_id'] as int? ?? 5;
+      }
+    }
+
+    final status = o['status'] as String? ?? '';
+    final createdAtRaw = o['created_at']?.toString();
+
+    // Apply period filter (shared helper keeps every analytics surface aligned)
+    if (!withinReportPeriod(createdAtRaw, period, reportNow)) continue;
+
+    if (!abandonedOrderStatuses.contains(status)) {
+      ordersPlaced++;
+    }
+
+    final rawQty = int.tryParse(o['quantity']?.toString() ?? '1') ?? 1;
+
+    if (paidOrderStatuses.contains(status)) {
+      totalRevenue += price;
+      completedTransactions++;
+      confirmedRows.add({
+        'productName': productName,
+        'total_amount': price,
+        'quantity': rawQty,
+      });
+
+      if (catId == 1) {
+        booksRevenue += price;
+      } else if (catId == 2) {
+        drawingRevenue += price;
+      } else if (catId == 3) {
+        uniformsRevenue += price;
+      } else if (catId == 4) {
+        electronicsRevenue += price;
+      } else {
+        othersRevenue += price;
+      }
+    }
+
+    final rawId = o['order_id']?.toString() ?? '';
+    final displayId =
+        'TXN-${rawId.length >= 4 ? rawId.substring(0, 4).toUpperCase() : rawId.toUpperCase()}';
+    final rawDate = createdAtRaw ?? '';
+    final displayDate =
+        rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+
+    txns.add({
+      'id': displayId,
+      'item': productName,
+      'amount': price,
+      'date': displayDate,
+      'status': status,
+    });
+  }
+
+  var inquiryCount = 0;
+  for (final row in inquiries) {
+    if (withinReportPeriod(row['created_at']?.toString(), period, reportNow)) {
+      inquiryCount++;
+    }
+  }
+
+  return {
+    'revenue': totalRevenue,
+    'count': completedTransactions,
+    'books': booksRevenue,
+    'drawing': drawingRevenue,
+    'uniforms': uniformsRevenue,
+    'electronics': electronicsRevenue,
+    'others': othersRevenue,
+    'txns': txns,
+    'inquiries': inquiryCount,
+    'ordersPlaced': ordersPlaced,
+    'topProducts': computeTopProducts(confirmedRows),
+    'lowStock': computeLowStockAlerts(products),
+  };
+}

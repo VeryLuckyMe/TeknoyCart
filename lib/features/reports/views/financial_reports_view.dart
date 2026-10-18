@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/reports/services/seller_analytics.dart';
+import 'package:teknoycart/features/reports/services/sales_report_pdf.dart';
 
 /// Financial Reports and Sales Summary dashboard matching SRS Module 7 (FR-20 / FR-21).
 /// Enables sellers/vendors to track their campus merchandise sales and export reports.
@@ -21,7 +22,16 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
   String _selectedPeriod = 'Monthly';
   final List<String> _periods = ['Daily', 'Weekly', 'Monthly', 'All Time'];
 
-  Future<Map<String, dynamic>> _getFinancialSummary(String userId) async {
+  // The raw fetch is hoisted out of build() so period switches and other
+  // rebuilds never re-run a query; it refreshes only when the signed-in user
+  // changes or via an explicit retry. Period filtering/aggregation lives in
+  // computeSalesSummary and runs at render time, so the numbers always track
+  // the selected period without any network round-trips.
+  String? _summaryUserId;
+  Future<Map<String, dynamic>>? _summaryFuture;
+
+  /// Fetches the raw, period-independent report data for [userId].
+  Future<Map<String, dynamic>> _fetchReportData(String userId) async {
     try {
       final res = await SupabaseConfig.client
           .from('orders')
@@ -41,144 +51,61 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
           .eq('seller_id', userId)
           .order('created_at', ascending: false);
 
-      final List<dynamic> orders = res as List<dynamic>;
-
-      double totalRevenue = 0.0;
-      int completedTransactions = 0;
-      double uniformsRevenue = 0.0;
-      double booksRevenue = 0.0;
-      double drawingRevenue = 0.0;
-      double electronicsRevenue = 0.0;
-      double othersRevenue = 0.0;
-
-      final List<Map<String, dynamic>> txns = [];
-      final List<Map<String, dynamic>> confirmedRows = [];
-      int ordersPlaced = 0;
-      final now = DateTime.now();
-
-      for (var o in orders) {
-        final double price = double.tryParse(o['total_amount']?.toString() ?? '0') ?? 0;
-        
-        String productName = 'Merchandise';
-        int catId = 5;
-        final variantRaw = o['product_variants'];
-        if (variantRaw is Map) {
-          final productRaw = variantRaw['products'];
-          if (productRaw is Map) {
-            productName = productRaw['name'] as String? ?? 'Merchandise';
-            catId = productRaw['category_id'] as int? ?? 5;
-          }
-        }
-
-        final status = o['status'] as String? ?? '';
-        final createdAtRaw = o['created_at']?.toString();
-
-        // Apply period filter (shared helper keeps every analytics surface aligned)
-        if (!withinReportPeriod(createdAtRaw, _selectedPeriod, now)) continue;
-
-        if (!abandonedOrderStatuses.contains(status)) {
-          ordersPlaced++;
-        }
-
-        final rawQty = int.tryParse(o['quantity']?.toString() ?? '1') ?? 1;
-
-        if (paidOrderStatuses.contains(status)) {
-          totalRevenue += price;
-          completedTransactions++;
-          confirmedRows.add({
-            'productName': productName,
-            'total_amount': price,
-            'quantity': rawQty,
-          });
-
-          if (catId == 1) {
-            booksRevenue += price;
-          } else if (catId == 2) {
-            drawingRevenue += price;
-          } else if (catId == 3) {
-            uniformsRevenue += price;
-          } else if (catId == 4) {
-            electronicsRevenue += price;
-          } else {
-            othersRevenue += price;
-          }
-        }
-
-        final rawId = o['order_id']?.toString() ?? '';
-        final displayId = 'TXN-${rawId.length >= 4 ? rawId.substring(0, 4).toUpperCase() : rawId.toUpperCase()}';
-        final rawDate = createdAtRaw ?? '';
-        final displayDate = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
-
-        txns.add({
-          'id': displayId,
-          'item': productName,
-          'amount': price,
-          'date': displayDate,
-          'status': status,
-        });
-      }
+      final orders = <Map<String, dynamic>>[
+        for (final row in res as List<dynamic>)
+          if (row is Map) Map<String, dynamic>.from(row),
+      ];
 
       // ── Seller analytics: inquiry funnel + low-stock radar ──
-      int inquiryCount = 0;
+      var inquiries = <Map<String, dynamic>>[];
       try {
         final inqRes = await SupabaseConfig.client
             .from('inquiries')
             .select('inquiry_id, created_at, products!inner(seller_id)')
             .eq('products.seller_id', userId);
-        for (final row in (inqRes as List<dynamic>)) {
-          if (row is Map &&
-              withinReportPeriod(
-                  row['created_at']?.toString(), _selectedPeriod, now)) {
-            inquiryCount++;
-          }
-        }
+        inquiries = <Map<String, dynamic>>[
+          for (final row in inqRes as List<dynamic>)
+            if (row is Map) Map<String, dynamic>.from(row),
+        ];
       } catch (e) {
         debugPrint('SELLER_ANALYTICS_INQUIRY_QUERY_ERROR: $e');
       }
 
-      List<LowStockAlert> lowStockAlerts = [];
+      var products = <Map<String, dynamic>>[];
       try {
         final inventoryRes = await SupabaseConfig.client
             .from('products')
             .select(
                 'name, product_variants ( variant_name, variant_value, sku, inventory ( stock_qty, low_stock_threshold ) )')
             .eq('seller_id', userId);
-        lowStockAlerts = computeLowStockAlerts(inventoryRes);
+        products = <Map<String, dynamic>>[
+          for (final row in inventoryRes as List<dynamic>)
+            if (row is Map) Map<String, dynamic>.from(row),
+        ];
       } catch (e) {
         debugPrint('SELLER_ANALYTICS_LOW_STOCK_QUERY_ERROR: $e');
       }
 
       return {
-        'revenue': totalRevenue,
-        'count': completedTransactions,
-        'books': booksRevenue,
-        'drawing': drawingRevenue,
-        'uniforms': uniformsRevenue,
-        'electronics': electronicsRevenue,
-        'others': othersRevenue,
-        'txns': txns,
-        'inquiries': inquiryCount,
-        'ordersPlaced': ordersPlaced,
-        'topProducts': computeTopProducts(confirmedRows),
-        'lowStock': lowStockAlerts,
+        'orders': orders,
+        'inquiries': inquiries,
+        'products': products,
       };
     } catch (e) {
+      // Rethrow so the FutureBuilder can show an explicit error + retry state
+      // instead of presenting zeroed metrics as if they were real sales data.
       debugPrint('FINANCIAL_REPORTS_QUERY_ERROR: $e');
-      return {
-        'revenue': 0.0,
-        'count': 0,
-        'books': 0.0,
-        'drawing': 0.0,
-        'uniforms': 0.0,
-        'electronics': 0.0,
-        'others': 0.0,
-        'txns': [],
-        'inquiries': 0,
-        'ordersPlaced': 0,
-        'topProducts': const <TopProductStat>[],
-        'lowStock': const <LowStockAlert>[],
-      };
+      rethrow;
     }
+  }
+
+  /// Explicit retry — the only path that refetches without a user change.
+  void _retrySummary() {
+    final userId = _summaryUserId;
+    if (userId == null) return;
+    setState(() {
+      _summaryFuture = _fetchReportData(userId);
+    });
   }
 
   void _downloadCSVReport(Map<String, dynamic> summary) {
@@ -195,7 +122,7 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ Sales Report exported & copied to clipboard!'),
+          content: Text('Sales Report exported & copied to clipboard!'),
           backgroundColor: TeknoyTheme.success,
         ),
       );
@@ -203,6 +130,44 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Export failed: ${e.toString()}'),
+          backgroundColor: TeknoyTheme.error,
+        ),
+      );
+    }
+  }
+
+  /// Builds the full report PDF from the same summary the dashboard renders
+  /// and hands it to the platform share/download seam.
+  Future<void> _exportPdfReport(Map<String, dynamic> summary) async {
+    final sellerName =
+        ref.read(authStateProvider).valueOrNull?.username ?? 'Seller';
+    final generatedAt = DateTime.now();
+    final filename =
+        'teknoycart_sales_report_${generatedAt.toIso8601String().substring(0, 10)}.pdf';
+    try {
+      final bytes = await buildSalesReportPdf(
+        sellerName: sellerName,
+        period: '$_selectedPeriod Report',
+        summary: summary,
+        generatedAt: generatedAt,
+      );
+      final delivered =
+          await ref.read(salesReportPdfSharerProvider)(bytes, filename);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            delivered ? 'Sales Report PDF exported!' : 'PDF export cancelled.',
+          ),
+          backgroundColor: delivered ? TeknoyTheme.success : null,
+        ),
+      );
+    } catch (e) {
+      debugPrint('SALES_REPORT_PDF_EXPORT_ERROR: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Couldn\'t export the PDF — please try again.'),
           backgroundColor: TeknoyTheme.error,
         ),
       );
@@ -219,8 +184,13 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
       );
     }
 
+    if (_summaryFuture == null || _summaryUserId != authState.id) {
+      _summaryUserId = authState.id;
+      _summaryFuture = _fetchReportData(authState.id);
+    }
+
     return FutureBuilder<Map<String, dynamic>>(
-      future: _getFinancialSummary(authState.id),
+      future: _summaryFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -228,20 +198,27 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
           );
         }
 
-        final summary = snapshot.data ?? {
-          'revenue': 0.0,
-          'count': 0,
-          'books': 0.0,
-          'drawing': 0.0,
-          'uniforms': 0.0,
-          'electronics': 0.0,
-          'others': 0.0,
-          'txns': [],
-          'inquiries': 0,
-          'ordersPlaced': 0,
-          'topProducts': const <TopProductStat>[],
-          'lowStock': const <LowStockAlert>[],
-        };
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text(
+                'Sales Analytics',
+                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+              ),
+            ),
+            body: SalesReportErrorState(onRetry: _retrySummary),
+          );
+        }
+
+        final rawData = snapshot.data ?? const <String, dynamic>{};
+        final summary = computeSalesSummary(
+          orders: rawData['orders'] as List<Map<String, dynamic>>? ?? const [],
+          inquiries:
+              rawData['inquiries'] as List<Map<String, dynamic>>? ?? const [],
+          products:
+              rawData['products'] as List<Map<String, dynamic>>? ?? const [],
+          period: _selectedPeriod,
+        );
 
         final double totalRevenue = summary['revenue'] as double? ?? 0.0;
         final int completedCount = summary['count'] as int? ?? 0;
@@ -288,9 +265,7 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
                   if (format == 'CSV') {
                     _downloadCSVReport(summary);
                   } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Simulated: Generated PDF Document successfully.')),
-                    );
+                    _exportPdfReport(summary);
                   }
                 },
                 itemBuilder: (context) => [
@@ -659,49 +634,49 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
                     ),
                   )
                 else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: txns.length,
-                    itemBuilder: (context, index) {
-                      final txn = txns[index];
-                      final isCompleted = txn['status'] == 'COMPLETED';
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 6),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 1,
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          leading: CircleAvatar(
-                            backgroundColor: isCompleted ? Colors.green.shade50 : Colors.blue.shade50,
-                            child: Icon(
-                              isCompleted ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
-                              color: isCompleted ? Colors.green : Colors.blue,
-                              size: 20,
-                            ),
-                          ),
-                          title: Text(
-                            txn['item'],
-                            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            'Date: ${OrderUiHelper.formatDate(txn['date'])}  |  Status: ${OrderUiHelper.formatStatus(txn['status'])}',
-                            style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey),
-                          ),
-                          trailing: Text(
-                            '₱${txn['amount'].toStringAsFixed(2)}',
-                            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14, color: TeknoyTheme.citMaroon),
-                          ),
-                        ),
-                      );
-                    },
+                  Column(
+                    children: [
+                      for (final txn in txns) _buildTransactionCard(txn),
+                    ],
                   ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildTransactionCard(dynamic txn) {
+    final isCompleted = txn['status'] == 'COMPLETED';
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 1,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: CircleAvatar(
+          backgroundColor: isCompleted ? Colors.green.shade50 : Colors.blue.shade50,
+          child: Icon(
+            isCompleted ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
+            color: isCompleted ? Colors.green : Colors.blue,
+            size: 20,
+          ),
+        ),
+        title: Text(
+          txn['item'],
+          style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          'Date: ${OrderUiHelper.formatDate(txn['date'])}  |  Status: ${OrderUiHelper.formatStatus(txn['status'])}',
+          style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.grey),
+        ),
+        trailing: Text(
+          '₱${txn['amount'].toStringAsFixed(2)}',
+          style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14, color: TeknoyTheme.citMaroon),
+        ),
+      ),
     );
   }
 
@@ -816,6 +791,70 @@ class _FinancialReportsViewState extends ConsumerState<FinancialReportsView> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Error state for the Sales Analytics dashboard. Shown when the orders
+/// query fails so sellers see an explicit failure + retry affordance
+/// instead of silently zeroed metrics presented as real data.
+class SalesReportErrorState extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const SalesReportErrorState({super.key, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: TeknoyTheme.error.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.cloud_off_rounded,
+                size: 38,
+                color: TeknoyTheme.error,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Couldn\'t load sales analytics',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your records are safe — this screen just couldn\'t reach the server. Check your connection and try again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 13,
+                height: 1.4,
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

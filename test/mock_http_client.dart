@@ -3,21 +3,32 @@ import 'dart:async';
 import 'dart:convert';
 
 class MockHttpOverrides extends HttpOverrides {
+  /// Optional JSON body served for every Supabase request instead of the
+  /// default dummy payload — lets tests inject realistic fixture rows.
+  /// Mutable because the Supabase test client caches its HttpClient across
+  /// the whole file, so a test re-targets the body instead of rebuilding the
+  /// client.
+  String? supabaseBody;
+
   @override
   HttpClient createHttpClient(SecurityContext? context) {
-    return _MockHttpClient();
+    return _MockHttpClient(this);
   }
 }
 
 class _MockHttpClient implements HttpClient {
+  _MockHttpClient(this.overrides);
+
+  final MockHttpOverrides overrides;
+
   @override
   Future<HttpClientRequest> openUrl(String method, Uri url) async {
-    return _MockHttpClientRequest(url);
+    return _MockHttpClientRequest(url, overrides);
   }
 
   @override
   Future<HttpClientRequest> getUrl(Uri url) async {
-    return _MockHttpClientRequest(url);
+    return _MockHttpClientRequest(url, overrides);
   }
 
   @override
@@ -28,7 +39,8 @@ class _MockHttpClient implements HttpClient {
 
 class _MockHttpClientRequest implements HttpClientRequest {
   final Uri url;
-  _MockHttpClientRequest(this.url);
+  final MockHttpOverrides overrides;
+  _MockHttpClientRequest(this.url, this.overrides);
 
   @override
   late final HttpHeaders headers = _MockHttpHeaders(url);
@@ -50,11 +62,11 @@ class _MockHttpClientRequest implements HttpClientRequest {
 
   @override
   Future<HttpClientResponse> close() async {
-    return _MockHttpClientResponse(url);
+    return _MockHttpClientResponse(url, overrides);
   }
 
   @override
-  Future<HttpClientResponse> get done async => _MockHttpClientResponse(url);
+  Future<HttpClientResponse> get done async => _MockHttpClientResponse(url, overrides);
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -86,7 +98,8 @@ class _MockHttpHeaders implements HttpHeaders {
 
 class _MockHttpClientResponse extends Stream<List<int>> implements HttpClientResponse {
   final Uri url;
-  _MockHttpClientResponse(this.url);
+  final MockHttpOverrides overrides;
+  _MockHttpClientResponse(this.url, this.overrides);
 
   bool get _isSupabase => url.host.contains('supabase.co') || url.path.contains('api/');
 
@@ -99,6 +112,12 @@ class _MockHttpClientResponse extends Stream<List<int>> implements HttpClientRes
 
   static final List<int> _dummyJson = utf8.encode('[{"inquiry_id": "mock-inquiry-123", "id": "mock-id-123", "variant_id": "mock-variant-123"}]');
 
+  List<int> get _bodyBytes {
+    if (!_isSupabase) return _dummyGif;
+    final body = overrides.supabaseBody;
+    return body != null ? utf8.encode(body) : _dummyJson;
+  }
+
   @override
   StreamSubscription<List<int>> listen(
     void Function(List<int> event)? onData, {
@@ -106,7 +125,7 @@ class _MockHttpClientResponse extends Stream<List<int>> implements HttpClientRes
     void Function()? onDone,
     bool? cancelOnError,
   }) {
-    final bytes = _isSupabase ? _dummyJson : _dummyGif;
+    final bytes = _bodyBytes;
     return Stream<List<int>>.fromIterable([bytes]).listen(
       onData,
       onError: onError,
@@ -119,7 +138,7 @@ class _MockHttpClientResponse extends Stream<List<int>> implements HttpClientRes
   int get statusCode => 200;
 
   @override
-  int get contentLength => (_isSupabase ? _dummyJson : _dummyGif).length;
+  int get contentLength => _bodyBytes.length;
 
   @override
   HttpClientResponseCompressionState get compressionState =>

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,11 +9,12 @@ import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/reports/views/financial_reports_view.dart';
 import 'package:teknoycart/features/reports/services/seller_analytics.dart';
+import 'package:teknoycart/features/reports/services/sales_report_pdf.dart';
 import 'mock_http_client.dart';
 
 void main() {
   setUpAll(() async {
-    HttpOverrides.global = MockHttpOverrides();
+    HttpOverrides.global = _countingHttpOverrides;
     TestWidgetsFlutterBinding.ensureInitialized();
     const MethodChannel('plugins.flutter.io/shared_preferences')
         .setMockMethodCallHandler((MethodCall methodCall) async {
@@ -79,6 +81,139 @@ void main() {
       expect(find.text('Conversion Funnel'), findsOneWidget);
       expect(find.text('Top Products'), findsOneWidget);
       expect(find.text('Low Stock Alerts'), findsOneWidget);
+    });
+
+    testWidgets('switching the report period reuses the hoisted analytics future (no refetch)', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => AsyncValue.data(mockSeller)),
+          ],
+          child: const MaterialApp(
+            home: FinancialReportsView(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Sales Summary'), findsOneWidget);
+      final requestsAfterLoad = _countingHttpOverrides.requestCount;
+      expect(requestsAfterLoad, greaterThan(0), reason: 'the initial load must fetch analytics');
+
+      await tester.tap(find.text('Monthly Report'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Weekly Report').last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+        _countingHttpOverrides.requestCount,
+        requestsAfterLoad,
+        reason: 'switching the reporting period must not re-run network queries',
+      );
+      expect(find.text('Sales Summary'), findsOneWidget);
+      expect(find.text('Weekly Report'), findsOneWidget);
+    });
+
+    testWidgets('switching the report period re-filters the displayed metrics client-side',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final now = DateTime.now();
+      // The Supabase test client caches its HttpClient for the whole file, so
+      // re-target the shared mock's body instead of swapping the global
+      // override (a cached client would ignore the new override).
+      _countingHttpOverrides.supabaseBody = jsonEncode([
+        {
+          'order_id': 'aaaa1111-recent',
+          'total_amount': '450.00',
+          'quantity': 1,
+          'status': 'COMPLETED',
+          'created_at':
+              now.subtract(const Duration(hours: 2)).toIso8601String(),
+          'product_variants': {
+            'products': {'name': 'CIT-U Uniform', 'category_id': 3},
+          },
+        },
+        {
+          'order_id': 'bbbb2222-old',
+          'total_amount': '300.00',
+          'quantity': 1,
+          'status': 'COMPLETED',
+          'created_at':
+              now.subtract(const Duration(days: 60)).toIso8601String(),
+          'product_variants': {
+            'products': {'name': 'T-Square', 'category_id': 2},
+          },
+        },
+      ]);
+      addTearDown(() => _countingHttpOverrides.supabaseBody = null);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => AsyncValue.data(mockSeller)),
+          ],
+          child: const MaterialApp(
+            home: FinancialReportsView(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Default period is Monthly — the 60-day-old order is out of the window
+      expect(find.text('₱450.00'), findsWidgets);
+      expect(find.text('₱750.00'), findsNothing);
+      expect(find.text('₱300.00'), findsNothing);
+      final requestsBeforeSwitch = _countingHttpOverrides.requestCount;
+
+      await tester.tap(find.text('Monthly Report'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('All Time Report').last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // All Time must now include the older order — with no refetch
+      expect(find.text('₱750.00'), findsOneWidget);
+      expect(find.text('₱300.00'), findsWidgets);
+      expect(find.text('All Time Report'), findsOneWidget);
+      expect(_countingHttpOverrides.requestCount, requestsBeforeSwitch);
+    });
+
+    testWidgets('SalesReportErrorState surfaces failure copy and wires the retry action', (WidgetTester tester) async {
+      var retried = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SalesReportErrorState(onRetry: () => retried = true),
+          ),
+        ),
+      );
+
+      // Honest failure messaging instead of zeroed metrics presented as data
+      expect(find.text('Couldn\'t load sales analytics'), findsOneWidget);
+      expect(find.textContaining('couldn\'t reach the server'), findsOneWidget);
+      expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
+
+      await tester.tap(find.text('Retry'));
+      expect(retried, isTrue);
     });
 
     test('CSV report generation produces valid spreadsheet format', () {
@@ -174,6 +309,229 @@ void main() {
       expect(drawing, 250.0);
       expect(electronics, 800.0);
       expect(others, 100.0);
+    });
+  });
+
+  group('Sales report PDF export', () {
+    late Profile mockSeller;
+
+    setUp(() {
+      mockSeller = Profile(
+        id: 'seller-abc-123',
+        username: 'wildcat_vendor',
+        email: 'seller@cit.edu',
+        createdAt: DateTime.now(),
+      );
+    });
+
+    Map<String, dynamic> fullSummary() => {
+          'revenue': 1250.00,
+          'count': 3,
+          'books': 800.00,
+          'drawing': 300.00,
+          'uniforms': 450.00,
+          'electronics': 0.0,
+          'others': 0.0,
+          'inquiries': 12,
+          'ordersPlaced': 5,
+          'txns': [
+            {
+              'id': 'TXN-A1B2',
+              'item': 'CIT-U Uniform Size M',
+              'amount': 450.00,
+              'date': '2026-09-17',
+              'status': 'COMPLETED',
+            },
+            {
+              'id': 'TXN-C3D4',
+              'item': 'Engineering Mechanics 2nd Ed',
+              'amount': 500.00,
+              'date': '2026-09-16',
+              'status': 'PAYMENT_VERIFIED',
+            },
+            {
+              'id': 'TXN-E5F6',
+              'item': 'T-Square 36 inch',
+              'amount': 300.00,
+              'date': '2026-09-15',
+              'status': 'READY_FOR_PICKUP',
+            },
+          ],
+          'topProducts': [
+            const TopProductStat(
+              name: 'CIT-U Uniform',
+              orders: 2,
+              units: 3,
+              revenue: 900.0,
+            ),
+          ],
+          'lowStock': [
+            const LowStockAlert(
+              productName: 'CIT-U Uniform',
+              variantLabel: 'Size: S',
+              sku: 'UNI-S',
+              stockQty: 1,
+              threshold: 5,
+            ),
+          ],
+        };
+
+    test('buildSalesReportPdf emits a real PDF document', () async {
+      final bytes = await buildSalesReportPdf(
+        sellerName: 'wildcat_vendor',
+        period: 'Monthly Report',
+        summary: fullSummary(),
+        generatedAt: DateTime(2026, 10, 19, 14, 5),
+      );
+
+      expect(bytes.length, greaterThan(1500));
+      expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+    });
+
+    test('generator survives empty data and non-Latin listing names', () async {
+      final empty = await buildSalesReportPdf(
+        sellerName: '',
+        period: 'All Time Report',
+        summary: const <String, dynamic>{},
+        generatedAt: DateTime(2026, 10, 19),
+      );
+      expect(String.fromCharCodes(empty.take(5)), '%PDF-');
+
+      // PDF base fonts are Latin-1 only — emoji/CJK must be replaced, not crash
+      final exotic = await buildSalesReportPdf(
+        sellerName: 'Núñez 📚',
+        period: 'Daily Report',
+        summary: {
+          'revenue': 99.5,
+          'count': 1,
+          'txns': [
+            {
+              'id': 'TXN-0001',
+              'item': 'Reviewer 復習会 📖',
+              'amount': 99.5,
+              'date': '2026-10-19',
+              'status': 'PAYMENT_VERIFIED',
+            },
+          ],
+          'topProducts': [
+            const TopProductStat(
+              name: '📘 Reviewer',
+              orders: 1,
+              units: 1,
+              revenue: 99.5,
+            ),
+          ],
+          'lowStock': [
+            const LowStockAlert(
+              productName: '復習 Book',
+              variantLabel: 'Edition: 2nd',
+              sku: 'RVW-2',
+              stockQty: 0,
+              threshold: 3,
+            ),
+          ],
+        },
+        generatedAt: DateTime(2026, 10, 19),
+      );
+      expect(String.fromCharCodes(exotic.take(5)), '%PDF-');
+    });
+
+    test('formatters keep money and statuses human-readable in the PDF', () {
+      expect(formatPdfMoney(1234.5), 'PHP 1,234.50');
+      expect(formatPdfMoney(0), 'PHP 0.00');
+      expect(formatPdfMoney(999999.99), 'PHP 999,999.99');
+      expect(formatPdfMoney(-12.3), 'PHP -12.30');
+      expect(humanizeOrderStatus('PAYMENT_VERIFIED'), 'Payment Verified');
+      expect(humanizeOrderStatus('COMPLETED'), 'Completed');
+      expect(humanizeOrderStatus(''), '');
+    });
+
+    testWidgets('export menu builds the PDF and delivers it through the sharer seam',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      Uint8List? capturedBytes;
+      String? capturedFilename;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => AsyncValue.data(mockSeller)),
+            salesReportPdfSharerProvider
+                .overrideWithValue((bytes, filename) async {
+              capturedBytes = bytes;
+              capturedFilename = filename;
+              return true;
+            }),
+          ],
+          child: const MaterialApp(
+            home: FinancialReportsView(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await tester.tap(find.byIcon(Icons.share_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Export as PDF'), findsOneWidget);
+      expect(find.textContaining('coming soon'), findsNothing);
+
+      await tester.tap(find.text('Export as PDF'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(capturedBytes, isNotNull);
+      expect(String.fromCharCodes(capturedBytes!.take(5)), '%PDF-');
+      expect(
+        capturedFilename,
+        matches(RegExp(r'^teknoycart_sales_report_\d{4}-\d{2}-\d{2}\.pdf$')),
+      );
+      expect(find.text('Sales Report PDF exported!'), findsOneWidget);
+    });
+
+    testWidgets('sharer failures surface honest copy instead of fake success',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => AsyncValue.data(mockSeller)),
+            salesReportPdfSharerProvider
+                .overrideWithValue((bytes, filename) async {
+              throw Exception('share channel unavailable');
+            }),
+          ],
+          child: const MaterialApp(
+            home: FinancialReportsView(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await tester.tap(find.byIcon(Icons.share_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Export as PDF'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(
+        find.text('Couldn\'t export the PDF — please try again.'),
+        findsOneWidget,
+      );
+      expect(find.text('Sales Report PDF exported!'), findsNothing);
     });
   });
 
@@ -303,5 +661,131 @@ void main() {
       // Variant above its threshold is not an alert
       expect(alerts.any((a) => a.sku == 'UNI-L'), isFalse);
     });
+
+    test('computeSalesSummary re-filters revenue, categories, txns and the funnel by period', () {
+      final now = DateTime(2026, 10, 19, 12, 0);
+      Map<String, dynamic> order({
+        required String id,
+        required double amount,
+        required String status,
+        required DateTime createdAt,
+        int categoryId = 3,
+      }) =>
+          {
+            'order_id': id,
+            'total_amount': amount.toString(),
+            'quantity': 1,
+            'status': status,
+            'created_at': createdAt.toIso8601String(),
+            'product_variants': {
+              'products': {'name': 'Item $id', 'category_id': categoryId},
+            },
+          };
+
+      final orders = [
+        order(
+          id: 'aaaa1111',
+          amount: 450.0,
+          status: 'COMPLETED',
+          createdAt: now.subtract(const Duration(hours: 2)),
+        ),
+        order(
+          id: 'bbbb2222',
+          amount: 300.0,
+          status: 'COMPLETED',
+          createdAt: now.subtract(const Duration(days: 60)),
+          categoryId: 2,
+        ),
+        order(
+          id: 'cccc3333',
+          amount: 999.0,
+          status: 'CANCELLED',
+          createdAt: now.subtract(const Duration(days: 60)),
+        ),
+        order(
+          id: 'dddd4444',
+          amount: 100.0,
+          status: 'PENDING',
+          createdAt: now.subtract(const Duration(hours: 1)),
+        ),
+      ];
+      final inquiries = [
+        {'created_at': now.subtract(const Duration(hours: 1)).toIso8601String()},
+        {'created_at': now.subtract(const Duration(days: 60)).toIso8601String()},
+      ];
+
+      final monthly = computeSalesSummary(
+        orders: orders,
+        inquiries: inquiries,
+        products: const [],
+        period: 'Monthly',
+        now: now,
+      );
+      expect(monthly['revenue'], 450.0);
+      expect(monthly['count'], 1);
+      expect(monthly['txns'], hasLength(2)); // today's completed + pending
+      expect(monthly['ordersPlaced'], 2);
+      expect(monthly['inquiries'], 1);
+      expect(monthly['uniforms'], 450.0); // categoryId 3
+      expect(monthly['drawing'], 0.0); // 60-day-old order out of window
+      expect(
+        (monthly['topProducts'] as List<TopProductStat>).single.revenue,
+        450.0,
+      );
+
+      final allTime = computeSalesSummary(
+        orders: orders,
+        inquiries: inquiries,
+        products: const [],
+        period: 'All Time',
+        now: now,
+      );
+      expect(allTime['revenue'], 750.0);
+      expect(allTime['count'], 2);
+      expect(allTime['txns'], hasLength(4));
+      expect(allTime['ordersPlaced'], 3); // cancelled order never counts
+      expect(allTime['inquiries'], 2);
+      expect(allTime['uniforms'], 450.0);
+      expect(allTime['drawing'], 300.0); // categoryId 2
+      expect(allTime['topProducts'] as List<TopProductStat>, hasLength(2));
+    });
   });
+}
+
+/// Counts every Supabase HTTP request made during a test so screens can be
+/// held to "fetch once, reuse until retry" behavior.
+final _countingHttpOverrides = _CountingHttpOverrides();
+
+class _CountingHttpOverrides extends MockHttpOverrides {
+  int requestCount = 0;
+
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return _CountingHttpClient(
+      super.createHttpClient(context),
+      () => requestCount++,
+    );
+  }
+}
+
+class _CountingHttpClient implements HttpClient {
+  _CountingHttpClient(this._inner, this._onRequest);
+
+  final HttpClient _inner;
+  final void Function() _onRequest;
+
+  @override
+  Future<HttpClientRequest> openUrl(String method, Uri url) {
+    _onRequest();
+    return _inner.openUrl(method, url);
+  }
+
+  @override
+  Future<HttpClientRequest> getUrl(Uri url) {
+    _onRequest();
+    return _inner.getUrl(url);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
