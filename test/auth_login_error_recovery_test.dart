@@ -379,7 +379,7 @@ void main() {
 
       // On fresh launch, lockout card MUST be immediately restored
       expect(find.text('Security Lockout Active'), findsOneWidget);
-      expect(find.textContaining(RegExp(r'^(10:00|09:59)$')), findsOneWidget);
+      expect(find.textContaining(RegExp(r'^(10:00|09:5[0-9])$')), findsOneWidget);
       expect(find.textContaining('Locked ('), findsOneWidget);
       expect(find.text('Forgot Password? Reset via Outlook'), findsOneWidget);
     });

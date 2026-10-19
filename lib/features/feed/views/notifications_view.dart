@@ -202,7 +202,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                         decoration: BoxDecoration(
                           color: isSelected
                               ? TeknoyTheme.citMaroon
-                              : (isDark ? TeknoyTheme.darkSurfaceRaised : const Color(0xFFF1F5F9)),
+                              : (isDark ? TeknoyTheme.darkSurfaceRaised : Colors.white),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color: isSelected
@@ -218,7 +218,13 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                                     offset: const Offset(0, 2),
                                   ),
                                 ]
-                              : null,
+                              : [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
                         ),
                         child: Text(
                           cat,

@@ -307,24 +307,39 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? TeknoyTheme.citMaroon
-                        : (isDark ? const Color(0xFF18181C) : const Color(0xFFF3F4F5)),
+                        : (isDark ? TeknoyTheme.darkSurfaceRaised : Colors.white),
                     borderRadius: BorderRadius.circular(9999),
-                    border: isSelected
-                        ? null
-                        : Border.all(
-                            color: isDark ? TeknoyTheme.darkDivider : const Color(0xFFE0E0E0),
-                            width: 1,
-                          ),
+                    border: Border.all(
+                      color: isSelected
+                          ? TeknoyTheme.citMaroon
+                          : (isDark ? const Color(0xFF2C2C3A) : const Color(0xFFE2E8F0)),
+                      width: 1,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: TeknoyTheme.citMaroon.withValues(alpha: 0.28),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                   ),
                   child: Text(
                     cat,
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontWeight: FontWeight.w500,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                       fontSize: 14,
                       color: isSelected
                           ? Colors.white
-                          : (isDark ? Colors.white70 : const Color(0xFF191C1D)),
+                          : (isDark ? Colors.white70 : const Color(0xFF475569)),
                     ),
                   ),
                 ),

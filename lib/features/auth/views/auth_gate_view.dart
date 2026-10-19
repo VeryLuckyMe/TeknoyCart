@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/brand.dart';
 import '../../../core/theme.dart';
-import '../../../core/widgets/teknoy_cart_logo.dart';
 import '../../../core/services/secure_token_service.dart';
 import '../providers/auth_provider.dart';
 import '../services/auth_service.dart';
@@ -492,19 +492,41 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // Header Logo & Branding
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: TeknoyTheme.citMaroon.withValues(alpha: 0.08),
-                      ),
-                      child: const TeknoyCartLogo(
-                        size: 44,
-                        color: TeknoyTheme.citMaroon,
+                    SizedBox(
+                      width: 58,
+                      height: 58,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 58,
+                            height: 58,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isDark ? const Color(0xFFFFF7F2) : TeknoyTheme.citMaroon.withValues(alpha: 0.12),
+                              border: isDark
+                                  ? Border.all(
+                                      color: TeknoyTheme.citGold.withValues(alpha: 0.40),
+                                      width: 1.5,
+                                    )
+                                  : null,
+                              boxShadow: isDark
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.20),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                          ),
+                          const TeknoyLogoImage(size: 32),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text(
+                    const Text(
                       'TEKNOYCART',
                       style: TextStyle(
                         fontFamily: 'Outfit',
@@ -539,83 +561,83 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                             width: 1,
                           ),
                         ),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-                            child: Form(
-                              key: _formKey,
-                              child: FadeTransition(
-                                opacity: _fadeAnim,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    Text(
-                                      _isLoginTab ? 'Welcome Back' : 'Create Account',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: 26,
-                                        fontWeight: FontWeight.bold,
-                                        color: titleColor,
-                                        letterSpacing: -0.5,
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                              child: Form(
+                                key: _formKey,
+                                child: FadeTransition(
+                                  opacity: _fadeAnim,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      Text(
+                                        _isLoginTab ? 'Welcome Back' : 'Create Account',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.bold,
+                                          color: titleColor,
+                                          letterSpacing: -0.5,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      _isLoginTab
-                                          ? 'Sign in to access student deals.'
-                                          : 'Join the premium campus market.',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w400,
-                                        color: subtitleColor,
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _isLoginTab
+                                            ? 'Sign in to access student deals.'
+                                            : 'Join the premium campus market.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w400,
+                                          color: subtitleColor,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 20),
+                                      const SizedBox(height: 20),
 
 
-                                    if (_isLoginTab)
-                                      AuthLoginForm(
-                                        emailController: _emailController,
-                                        passwordController: _passwordController,
-                                        onForgotPassword: _showForgotPasswordSheet,
-                                        onSubmit: _submitForm,
-                                        isLoading: authState.isLoading,
-                                        attemptsRemaining: _attemptsRemaining,
-                                        lockoutSecondsRemaining: _lockoutSecondsRemaining,
-                                      )
-                                    else
-                                      AuthRegisterForm(
-                                        firstNameController: _firstNameController,
-                                        lastNameController: _lastNameController,
-                                        studentIdController: _studentIdController,
-                                        departmentController: _departmentController,
-                                        storeNameController: _storeNameController,
-                                        orgContactController: _orgContactController,
-                                        emailController: _emailController,
-                                        passwordController: _passwordController,
-                                        confirmPasswordController: _confirmPasswordController,
-                                        selectedRole: _selectedRole,
-                                        selectedSellerType: _selectedSellerType,
-                                        onRoleChanged: (role) => setState(() => _selectedRole = role),
-                                        onSellerTypeChanged: (type) => setState(() => _selectedSellerType = type),
-                                        registerStep: _registerStep,
-                                        onStepChanged: (step) => setState(() => _registerStep = step),
-                                        onValidateStep: _validateStep,
-                                        onSubmit: _submitForm,
-                                        isLoading: authState.isLoading,
-                                      ),
-                                  ],
+                                      if (_isLoginTab)
+                                        AuthLoginForm(
+                                          emailController: _emailController,
+                                          passwordController: _passwordController,
+                                          onForgotPassword: _showForgotPasswordSheet,
+                                          onSubmit: _submitForm,
+                                          isLoading: authState.isLoading,
+                                          attemptsRemaining: _attemptsRemaining,
+                                          lockoutSecondsRemaining: _lockoutSecondsRemaining,
+                                        )
+                                      else
+                                        AuthRegisterForm(
+                                          firstNameController: _firstNameController,
+                                          lastNameController: _lastNameController,
+                                          studentIdController: _studentIdController,
+                                          departmentController: _departmentController,
+                                          storeNameController: _storeNameController,
+                                          orgContactController: _orgContactController,
+                                          emailController: _emailController,
+                                          passwordController: _passwordController,
+                                          confirmPasswordController: _confirmPasswordController,
+                                          selectedRole: _selectedRole,
+                                          selectedSellerType: _selectedSellerType,
+                                          onRoleChanged: (role) => setState(() => _selectedRole = role),
+                                          onSellerTypeChanged: (type) => setState(() => _selectedSellerType = type),
+                                          registerStep: _registerStep,
+                                          onStepChanged: (step) => setState(() => _registerStep = step),
+                                          onValidateStep: _validateStep,
+                                          onSubmit: _submitForm,
+                                          isLoading: authState.isLoading,
+                                        ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
 
                     // Sign up / Sign in link below card
                     const SizedBox(height: 24),
@@ -639,7 +661,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                             child: Text(
                               _isLoginTab ? 'Sign up' : 'Sign in',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: 'Outfit',
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,

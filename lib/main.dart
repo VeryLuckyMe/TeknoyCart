@@ -6,9 +6,11 @@ import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/providers/theme_provider.dart';
 import 'package:teknoycart/core/widgets/responsive_frame.dart';
+import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/views/auth_gate_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
+import 'package:teknoycart/features/splash/splash_view.dart';
 
 void main() async {
   // Ensure Flutter engine is ready before calling any platform plugins
@@ -23,6 +25,9 @@ void main() async {
     ),
   );
 }
+
+// Global navigator key for post-splash auth state routing
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 // Custom scroll behavior to enable drag-to-scroll using mouse and trackpad on web/desktop
 class AppScrollBehavior extends MaterialScrollBehavior {
@@ -39,9 +44,30 @@ class TeknoyCartApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authStateAsync = ref.watch(authStateProvider);
+    // Listen for auth state transitions after the cold-start splash has completed
+    ref.listen<AsyncValue<Profile?>>(authStateProvider, (previous, next) {
+      if (!ref.read(isSplashCompletedProvider)) return;
+
+      final prevUser = previous?.valueOrNull;
+      final nextUser = next.valueOrNull;
+
+      if (prevUser == null && nextUser != null) {
+        // User logged in: route to main discovery feed
+        appNavigatorKey.currentState?.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ProductDiscoveryFeedView()),
+          (route) => false,
+        );
+      } else if (prevUser != null && nextUser == null) {
+        // User logged out: return cleanly to auth gate
+        appNavigatorKey.currentState?.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthGateView()),
+          (route) => false,
+        );
+      }
+    });
 
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       title: 'TeknoyCart',
       debugShowCheckedModeBanner: false,
       theme: TeknoyTheme.lightTheme,
@@ -55,30 +81,15 @@ class TeknoyCartApp extends ConsumerWidget {
             if (user != null) {
               try {
                 await ref.read(authNotifierProvider.notifier).logout();
-              } catch (e) { debugPrint('INACTIVITY_LOGOUT: $e'); }
+              } catch (e) {
+                debugPrint('INACTIVITY_LOGOUT: $e');
+              }
             }
           },
           child: ResponsiveMobileFrame(child: child!),
         );
       },
-      home: authStateAsync.when(
-        data: (user) {
-          if (user != null) {
-            return const ProductDiscoveryFeedView();
-          }
-          return const AuthGateView();
-        },
-        loading: () {
-          // If a logged-in user is loading (e.g. refreshing session profile), keep feed mounted
-          if (authStateAsync.valueOrNull != null) {
-            return const ProductDiscoveryFeedView();
-          }
-          // For unauthenticated states (login/register in-flight), NEVER unmount AuthGateView!
-          // The form's submit button displays its own inline progress indicator.
-          return const AuthGateView();
-        },
-        error: (err, _) => const AuthGateView(),
-      ),
+      home: const SplashView(),
     );
   }
 }
@@ -134,4 +145,3 @@ class _InactivityWrapperState extends State<InactivityWrapper> {
     );
   }
 }
-

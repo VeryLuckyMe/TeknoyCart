@@ -534,20 +534,30 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? (isDark ? const Color(0xFF321318) : Colors.white)
-                        : Colors.transparent,
+                        ? TeknoyTheme.citMaroon
+                        : (isDark ? TeknoyTheme.darkSurfaceRaised : Colors.white),
                     borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: isSelected
+                          ? TeknoyTheme.citMaroon
+                          : (isDark ? const Color(0xFF2C2C3A) : const Color(0xFFE2E8F0)),
+                      width: 1,
+                    ),
                     boxShadow: isSelected
                         ? [
                             BoxShadow(
-                              color: isDark
-                                  ? Colors.black.withValues(alpha: 0.3)
-                                  : TeknoyTheme.citMaroon.withValues(alpha: 0.08),
-                              blurRadius: 8,
+                              color: TeknoyTheme.citMaroon.withValues(alpha: 0.28),
+                              blurRadius: 6,
                               offset: const Offset(0, 2),
                             ),
                           ]
-                        : null,
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                   ),
                   child: Text(
                     filter,
@@ -556,8 +566,8 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                       fontSize: 13,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                       color: isSelected
-                          ? TeknoyTheme.citMaroon
-                          : (isDark ? Colors.white60 : TeknoyTheme.lightTextSecondary),
+                          ? Colors.white
+                          : (isDark ? Colors.white70 : const Color(0xFF475569)),
                     ),
                   ),
                 ),
@@ -1038,41 +1048,75 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     final pendingCount = _pendingSellerCount;
     final controller = _tabController ?? TabController(length: 2, vsync: this);
 
-    final tabBar = TabBar(
-      controller: controller,
-      indicatorColor: TeknoyTheme.citMaroon,
-      indicatorWeight: 3,
-      labelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
-      unselectedLabelStyle: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w500, fontSize: 14),
-      labelColor: TeknoyTheme.citMaroon,
-      unselectedLabelColor: isDark ? Colors.white54 : Colors.black54,
-      tabs: [
-        const Tab(text: 'My Purchases'),
-        Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Incoming Orders'),
-              if (pendingCount > 0) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(10)),
-                  child: Text(
-                    '$pendingCount',
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+    final segmentedTabBar = Container(
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF221619) : const Color(0xFFF0EAE4),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: TabBar(
+        controller: controller,
+        dividerColor: Colors.transparent,
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: BoxDecoration(
+          color: isDark ? TeknoyTheme.darkSurfaceRaised : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        labelStyle: const TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.bold,
+          fontSize: 13.5,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w600,
+          fontSize: 13.5,
+        ),
+        labelColor: TeknoyTheme.citMaroon,
+        unselectedLabelColor: isDark ? Colors.white60 : const Color(0xFF64748B),
+        tabs: [
+          const Tab(
+            height: 38,
+            text: 'My Purchases',
+          ),
+          Tab(
+            height: 38,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Incoming Orders'),
+                if (pendingCount > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$pendingCount',
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
 
     final tabViews = TabBarView(
@@ -1086,10 +1130,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     if (widget.embedded) {
       return Column(
         children: [
-          Container(
-            color: Colors.transparent,
-            child: tabBar,
-          ),
+          segmentedTabBar,
           Expanded(child: tabViews),
         ],
       );
@@ -1110,7 +1151,10 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         elevation: 0,
         scrolledUnderElevation: 0,
         systemOverlayStyle: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
-        bottom: tabBar,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56.0),
+          child: segmentedTabBar,
+        ),
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -1134,7 +1178,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         child: SafeArea(
           bottom: false,
           child: Padding(
-            padding: const EdgeInsets.only(top: 46.0 + kTextTabBarHeight),
+            padding: const EdgeInsets.only(top: 46.0 + 56.0),
             child: tabViews,
           ),
         ),

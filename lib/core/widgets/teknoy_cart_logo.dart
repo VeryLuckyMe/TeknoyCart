@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:teknoycart/core/brand.dart';
 import 'package:teknoycart/core/theme.dart';
 
 /// Pixel-perfect vector logo widget for TeknoyCart (Option A: Speed-Ribbon TC).
@@ -15,12 +16,15 @@ class TeknoyCartLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
-      'assets/images/teknoy_cart_logo.png',
+    return Image(
+      image: TeknoyBrand.logoProvider,
       width: size,
       height: size,
       fit: BoxFit.contain,
       color: color,
+      filterQuality: FilterQuality.medium,
+      isAntiAlias: true,
+      gaplessPlayback: true,
       errorBuilder: (context, error, stackTrace) {
         return SizedBox(
           width: size,

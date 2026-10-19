@@ -323,20 +323,30 @@ class _InboxViewState extends ConsumerState<InboxView> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? (isDark ? const Color(0xFF321318) : Colors.white)
-                        : Colors.transparent,
+                        ? TeknoyTheme.citMaroon
+                        : (isDark ? TeknoyTheme.darkSurfaceRaised : Colors.white),
                     borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: isSelected
+                          ? TeknoyTheme.citMaroon
+                          : (isDark ? const Color(0xFF2C2C3A) : const Color(0xFFE2E8F0)),
+                      width: 1,
+                    ),
                     boxShadow: isSelected
                         ? [
                             BoxShadow(
-                              color: isDark
-                                  ? Colors.black.withValues(alpha: 0.3)
-                                  : TeknoyTheme.citMaroon.withValues(alpha: 0.08),
-                              blurRadius: 8,
+                              color: TeknoyTheme.citMaroon.withValues(alpha: 0.28),
+                              blurRadius: 6,
                               offset: const Offset(0, 2),
                             ),
                           ]
-                        : null,
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                   ),
                   child: Text(
                     filter,
@@ -345,8 +355,8 @@ class _InboxViewState extends ConsumerState<InboxView> {
                       fontSize: 13.5,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                       color: isSelected
-                          ? TeknoyTheme.citMaroon
-                          : (isDark ? Colors.white60 : TeknoyTheme.lightTextSecondary),
+                          ? Colors.white
+                          : (isDark ? Colors.white70 : const Color(0xFF475569)),
                     ),
                   ),
                 ),
