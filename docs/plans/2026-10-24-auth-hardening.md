@@ -129,9 +129,11 @@ MOBILE / WEB
 - Baseline: `flutter test`, `flutter analyze`, `npm test`, backend tests on JDK 17.
 - Install JDK 17: `winget install EclipseAdoptium.Temurin.17.JDK` (verified `winget` is available; no JDK 17 on the machine). Optional: `winget install GitHub.cli` for PR creation; otherwise push branches and use the compare URL.
 - Set the Supabase Auth minimum password length to 12 (D17). Set a new random backend `JWT_SECRET` in Render (D7); do not commit it.
+- Confirm Supabase Auth **Confirm email** is **off** (D8): the mobile app uses the backend SMTP verification flow and requires `signUp()` to return a session.
+- Preflight `store_profiles.seller_id` uniqueness and the optional store/KYC columns; the app uses `upsert(onConflict: 'seller_id')` and `admin_kyc_queue` reads `seller_verifications.updated_at`.
 - Freeze DB writes during the migration window.
 
-**Exit gate:** diagnostic output reviewed; export recorded; four accounts confirmed; baseline green on JDK 17.
+**Exit gate:** diagnostic output reviewed; export recorded; four accounts confirmed; Supabase min password = 12; Confirm email off; store-profile preflight green; baseline green on JDK 17.
 
 **W0 evidence (2026-10-24)**
 
@@ -140,7 +142,7 @@ MOBILE / WEB
 - Backend: `mvn test` on JDK 17 → **63/63 passed**, `BUILD SUCCESS`.
 - Web: `npm test` → **4/4 passed**; `npm run lint` → **0 errors, 10 warnings**.
 - Diagnostic: `TeknoyCart_Backend/src/main/resources/db/diagnostics/auth_diagnostic_2026_10_24.sql`; read-only; syntax-parsed with `pglast`; **not yet run against the live DB** — the user runs it and pastes the result.
-- No DB export yet; no four-account confirmation yet; W0 remains in progress until those land.
+- No DB export yet; no four-account confirmation yet; Supabase min password/Confirm-email settings and the store-profile preflight are not yet recorded. W0 remains in progress until those land. The current local gates are Flutter **262/262**, backend **64/64**, web **9/9**, web lint **0 errors/10 warnings**, Flutter analyze **0 errors/0 warnings/80 info**.
 
 ---
 
@@ -165,7 +167,7 @@ MOBILE / WEB
 6. **PII/grant design (precise).** Revoke all privileges on `public.users` from `anon`; revoke table-level `SELECT`/`INSERT`/`UPDATE`/`DELETE` from `authenticated`. Grant `authenticated` only the public columns it actually reads (`user_id`, `full_name`, `role`, `is_seller_verified`, `last_seen_at`); grant column `INSERT` only for `user_id`, `full_name`, `role`, `student_id` (if present), `seller_type` (if present); grant column `UPDATE` only for `full_name`, `contact`, `gcash_number`, `last_seen_at` (if present) on its own row. Do not grant `UPDATE` on `student_id` unless the profile edit actually needs it. The existing `users_update_own_profile` RLS policy enforces own-row, and the trigger blocks security columns. Do **not** grant `email`, `password_hash`, `verification_token`, `is_verified`, `is_locked`, `lock_until` or `failed_attempts` on the base table to `anon`/`authenticated`.
    - `my_profile` view: owner-run (`security_invoker=false`), `WHERE user_id = auth.uid()`, explicit safe columns only — include `user_id, full_name, email, role, is_verified, is_seller_verified, student_id, contact, gcash_number, seller_type, last_seen_at, created_at` **when the live table has them**; do not invent columns (`department`/`avatar_url` live in auth metadata unless the live table has them). `GRANT SELECT TO authenticated`. Never select `password_hash`, `verification_token`, `is_locked`, `lock_until` or `failed_attempts`. Use it in `getEnrichedProfile` and the web admin self-check.
    - `public_profiles` view: owner-run, `user_id, full_name, avatar_url, is_seller_verified, last_seen_at`; because `public.users` has no `avatar_url`, source it from `auth.users.raw_user_meta_data->>'avatar_url'` (or omit it and keep the mobile auth-metadata fallback). `GRANT SELECT TO anon, authenticated`. Switch `seller_storefront_view.dart`, `inbox_view.dart`, `order_history_view.dart`, and `reserved_orders_sheet.dart` to it; `presence_service.isUserOnline` reads `public_profiles.last_seen_at`.
-   - `store_profiles`: revoke **table-level** grants from `anon`/`authenticated`, then grant safe column `SELECT` for the public storefront fields (`store_id`, `seller_id`, `store_name`, `description`, `banner_url`, `usual_active_hours`, `preferred_meetup_spots`, `created_at`) and own-row column `INSERT`/`UPDATE` (including `contact_number`) so the existing PostgREST embeds and the pending-seller setup keep working. Do **not** grant `SELECT` on `contact_number` to `anon`/`authenticated`; expose the owner's full row through `my_store_profile` (owner-run, `WHERE seller_id = auth.uid()`, `GRANT SELECT TO authenticated`) and a safe `public_store_profiles` view (owner-run, store/public fields only, no phone/address/contact/gcash, `GRANT SELECT TO anon, authenticated`) for new code. This is a deliberate ponytail deviation from revoking *all* direct grants: column grants preserve the existing feed/storefront joins without a risky query rewrite. The W1 verify checks table-level SELECT = false and sensitive-column SELECT = 0 (V40-V42).
+   - `store_profiles`: revoke **table-level** grants from `anon`/`authenticated`, then grant safe column `SELECT` for the public storefront fields (`store_id`, `seller_id`, `store_name`, `description`, `banner_url`, `usual_active_hours`, `preferred_meetup_spots`, `welcome_message_template`, `created_at`) and own-row column `INSERT`/`UPDATE` (including `contact_number`, and `seller_id` so `upsert(onConflict: 'seller_id')` can update the unique owner row) so the existing PostgREST embeds and the pending-seller setup keep working. Do **not** grant `SELECT` on `contact_number` to `anon`/`authenticated`; expose the owner's full row through `my_store_profile` (owner-run, `WHERE seller_id = auth.uid()`, `GRANT SELECT TO authenticated`) and a safe `public_store_profiles` view (owner-run, store/public fields only, no phone/address/contact/gcash, `GRANT SELECT TO anon, authenticated`) for new code. This is a deliberate ponytail deviation from revoking *all* direct grants: column grants preserve the existing feed/storefront joins without a risky query rewrite. The W1 verify checks table-level SELECT = false and sensitive-column SELECT = 0 (V40-V42).
    - Registration pre-check: replace `users.select('user_id').eq('student_id', ...)` (runs as anon) with a narrow `SECURITY DEFINER` RPC `is_student_id_available(text) RETURNS boolean` granted to `anon, authenticated`, or delete the pre-check and rely on the unique constraint. Never grant anon SELECT on `student_id`.
    - Signup: change the `users.upsert` to `insert` (or `upsert` with `ignoreDuplicates`) so an existing row does not trigger the update guard on `role`/`is_verified`; the insert trigger forces the email/flags/role.
    - Admin console: `Moderation.jsx` currently selects `email`/`student_id` for all users. Replace that query with an admin-only `admin_kyc_queue` view (owner-run; `WHERE EXISTS (SELECT 1 FROM users WHERE user_id = auth.uid() AND role='ADMIN' AND is_verified = true AND is_locked = false)`; returns the latest KYC row plus email/student_id) granted to `authenticated`; non-admins see no rows. Do not grant those columns on the base table. The admin self-check must use `my_profile` in the web login, not the base table.
@@ -189,10 +191,18 @@ MOBILE / WEB
 - **Critical W0 C04 finding (not caught by P20/P21):** `seller_verifications` still has `Admins can manage all verifications` with `cmd=ALL`, role `public`, `USING(true)`. Permissive policies OR together, so this lets any client update any verification row to `APPROVED`; the user-only PENDING/REJECTED policies do not protect it. P22 is RED. W1 must drop that policy; keep `Admins can view and manage all verifications` (ADMIN/service_role predicate).
 - Confirmed GREEN already (do not re-apply): RLS is enabled on `users`, `chats`, `messages`, `inquiries` (R01-R04); the Realtime publication already contains `chats`/`messages` and excludes `users` (V50-V52); the `seller_verifications` user insert/update policies themselves require PENDING/REJECTED (P20-P21), but the broad ALL policy above defeats them; the 3-arg `admin_verify_seller` exists with no 2-arg overload or hardcoded email (P30-P32); the `users` insert/update policies exist with `auth.uid() = user_id` (P01-P03); both triggers are enabled (T40-T41).
 - Contract correction: the guard itself is not the bug. `SECURITY DEFINER` + guard is C1; the end state is `SECURITY INVOKER` + guard present. The test now asserts that explicitly.
-- App-side coupling to schedule with the SQL apply: signup pre-check → `is_student_id_available`; signup `upsert` → `ignoreDuplicates` safe-column insert; `getEnrichedProfile` → `my_profile`; email dialog → `my_profile.is_verified`; order-history `contact` and reserved-orders `email` → remove/fallback (post-demo counterparty RPC); `matchingStoresProvider` `is_verified` → `is_seller_verified`; web `Login.jsx` → `my_profile`; web `Moderation.jsx` → `admin_kyc_queue`.
-- W0 CSV received: 21 rows. Confirmed exact `users` columns/constraints, 2 admins (both verified/unlocked), 12 sellers (2 verified), 17 buyers, 35 auth / 31 public users, 8 auth-without-profile, 4 public-without-auth, 6 verification rows. The migration no longer needs defensive `ADD COLUMN` guesses for `users`. Still needed before applying: the three-table export outside the repo, confirmation of the four demo credentials (especially which admin replaces the deleted `capstone.team45`), and the Supabase minimum password length set to 12.
+- App-side coupling to schedule with the SQL apply: signup pre-check → `is_student_id_available`; signup `upsert` → `ignoreDuplicates` safe-column insert; store-profile `upsert` → `onConflict: 'seller_id'`; `getEnrichedProfile` → `my_profile`; email dialog → `my_profile.is_verified`; order-history `contact` and reserved-orders `email` → remove/fallback (post-demo counterparty RPC); `matchingStoresProvider` `is_verified` → `is_seller_verified`; `seller_storefront_view`/`inbox_view`/`order_history_view`/`reserved_orders_sheet`/presence reads → `public_profiles`; chat auto-reply no longer reads counterparty `gcash_number`; web `Login.jsx` → `my_profile` plus ADMIN/verified sign-out; web `App.jsx` boot → `my_profile` + `is_verified`; web `Moderation.jsx` → `admin_kyc_queue`; web `adminAccess.js` shares the verified-admin predicate; backend `/auth/register` rejects <12 characters (legacy endpoint remains slated for removal in W3).
+- W0 CSV received: 21 rows. Confirmed exact `users` columns/constraints, 2 admins (both verified/unlocked), 12 sellers (2 verified), 17 buyers, 35 auth / 31 public users, 8 auth-without-profile, 4 public-without-auth, 6 verification rows. The migration no longer needs defensive `ADD COLUMN` guesses for `users`. Still needed before applying: the three-table export outside the repo, confirmation of the four demo credentials (especially which admin replaces the deleted `capstone.team45`), the Supabase minimum password length set to 12, Confirm email off, and the `store_profiles`/`seller_verifications` preflight.
 
-**Rollback:** the user runs the down script inside a transaction; restore the W0 export if any assertion fails after apply. The down script restores the previous realtime policies; only restore "RLS off" as an emergency, with a written risk acceptance.
+**Implementation evidence (2026-10-24, local branch `fix/auth-hardening`, not applied):**
+
+- Migration, rollback, and `README-auth-hardening.md` are written. `pglast` parses the migration, rollback, and 147-check verification script. The migration is **not** committed or applied; it is waiting for the W0 exit gate and user review.
+- The migration now also revokes explicit column-level grants (not just table-level) for `users`/`store_profiles`, adds `welcome_message_template` and owner `seller_id` to the safe store grants, and keeps `contact_number` out of the public store view.
+- App/web/backend coupling is implemented: signup RPC/ignoreDuplicates, `my_profile`, `public_profiles`, store upsert on `seller_id`, `is_seller_verified`, removed counterparty GCash/email/contact reads, web `my_profile` + `admin_kyc_queue`, non-admin web sign-out, and a server-side `/auth/register` 12-character check (the legacy endpoint is still slated for removal in W3).
+- Local gates: Flutter **262/262**, backend `mvn test` **64/64**, web `npm test` **9/9**, web lint **0 errors / 10 pre-existing warnings**, Flutter analyze **0 errors / 0 warnings / 80 info**.
+- Still blocked before apply: W0 three-table export outside the repo, four demo-account confirmation (which current ADMIN replaces the deleted `capstone.team45`), Supabase Auth minimum password length = 12, Confirm email off, and the store-profile/KYC preflight.
+
+**Rollback:** the user runs the down script inside a transaction; restore the W0 export if any assertion fails after apply. The down script restores the previous trigger bodies, broad grants, product policies, and legacy KYC policy; it does **not** change the Realtime publication or disable RLS. Only restore "RLS off" as an emergency, with a written risk acceptance.
 
 **Caveat:** the Supabase SQL editor runs as `postgres` and bypasses RLS. The catalog verification script is necessary but not sufficient; the **live escalation proof** must use `SET LOCAL ROLE authenticated` + JWT claims, or a real test user through PostgREST, and a real mobile session. The Realtime smoke test also uses real mobile sessions, not the SQL editor.
 
@@ -258,9 +268,16 @@ MOBILE / WEB
 
 **TDD**
 
-- Unit: 6/11 chars rejected; 12 accepted; no composition requirement.
+- Unit: 11 chars rejected; 12 accepted; no composition requirement.
 - Widget: consent unchecked → submit disabled; checked → proceeds; sheet opens; reset sheet rejects 11 chars.
 - Update existing auth tests that use short passwords.
+
+**Implementation evidence (2026-10-24, local branch `fix/auth-hardening`)**
+
+- `AuthService.minPasswordLength = 12` / `isValidPasswordLength`; signup uses the helper. 11-char signup throws; 12-char policy test passes.
+- Signup, register form, reset-password sheet, and change-password flow all use 12+.
+- `privacy_consent_sheet.dart` is the shared Terms/Privacy sheet; `profile_tab.dart` delegates to it; registration has `auth-terms-checkbox` and `auth-submit-btn` stays disabled until consent.
+- `auth_register_form_test.dart` pins the consent gate. Flutter suite is **262/262** (was 260), analyze 0 errors/0 warnings/80 info. Consent persistence remains explicitly post-demo.
 
 ---
 
@@ -360,7 +377,7 @@ MOBILE / WEB
 | W1 realtime | Baseline: RLS off, chat works; after RLS on, chat must still work | Two-device chat + presence pass with participant policies | `test(db): pin realtime RLS policies` → `fix(db): ...` |
 | W2 | Flutter test: bearer token must be the live session (fails today); backend test: `/auth/register` must 404 | Both pass | `test(auth): pin token source and remove legacy registration` → `fix(auth): ...` |
 | W3 | MockMvc: password-first ordering + UTC `Z` (fails today) | Pass | `test(auth): pin login ordering and UTC lockout` → `fix(auth): ...` |
-| W3b | Unit/widget: 11-char reject, 12-char accept, consent required | Pass | `test(auth): pin password length and consent` → `fix(auth): ...` |
+| W3b | App unit/widget: 11-char reject, 12-char accept, consent required; backend controller: 12-char reject | Pass | `test(auth): pin password length and consent` → `fix(auth): ...` |
 | W4 | MockMvc/widget: email failure → 503, no poller | Pass | `test(auth): pin verification failure semantics` → `fix(auth): ...` |
 | W5 | Widget: recovery route | Pass | `test(auth): pin recovery deep link` → `fix(auth): ...` |
 | W6 | Widget: indicator, tab clear, timer cancel, pending banner | Pass | `test(ui): pin auth a11y regressions` → `fix(ui): ...` |
@@ -412,7 +429,7 @@ Demo-only means there are no external installed builds. Keep HS256 only as the d
 
 ## 10. Rollback
 
-- **DB:** run the down script in a transaction; if an assertion fails after apply, restore the W0 export. The down script restores the previous realtime policies; only restore "RLS off" as an emergency, with a written risk acceptance.
+- **DB:** run the down script in a transaction; if an assertion fails after apply, restore the W0 export. The down script restores the previous trigger bodies, broad grants, product policies, and legacy KYC policy; it does **not** touch the Realtime publication or disable RLS. Only restore "RLS off" as an emergency, with a written risk acceptance.
 - **Backend/web:** redeploy the previous Render/Vercel build.
 - **Mobile:** demo devices only; reinstall the previous build if needed. The compatibility window exists for demo safety, not for external users.
 
@@ -486,6 +503,7 @@ SQL checks run in the Supabase SQL editor with `diagnostics/auth_w1_verify_2026_
 | 0.1 | 2026-10-24 | Initial draft from `AUTH_AUDIT_REPORT.md`; Round 1 pending |
 | 0.2 | 2026-10-24 | Round 1 settled (D1–D6); phase1 baseline correction; manual SQL path; JDK 17/CI; scope reconciliation queued for Round 2 |
 | 0.3 | 2026-10-24 | Round 2 + 3 settled (D7–D19); demo target 2026-10-31; password/consent/realtime scope; plan ready for go-ahead |
+| 0.4 | 2026-10-24 | W1 migration/rollback/README drafted and pglast-clean; app/web coupling implemented; W3b password+consent implemented; local gates green; W0 exit gate still blocks apply |
 
 ---
 
@@ -534,7 +552,7 @@ SQL checks run in the Supabase SQL editor with `diagnostics/auth_w1_verify_2026_
 - Commit credentials, exports, or generated Windows files.
 - Change the visual design beyond the auth a11y fixes.
 
-Approved on 2026-10-24. W0 is in progress; the next stop is after the live diagnostic output is reviewed and the first RED verification test is written (before any migration is applied).
+Approved on 2026-10-24. W0 is in progress. W1's migration, rollback, verification, and app/web coupling are drafted; the next stop is user review of the migration plus the W0 exit gate (export, four accounts, min password 12, Confirm email off, store-profile preflight) before any SQL is applied.
 
 ---
 
