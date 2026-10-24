@@ -1,6 +1,6 @@
 # Auth Hardening — Implementation Plan
 
-**Status:** In progress — W0 green; W1 GREEN (147/147); next: live escalation proof and two-device Realtime
+**Status:** In progress - W0 green; W1 GREEN (147/147); PostgREST live-proof script ready; next: run it and the two-device Realtime test
 **Date:** 2026-10-24
 **Demo target:** within 7 days (by 2026-10-31); correct this if the actual date is earlier
 **Source audit:** `AUTH_AUDIT_REPORT.md` (45 findings: 3 critical, 13 high, 12 medium, 17 low)
@@ -197,16 +197,17 @@ MOBILE / WEB
 
 **Implementation evidence (2026-10-24, local branch `fix/auth-hardening`, migration applied live; SQL committed after GREEN):**
 
-- Migration, rollback, and `README-auth-hardening.md` are written. `pglast` parses the migration, rollback, and 147-check verification script. The migration was applied on the live project on 2026-10-24; it is **not** committed yet.
+- Migration, rollback, and `README-auth-hardening.md` are written and committed after GREEN: SQL `5c974a0`, docs `25777cb`. `pglast` parses the migration, rollback, and 147-check verification script. The migration was applied on the live project on 2026-10-24.
 - The migration now also revokes explicit column-level grants (not just table-level) for `users`/`store_profiles`, adds `welcome_message_template` and owner `seller_id` to the safe store grants, and keeps `contact_number` out of the public store view.
 - App/web/backend coupling is implemented: signup RPC/ignoreDuplicates, `my_profile`, `public_profiles`, store upsert on `seller_id`, `is_seller_verified`, removed counterparty GCash/email/contact reads, web `my_profile` + `admin_kyc_queue`, non-admin web sign-out, and a server-side `/auth/register` 12-character check (the legacy endpoint is still slated for removal in W3).
 - Local gates: Flutter **262/262**, backend `mvn test` **64/64**, web `npm test` **9/9**, web lint **0 errors / 10 pre-existing warnings**, Flutter analyze **0 errors / 0 warnings / 80 info**.
 - **W1 live apply/verify (2026-10-24):** the user applied the migration and ran the 147-check script. The first run was **144 PASS / 3 FAIL**; only `V02`, `V21`, and `V71` failed, each with `expected=false, actual=true` for `anon` SELECT on `my_profile`, `admin_kyc_queue`, and `my_store_profile`. Root cause: Supabase's default privileges grant `anon` SELECT on newly created public views. The migration now explicitly revokes `anon`/`PUBLIC` on those three views, and `patch_auth_hardening_view_grants_2026_10_24.sql` repaired the already-applied database. After the patch, the rerun is **147/147 PASS**, `ZZ_SUMMARY` **0 PASS**; no failures. The full result includes RLS, publication, triggers, product policies, legacy KYC policy, ledger, and all view/store checks.
+- **Live-proof tooling (2026-10-24):** `TeknoyCart_Backend/scripts/auth_w1_live_proof.ps1` is the PostgREST proof and parses cleanly. It signs in with real Supabase Auth sessions and checks buyer `PATCH role=ADMIN`, buyer ADMIN insert, anon sensitive-column denial, `my_profile`/`admin_kyc_queue`/`my_store_profile` boundaries, store contact denial, buyer/pending product insert denial, approved-seller insert, admin KYC queue, and pending-seller KYC self-approval. It is **not run yet**. It does not use the SQL editor's `SET LOCAL ROLE` for trigger-guard checks because `session_user` remains `postgres` there.
 - W0 inputs now confirmed: `users` 31, `products` 19, `orders` 49 exported outside the repo; `store_profiles_seller_id_key` is unique; Supabase minimum password = 12; Confirm email off. Four demo-account passwords still need final human confirmation.
 
 **Rollback:** the user runs the down script inside a transaction; restore the W0 export if any assertion fails after apply. The down script restores the previous trigger bodies, broad grants, product policies, and legacy KYC policy; it does **not** change the Realtime publication or disable RLS. Only restore "RLS off" as an emergency, with a written risk acceptance.
 
-**Caveat:** the Supabase SQL editor runs as `postgres` and bypasses RLS. The catalog verification script is necessary but not sufficient; the **live escalation proof** must use `SET LOCAL ROLE authenticated` + JWT claims, or a real test user through PostgREST, and a real mobile session. The Realtime smoke test also uses real mobile sessions, not the SQL editor.
+**Caveat:** the Supabase SQL editor runs as `postgres` and bypasses RLS. The catalog verification script is necessary but not sufficient; the **live escalation proof** must use real Supabase Auth sessions through PostgREST (`scripts/auth_w1_live_proof.ps1`). Do not use the SQL editor's `SET LOCAL ROLE authenticated` for trigger-guard checks: `session_user` remains `postgres`, so the guard can return early and the test can falsely pass. The Realtime smoke test also uses real mobile sessions, not the SQL editor.
 
 ---
 
@@ -337,7 +338,7 @@ MOBILE / WEB
 
 - `docs/plans/2026-10-24-auth-hardening.tdd.md` with the RED/GREEN evidence table, the per-finding disposition, and the Realtime smoke-test result.
 - One minimal GitHub Actions workflow per repo (D4 = A): Flutter test + analyze; backend `mvn test` on JDK 17; web `npm test` + lint. Trigger on PR and `main`.
-- Live proof script for the five security proofs (below), run with real demo accounts; no staging project.
+- Live proof script for the five security proofs (below), created at `TeknoyCart_Backend/scripts/auth_w1_live_proof.ps1`; run with real demo accounts; no staging project.
 - Demo-day runbook (Section 14) checked one day before the demo.
 
 ---
@@ -508,6 +509,7 @@ SQL checks run in the Supabase SQL editor with `diagnostics/auth_w1_verify_2026_
 | 0.4 | 2026-10-24 | W1 migration/rollback/README drafted and pglast-clean; app/web coupling implemented; W3b password+consent implemented; local gates green; W0 exit gate still blocks apply |
 | 0.5 | 2026-10-24 | W0 complete; W1 applied; live verify 144/147; anon-grant repair added to migration and patch; rerun pending |
 | 0.6 | 2026-10-24 | W1 GREEN after view-grant repair: 147/147 PASS, ZZ_SUMMARY 0; live escalation proof and two-device Realtime next |
+| 0.7 | 2026-10-24 | Added PostgREST live-proof script; SQL editor SET ROLE is not valid for trigger-guard proof; run script and two-device Realtime next |
 
 ---
 
@@ -556,7 +558,7 @@ SQL checks run in the Supabase SQL editor with `diagnostics/auth_w1_verify_2026_
 - Commit credentials, exports, or generated Windows files.
 - Change the visual design beyond the auth a11y fixes.
 
-Approved on 2026-10-24. W0 is complete. W1 is applied and GREEN: the post-repair verification is 147/147 PASS with `ZZ_SUMMARY` 0. The next stop is the live escalation proof, then the two-device Realtime smoke test.
+Approved on 2026-10-24. W0 is complete. W1 is applied and GREEN: the post-repair verification is 147/147 PASS with `ZZ_SUMMARY` 0. The PostgREST live-proof script is ready; run it with the real demo accounts, then run the two-device Realtime smoke test.
 
 ---
 
