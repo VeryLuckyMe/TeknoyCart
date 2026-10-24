@@ -149,7 +149,7 @@ MOBILE / WEB
 **Files**
 
 - `TeknoyCart_Backend/src/main/resources/db/migration_auth_hardening_2026_10_24.sql` — forward-only.
-- `TeknoyCart_Backend/src/main/resources/db/verify_auth_hardening_2026_10_24.sql` — assertions.
+- `TeknoyCart_Backend/src/main/resources/db/diagnostics/auth_w1_verify_2026_10_24.sql` — read-only catalog assertions (133 checks), committed as the first RED checkpoint.
 - `TeknoyCart_Backend/src/main/resources/db/rollback_auth_hardening_2026_10_24.sql` — restore previous bodies/policies.
 - `TeknoyCart_Backend/src/main/resources/db/README-auth-hardening.md` — apply order + ledger entry.
 - Archive the one-off `TeknoyCart/TeknoyCart/enable_realtime.sql` with a warning header. Do **not** move `comprehensive_rls_policies.sql`: `DatabaseMigrationRunner` reads it from the classpath at startup. Add a "superseded; do not re-run" header instead, and apply the new migration after V2/P6.
@@ -161,8 +161,8 @@ MOBILE / WEB
 3. UPDATE trigger: block changes to `role`, `is_verified`, `is_seller_verified`, `email`, `password_hash`, `verification_token`, `is_locked`, `lock_until`, `failed_attempts` from `anon`/`authenticated`; verify the backend (JDBC) and the admin RPC can still make their intended changes.
 4. `ENABLE ROW LEVEL SECURITY` on `users`, `chats`, `messages`, `inquiries`; recreate the realtime publication **without** disabling RLS.
 5. `products_insert_seller` and `products_update_seller` require a real seller check — `EXISTS (SELECT 1 FROM public.users WHERE user_id = auth.uid() AND role='SELLER' AND is_seller_verified)` in both `USING` and `WITH CHECK`, not just `auth.uid() = seller_id`. After the parent fix, re-check the child-table policies (`product_images`, `product_variants`, `inventory`) because they currently rely on product ownership; they should be safe once a buyer cannot create a product, but verify. Allow a pending seller to create a draft `store_profiles` row before approval so the KYC/store setup flow still works; keep products/orders gated.
-6. **PII/grant design (precise).** Revoke all privileges on `public.users` from `anon`; revoke table-level `SELECT`/`INSERT`/`UPDATE`/`DELETE` from `authenticated`. Grant `authenticated` only the public columns it actually reads (`user_id`, `full_name`, `role`, `is_seller_verified`, `last_seen_at`) and only the profile columns it actually writes (`full_name`, `student_id`, `contact`, `gcash_number`, `last_seen_at`, `seller_type` if present) for its own row; the existing `users_update_own_profile` RLS policy enforces own-row, and the trigger blocks security columns. Do **not** grant `email`, `password_hash`, `verification_token`, `is_verified`, `is_locked`, `lock_until` or `failed_attempts` on the base table to `anon`/`authenticated`.
-   - `my_profile` view: owner-run (`security_invoker=false`), `WHERE user_id = auth.uid()`, explicit safe columns only (`user_id, full_name, email, role, is_verified, is_seller_verified, student_id, contact, gcash_number, department, seller_type, last_seen_at, created_at`), `GRANT SELECT TO authenticated`. Never select `password_hash`, `verification_token`, `is_locked`, `lock_until` or `failed_attempts`. Use it in `getEnrichedProfile` and the web admin self-check.
+6. **PII/grant design (precise).** Revoke all privileges on `public.users` from `anon`; revoke table-level `SELECT`/`INSERT`/`UPDATE`/`DELETE` from `authenticated`. Grant `authenticated` only the public columns it actually reads (`user_id`, `full_name`, `role`, `is_seller_verified`, `last_seen_at`); grant column `INSERT` only for `user_id`, `full_name`, `role`, `student_id` (if present), `seller_type` (if present); grant column `UPDATE` only for `full_name`, `contact`, `gcash_number`, `last_seen_at` (if present) on its own row. Do not grant `UPDATE` on `student_id` unless the profile edit actually needs it. The existing `users_update_own_profile` RLS policy enforces own-row, and the trigger blocks security columns. Do **not** grant `email`, `password_hash`, `verification_token`, `is_verified`, `is_locked`, `lock_until` or `failed_attempts` on the base table to `anon`/`authenticated`.
+   - `my_profile` view: owner-run (`security_invoker=false`), `WHERE user_id = auth.uid()`, explicit safe columns only — include `user_id, full_name, email, role, is_verified, is_seller_verified, student_id, contact, gcash_number, seller_type, last_seen_at, created_at` **when the live table has them**; do not invent columns (`department`/`avatar_url` live in auth metadata unless the live table has them). `GRANT SELECT TO authenticated`. Never select `password_hash`, `verification_token`, `is_locked`, `lock_until` or `failed_attempts`. Use it in `getEnrichedProfile` and the web admin self-check.
    - `public_profiles` view: owner-run, `user_id, full_name, avatar_url, is_seller_verified, last_seen_at`; because `public.users` has no `avatar_url`, source it from `auth.users.raw_user_meta_data->>'avatar_url'` (or omit it and keep the mobile auth-metadata fallback). `GRANT SELECT TO anon, authenticated`. Switch `seller_storefront_view.dart`, `inbox_view.dart`, `order_history_view.dart`, and `reserved_orders_sheet.dart` to it; `presence_service.isUserOnline` reads `public_profiles.last_seen_at`.
    - `store_profiles`: keep own-row full access; expose a public view with `store_name`/description/logo only — no phone/address.
    - Registration pre-check: replace `users.select('user_id').eq('student_id', ...)` (runs as anon) with a narrow `SECURITY DEFINER` RPC `is_student_id_available(text) RETURNS boolean` granted to `anon, authenticated`, or delete the pre-check and rely on the unique constraint. Never grant anon SELECT on `student_id`.
@@ -170,20 +170,20 @@ MOBILE / WEB
    - Admin console: `Moderation.jsx` currently selects `email`/`student_id` for all users. Replace that query with an admin-only `admin_kyc_queue` view (owner-run; `WHERE EXISTS (SELECT 1 FROM users WHERE user_id = auth.uid() AND role='ADMIN')`; returns KYC fields plus email/student_id) granted to `authenticated`; non-admins see no rows. Do not grant those columns on the base table.
    - Accepted demo degradation: `chat_service.dart:602-609` reads the seller's `gcash_number` for the auto-reply assistant. Do not grant `gcash_number` broadly; the assistant omits that detail if the read is denied. The full counterparty payment-hint RPC stays post-demo (D12).
    - Full order/chat counterparty contact redesign is post-demo (D12).
-7. Reuse the backend's existing `schema_migrations` ledger (do not create a second one); record the manual auth-hardening version. The old root SQL files are archived or marked, not deleted.
+7. Reuse the backend's existing `schema_migrations` ledger (do not create a second one); record `V9__auth_hardening` as the manual version. The old root SQL files are archived or marked, not deleted.
 8. Re-enable RLS with participant policies on `chats`, `messages` and `inquiries`; verify the existing policies and add missing ones. Do not leave RLS off. Immediately run the two-device Realtime chat/presence smoke test; if it breaks, fix the policies before proceeding (D19).
 
 **TDD (RED → GREEN)**
 
-1. Write the verification SQL first. The user runs it on the current DB (SQL editor) and pastes the output — it must **fail** (RED). The agent has no DB credentials.
+1. The verification SQL is written at `TeknoyCart_Backend/src/main/resources/db/diagnostics/auth_w1_verify_2026_10_24.sql` (133 checks) and committed as the first RED checkpoint. The user runs it on the current DB (SQL editor) and pastes the output — it must **fail** (RED). The agent has no DB credentials.
 2. The user applies the migration in the SQL editor.
 3. The user re-runs the verification — it must **pass** (GREEN).
 4. Run the two-device Realtime smoke test: buyer ↔ seller chat + presence. Record the result; a broken subscription blocks the migration.
-5. Commit the failing assertion script, then the migration, as separate checkpoints.
+5. The assertion script is committed; commit the migration separately after GREEN.
 
 **Rollback:** the user runs the down script inside a transaction; restore the W0 export if any assertion fails after apply. The down script restores the previous realtime policies; only restore "RLS off" as an emergency, with a written risk acceptance.
 
-**Caveat:** the Supabase SQL editor runs as `postgres` and bypasses RLS. The verification must use `SET LOCAL ROLE authenticated` + JWT claims, or a real test user through PostgREST. The live escalation proof and the Realtime smoke test use real mobile sessions, not the SQL editor.
+**Caveat:** the Supabase SQL editor runs as `postgres` and bypasses RLS. The catalog verification script is necessary but not sufficient; the **live escalation proof** must use `SET LOCAL ROLE authenticated` + JWT claims, or a real test user through PostgREST, and a real mobile session. The Realtime smoke test also uses real mobile sessions, not the SQL editor.
 
 ---
 
@@ -345,7 +345,7 @@ MOBILE / WEB
 
 | Workstream | RED artifact (before code) | GREEN evidence | Checkpoint |
 | :--- | :--- | :--- | :--- |
-| W1 | `verify_auth_hardening...sql` fails on current DB (user-pasted output) | Same script passes after migration | `test(db): add failing auth-hardening assertions` → `fix(db): enforce auth invariants` |
+| W1 | `diagnostics/auth_w1_verify_2026_10_24.sql` fails on current DB (user-pasted output) | Same script passes after migration | `test(auth): add read-only W1 security verification` → `fix(db): enforce auth invariants` |
 | W1 realtime | Baseline: RLS off, chat works; after RLS on, chat must still work | Two-device chat + presence pass with participant policies | `test(db): pin realtime RLS policies` → `fix(db): ...` |
 | W2 | Flutter test: bearer token must be the live session (fails today); backend test: `/auth/register` must 404 | Both pass | `test(auth): pin token source and remove legacy registration` → `fix(auth): ...` |
 | W3 | MockMvc: password-first ordering + UTC `Z` (fails today) | Pass | `test(auth): pin login ordering and UTC lockout` → `fix(auth): ...` |
@@ -424,7 +424,7 @@ npm test
 npm run lint
 ```
 
-SQL checks run in the Supabase SQL editor with `verify_auth_hardening_2026_10_24.sql`; REST checks use a test buyer + anon key and expect `42501`/`403`. Manual: two-device chat/presence after RLS; Supabase dashboard minimum password length = 12.
+SQL checks run in the Supabase SQL editor with `diagnostics/auth_w1_verify_2026_10_24.sql`; REST checks use a test buyer + anon key and expect `42501`/`403`. Manual: two-device chat/presence after RLS; Supabase dashboard minimum password length = 12.
 
 ---
 
