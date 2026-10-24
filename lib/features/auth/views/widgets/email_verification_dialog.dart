@@ -37,10 +37,11 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
     _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (t) async {
       if (!mounted) { t.cancel(); return; }
       try {
+        // Own verification state only. The base users table no longer grants
+        // is_verified (or email) to anon/authenticated clients.
         final res = await Supabase.instance.client
-            .from('users')
+            .from('my_profile')
             .select('is_verified')
-            .eq('email', widget.email.trim())
             .maybeSingle();
 
         if (res != null && res['is_verified'] == true) {

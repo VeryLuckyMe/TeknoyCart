@@ -599,14 +599,10 @@ class ChatService {
                 customMeetupSpots = profile['preferred_meetup_spots'] as String?;
               }
 
-              final sellerUser = await _client
-                  .from('users')
-                  .select('gcash_number')
-                  .eq('user_id', receiverId)
-                  .maybeSingle();
-              if (sellerUser != null) {
-                sellerGcash = sellerUser['gcash_number'] as String?;
-              }
+              // Counterparty GCash is intentionally not exposed on the base
+              // users table (D12). The assistant omits the payment hint until
+              // the post-demo counterparty RPC exists.
+              sellerGcash = null;
 
               final orderRecord = await _client
                   .from('orders')

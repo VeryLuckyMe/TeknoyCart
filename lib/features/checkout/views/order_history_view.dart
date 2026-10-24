@@ -166,8 +166,8 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       if (sellerIds.isNotEmpty) {
         try {
           final usersRes = await SupabaseConfig.client
-              .from('users')
-              .select('user_id, full_name, contact')
+              .from('public_profiles')
+              .select('user_id, full_name')
               .filter('user_id', 'in', sellerIds);
           for (final u in (usersRes as List)) {
             sellerMap[u['user_id']] = Map<String, dynamic>.from(u as Map);
@@ -198,7 +198,9 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         o['seller_name'] = (storeName != null && storeName.isNotEmpty)
             ? storeName
             : (seller?['full_name'] ?? 'Seller');
-        o['seller_contact'] = seller?['contact'];
+        // Counterparty contact RPC is post-demo (D12); the order detail UI
+        // already handles a missing contact.
+        o['seller_contact'] = null;
         enriched.add(o);
       }
 
@@ -280,8 +282,8 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
       if (buyerIds.isNotEmpty) {
         try {
           final usersRes = await SupabaseConfig.client
-              .from('users')
-              .select('user_id, full_name, contact')
+              .from('public_profiles')
+              .select('user_id, full_name')
               .filter('user_id', 'in', buyerIds);
           for (final u in (usersRes as List)) {
             buyerMap[u['user_id']] = Map<String, dynamic>.from(u as Map);
@@ -295,7 +297,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         final buyer = bid != null ? buyerMap[bid] : null;
 
         o['buyer_name'] = buyer?['full_name'] ?? 'Buyer';
-        o['buyer_contact'] = buyer?['contact'];
+        o['buyer_contact'] = null;
         enriched.add(o);
       }
 

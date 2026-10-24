@@ -964,7 +964,7 @@ final matchingStoresProvider = FutureProvider.family<List<StoreResult>, String>(
           store_name,
           users (
             full_name,
-            is_verified
+            is_seller_verified
           )
         ''');
     final rows = response as List<dynamic>;
@@ -974,7 +974,8 @@ final matchingStoresProvider = FutureProvider.family<List<StoreResult>, String>(
       final storeName = r['store_name'] as String? ?? '';
       final usersMap = r['users'] as Map<String, dynamic>?;
       final ownerName = usersMap?['full_name'] as String? ?? 'Campus Vendor';
-      final isVerified = usersMap?['is_verified'] as bool? ?? true;
+      // Match the strict seller definition: SELLER + is_seller_verified.
+      final isVerified = usersMap?['is_seller_verified'] as bool? ?? false;
 
       if (storeName.toLowerCase().contains(searchTerm) || ownerName.toLowerCase().contains(searchTerm)) {
         results.add(StoreResult(

@@ -203,10 +203,10 @@ class AuthPasswordSheets {
                       onPressed: () async {
                         final pass = newPasswordCtrl.text;
                         final confirm = confirmPasswordCtrl.text;
-                        if (pass.length < 6) {
+                        if (pass.length < 12) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Password must be at least 6 characters.'),
+                              content: Text('Password must be at least 12 characters.'),
                               backgroundColor: Colors.red,
                             ),
                           );

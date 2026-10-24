@@ -65,12 +65,13 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
         if (buyerId != null && buyerId.isNotEmpty) {
           try {
             final u = await SupabaseConfig.client
-                .from('users')
-                .select('full_name, email')
+                .from('public_profiles')
+                .select('full_name')
                 .eq('user_id', buyerId)
                 .maybeSingle();
             m['buyer_name'] = u?['full_name'] ?? 'Buyer';
-            m['buyer_email'] = u?['email'] ?? '';
+            // Counterparty email is not exposed on the base table (D12).
+            m['buyer_email'] = '';
           } catch (_) {
             m['buyer_name'] = 'Buyer';
             m['buyer_email'] = '';

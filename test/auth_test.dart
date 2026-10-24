@@ -76,17 +76,22 @@ void main() {
       );
     });
 
-    test('registering with short password should throw FormatException', () {
+    test('registering with a password shorter than 12 should throw FormatException', () {
       expect(
         () => authService.signUp(
           email: 'student@cit.edu',
           username: 'wildcat',
-          password: '123',
+          password: 'password123', // 11 characters
           role: 'BUYER',
           studentId: '22-1234-567',
         ),
         throwsA(isA<FormatException>()),
       );
+    });
+
+    test('password policy accepts exactly 12 characters and rejects 11', () {
+      expect(AuthService.isValidPasswordLength('password123'), isFalse); // 11
+      expect(AuthService.isValidPasswordLength('password1234'), isTrue); // 12
     });
   });
 

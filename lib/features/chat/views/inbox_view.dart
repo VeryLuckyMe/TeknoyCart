@@ -171,7 +171,7 @@ class _InboxViewState extends ConsumerState<InboxView> {
       if (otherUserIds.isNotEmpty) {
         try {
           final usersRes = await client
-              .from('users')
+              .from('public_profiles')
               .select('user_id, full_name')
               .filter('user_id', 'in', otherUserIds);
           for (final u in (usersRes as List)) {
