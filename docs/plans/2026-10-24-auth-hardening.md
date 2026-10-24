@@ -1,6 +1,6 @@
 # Auth Hardening — Implementation Plan
 
-**Status:** In progress — W0 baseline green; live diagnostic awaiting user run (approved 2026-10-24)
+**Status:** In progress — W0 green; W1 GREEN (147/147); next: live escalation proof and two-device Realtime
 **Date:** 2026-10-24
 **Demo target:** within 7 days (by 2026-10-31); correct this if the actual date is earlier
 **Source audit:** `AUTH_AUDIT_REPORT.md` (45 findings: 3 critical, 13 high, 12 medium, 17 low)
@@ -153,6 +153,7 @@ MOBILE / WEB
 - `TeknoyCart_Backend/src/main/resources/db/migration_auth_hardening_2026_10_24.sql` — forward-only.
 - `TeknoyCart_Backend/src/main/resources/db/diagnostics/auth_w1_verify_2026_10_24.sql` - read-only catalog assertions (147 checks after the W0 review; the first run had 144), committed as the first RED checkpoint.
 - `TeknoyCart_Backend/src/main/resources/db/rollback_auth_hardening_2026_10_24.sql` — restore previous bodies/policies.
+- `TeknoyCart_Backend/src/main/resources/db/patch_auth_hardening_view_grants_2026_10_24.sql` — repair the anon grant on authenticated-only views for a database that applied the earlier draft.
 - `TeknoyCart_Backend/src/main/resources/db/README-auth-hardening.md` — apply order + ledger entry.
 - Archive the one-off `TeknoyCart/TeknoyCart/enable_realtime.sql` with a warning header. Do **not** move `comprehensive_rls_policies.sql`: `DatabaseMigrationRunner` reads it from the classpath at startup. Add a "superseded; do not re-run" header instead, and apply the new migration after V2/P6.
 
@@ -179,8 +180,8 @@ MOBILE / WEB
 **TDD (RED → GREEN)**
 
 1. The verification SQL is written at `TeknoyCart_Backend/src/main/resources/db/diagnostics/auth_w1_verify_2026_10_24.sql` and committed as the first RED checkpoint. The first user run (144 checks) exported `AUTH W1.csv`: **144 checks, 99 check failures (100 FAIL rows including `ZZ_SUMMARY`)**. Four of those were test-spec errors caught in review (the trigger guard is correct once the function is INVOKER): T03/T04/T22/T23 now expect the guard `true`, and V42 counts sensitive `SELECT` grants only. The W0 review added three checks: P22 (legacy `seller_verifications` ALL/public/`USING(true)` policy), T14 (protect guards `token_expires_at`), and T34 (insert clears `token_expires_at`). The script is now **147 checks**; the current pre-migration DB is expected to fail **98** of them (95 after the guard correction + 3 new). The agent has no DB credentials.
-2. The user applies the migration in the SQL editor.
-3. The user re-runs the verification — it must **pass** (GREEN).
+2. The user applied the migration in the SQL editor on 2026-10-24.
+3. The user re-ran the verification after the view-grant patch on 2026-10-24: **147/147 PASS** (GREEN).
 4. Run the two-device Realtime smoke test: buyer ↔ seller chat + presence. Record the result; a broken subscription blocks the migration.
 5. The assertion script is committed; commit the migration separately after GREEN.
 
@@ -194,13 +195,14 @@ MOBILE / WEB
 - App-side coupling to schedule with the SQL apply: signup pre-check → `is_student_id_available`; signup `upsert` → `ignoreDuplicates` safe-column insert; store-profile `upsert` → `onConflict: 'seller_id'`; `getEnrichedProfile` → `my_profile`; email dialog → `my_profile.is_verified`; order-history `contact` and reserved-orders `email` → remove/fallback (post-demo counterparty RPC); `matchingStoresProvider` `is_verified` → `is_seller_verified`; `seller_storefront_view`/`inbox_view`/`order_history_view`/`reserved_orders_sheet`/presence reads → `public_profiles`; chat auto-reply no longer reads counterparty `gcash_number`; web `Login.jsx` → `my_profile` plus ADMIN/verified sign-out; web `App.jsx` boot → `my_profile` + `is_verified`; web `Moderation.jsx` → `admin_kyc_queue`; web `adminAccess.js` shares the verified-admin predicate; backend `/auth/register` rejects <12 characters (legacy endpoint remains slated for removal in W3).
 - W0 CSV received: 21 rows. Confirmed exact `users` columns/constraints, 2 admins (both verified/unlocked), 12 sellers (2 verified), 17 buyers, 35 auth / 31 public users, 8 auth-without-profile, 4 public-without-auth, 6 verification rows. The migration no longer needs defensive `ADD COLUMN` guesses for `users`. Still needed before applying: the three-table export outside the repo, confirmation of the four demo credentials (especially which admin replaces the deleted `capstone.team45`), the Supabase minimum password length set to 12, Confirm email off, and the `store_profiles`/`seller_verifications` preflight.
 
-**Implementation evidence (2026-10-24, local branch `fix/auth-hardening`, not applied):**
+**Implementation evidence (2026-10-24, local branch `fix/auth-hardening`, migration applied live; SQL committed after GREEN):**
 
-- Migration, rollback, and `README-auth-hardening.md` are written. `pglast` parses the migration, rollback, and 147-check verification script. The migration is **not** committed or applied; it is waiting for the W0 exit gate and user review.
+- Migration, rollback, and `README-auth-hardening.md` are written. `pglast` parses the migration, rollback, and 147-check verification script. The migration was applied on the live project on 2026-10-24; it is **not** committed yet.
 - The migration now also revokes explicit column-level grants (not just table-level) for `users`/`store_profiles`, adds `welcome_message_template` and owner `seller_id` to the safe store grants, and keeps `contact_number` out of the public store view.
 - App/web/backend coupling is implemented: signup RPC/ignoreDuplicates, `my_profile`, `public_profiles`, store upsert on `seller_id`, `is_seller_verified`, removed counterparty GCash/email/contact reads, web `my_profile` + `admin_kyc_queue`, non-admin web sign-out, and a server-side `/auth/register` 12-character check (the legacy endpoint is still slated for removal in W3).
 - Local gates: Flutter **262/262**, backend `mvn test` **64/64**, web `npm test` **9/9**, web lint **0 errors / 10 pre-existing warnings**, Flutter analyze **0 errors / 0 warnings / 80 info**.
-- Still blocked before apply: W0 three-table export outside the repo, four demo-account confirmation (which current ADMIN replaces the deleted `capstone.team45`), Supabase Auth minimum password length = 12, Confirm email off, and the store-profile/KYC preflight.
+- **W1 live apply/verify (2026-10-24):** the user applied the migration and ran the 147-check script. The first run was **144 PASS / 3 FAIL**; only `V02`, `V21`, and `V71` failed, each with `expected=false, actual=true` for `anon` SELECT on `my_profile`, `admin_kyc_queue`, and `my_store_profile`. Root cause: Supabase's default privileges grant `anon` SELECT on newly created public views. The migration now explicitly revokes `anon`/`PUBLIC` on those three views, and `patch_auth_hardening_view_grants_2026_10_24.sql` repaired the already-applied database. After the patch, the rerun is **147/147 PASS**, `ZZ_SUMMARY` **0 PASS**; no failures. The full result includes RLS, publication, triggers, product policies, legacy KYC policy, ledger, and all view/store checks.
+- W0 inputs now confirmed: `users` 31, `products` 19, `orders` 49 exported outside the repo; `store_profiles_seller_id_key` is unique; Supabase minimum password = 12; Confirm email off. Four demo-account passwords still need final human confirmation.
 
 **Rollback:** the user runs the down script inside a transaction; restore the W0 export if any assertion fails after apply. The down script restores the previous trigger bodies, broad grants, product policies, and legacy KYC policy; it does **not** change the Realtime publication or disable RLS. Only restore "RLS off" as an emergency, with a written risk acceptance.
 
@@ -504,6 +506,8 @@ SQL checks run in the Supabase SQL editor with `diagnostics/auth_w1_verify_2026_
 | 0.2 | 2026-10-24 | Round 1 settled (D1–D6); phase1 baseline correction; manual SQL path; JDK 17/CI; scope reconciliation queued for Round 2 |
 | 0.3 | 2026-10-24 | Round 2 + 3 settled (D7–D19); demo target 2026-10-31; password/consent/realtime scope; plan ready for go-ahead |
 | 0.4 | 2026-10-24 | W1 migration/rollback/README drafted and pglast-clean; app/web coupling implemented; W3b password+consent implemented; local gates green; W0 exit gate still blocks apply |
+| 0.5 | 2026-10-24 | W0 complete; W1 applied; live verify 144/147; anon-grant repair added to migration and patch; rerun pending |
+| 0.6 | 2026-10-24 | W1 GREEN after view-grant repair: 147/147 PASS, ZZ_SUMMARY 0; live escalation proof and two-device Realtime next |
 
 ---
 
@@ -552,7 +556,7 @@ SQL checks run in the Supabase SQL editor with `diagnostics/auth_w1_verify_2026_
 - Commit credentials, exports, or generated Windows files.
 - Change the visual design beyond the auth a11y fixes.
 
-Approved on 2026-10-24. W0 is in progress. W1's migration, rollback, verification, and app/web coupling are drafted; the next stop is user review of the migration plus the W0 exit gate (export, four accounts, min password 12, Confirm email off, store-profile preflight) before any SQL is applied.
+Approved on 2026-10-24. W0 is complete. W1 is applied and GREEN: the post-repair verification is 147/147 PASS with `ZZ_SUMMARY` 0. The next stop is the live escalation proof, then the two-device Realtime smoke test.
 
 ---
 
