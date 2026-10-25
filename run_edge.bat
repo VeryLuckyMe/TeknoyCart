@@ -1,0 +1,3 @@
+@echo off
+echo Starting TeknoyCart on Microsoft Edge with environment configuration...
+flutter run -d edge --dart-define-from-file=.env.json

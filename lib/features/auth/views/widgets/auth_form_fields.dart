@@ -164,6 +164,9 @@ class AuthInputField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onChanged;
   final bool enabled;
+  final Iterable<String>? autofillHints;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onFieldSubmitted;
 
   const AuthInputField({
     super.key,
@@ -177,6 +180,9 @@ class AuthInputField extends StatelessWidget {
     this.inputFormatters,
     this.onChanged,
     this.enabled = true,
+    this.autofillHints,
+    this.textInputAction,
+    this.onFieldSubmitted,
   });
 
   @override
@@ -187,6 +193,9 @@ class AuthInputField extends StatelessWidget {
       enabled: enabled,
       obscureText: obscureText,
       keyboardType: keyboardType,
+      autofillHints: autofillHints,
+      textInputAction: textInputAction,
+      onFieldSubmitted: onFieldSubmitted,
       validator: validator,
       inputFormatters: inputFormatters,
       onChanged: onChanged,

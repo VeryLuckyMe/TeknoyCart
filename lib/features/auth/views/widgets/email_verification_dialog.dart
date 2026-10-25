@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme.dart';
 import '../../services/auth_service.dart';
 
@@ -17,51 +16,39 @@ class EmailVerificationDialog extends StatefulWidget {
 }
 
 class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
-  static const int _totalSeconds = 300; // 5 minutes
+  static const int _totalSeconds = 900; // Backend verification links expire after 15 minutes.
+  static const int _resendCooldownSeconds = 60;
   int _secondsLeft = _totalSeconds;
+  int _resendSecondsLeft = _resendCooldownSeconds;
   bool _expired = false;
   bool _resending = false;
   bool _resent = false;
-  bool _verifiedSuccess = false;
   Timer? _timer;
-  Timer? _statusPollTimer;
+  Timer? _cooldownTimer;
 
   @override
   void initState() {
     super.initState();
     _startTimer();
-    _startStatusPoller();
+    _startResendCooldown();
   }
 
-  void _startStatusPoller() {
-    _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (t) async {
-      if (!mounted) { t.cancel(); return; }
-      try {
-        // Own verification state only. The base users table no longer grants
-        // is_verified (or email) to anon/authenticated clients.
-        final res = await Supabase.instance.client
-            .from('my_profile')
-            .select('is_verified')
-            .maybeSingle();
-
-        if (res != null && res['is_verified'] == true) {
-          t.cancel();
-          _timer?.cancel();
-          if (mounted) {
-            setState(() {
-              _verifiedSuccess = true;
-            });
-            await Future.delayed(const Duration(milliseconds: 1800));
-            if (mounted) {
-              Navigator.of(context).pop(true);
-            }
-          }
+  void _startResendCooldown() {
+    _cooldownTimer?.cancel();
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) { timer.cancel(); return; }
+      setState(() {
+        if (_resendSecondsLeft > 0) {
+          _resendSecondsLeft--;
+        } else {
+          timer.cancel();
         }
-      } catch (_) {}
+      });
     });
   }
 
   void _startTimer() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) { t.cancel(); return; }
       setState(() {
@@ -78,20 +65,11 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
   Future<void> _resendEmail() async {
     setState(() { _resending = true; _resent = false; });
     try {
-      // 1. Trigger Spring Boot campus backend SMTP verification (primary)
       final authService = AuthService();
       await authService.resendVerificationEmail(
         widget.email,
         widget.fullName ?? 'Student',
       );
-
-      // 2. Also trigger Supabase signup resend as fallback
-      try {
-        await Supabase.instance.client.auth.resend(
-          type: OtpType.signup,
-          email: widget.email,
-        );
-      } catch (_) {}
 
       if (mounted) {
         setState(() {
@@ -99,8 +77,10 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
           _resent = true;
           _expired = false;
           _secondsLeft = _totalSeconds;
+          _resendSecondsLeft = _resendCooldownSeconds;
         });
         _startTimer();
+        _startResendCooldown();
       }
     } catch (e) {
       if (mounted) {
@@ -119,7 +99,7 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
   @override
   void dispose() {
     _timer?.cancel();
-    _statusPollTimer?.cancel();
+    _cooldownTimer?.cancel();
     super.dispose();
   }
 
@@ -141,55 +121,6 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    if (_verifiedSuccess) {
-      return Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: TeknoyTheme.successDark.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check_circle_rounded,
-                  size: 54,
-                  color: TeknoyTheme.successDark,
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Verification Successful!',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: TeknoyTheme.successDark,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Your institutional email has been verified.\nRedirecting to login...',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 13,
-                  color: isDark ? Colors.white70 : Colors.black54,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -346,7 +277,7 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton.icon(
-                  onPressed: _resending ? null : _resendEmail,
+                  onPressed: _resending || _resendSecondsLeft > 0 ? null : _resendEmail,
                   icon: _resending
                       ? const SizedBox(
                           width: 16, height: 16,
@@ -356,7 +287,11 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
                         )
                       : const Icon(Icons.send_rounded, size: 18),
                   label: Text(
-                    _resending ? 'Sending...' : 'Resend Verification Email',
+                    _resending
+                        ? 'Sending...'
+                        : _resendSecondsLeft > 0
+                            ? 'Resend in ${_resendSecondsLeft}s'
+                            : 'Resend Verification Email',
                     style: const TextStyle(
                       fontFamily: 'Outfit',
                       fontSize: 15,
@@ -377,7 +312,7 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
               width: double.infinity,
               height: 50,
               child: OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () => Navigator.of(context).pop(true),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(
                     color: isDark ? Colors.white24 : Colors.black26,
@@ -385,7 +320,7 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: Text(
-                  _expired ? 'Close' : 'Got it, I\'ll check my email',
+                  'I verified — return to sign in',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 15,

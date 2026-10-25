@@ -51,6 +51,8 @@ class _AuthLoginFormState extends State<AuthLoginForm> {
           icon: Icons.email_outlined,
           enabled: !isLocked,
           keyboardType: TextInputType.emailAddress,
+          autofillHints: const [AutofillHints.username, AutofillHints.email],
+          textInputAction: TextInputAction.next,
           validator: (val) {
             if (val == null || val.trim().isEmpty) {
               return 'Please enter your email';
@@ -69,6 +71,9 @@ class _AuthLoginFormState extends State<AuthLoginForm> {
           icon: Icons.lock_outline_rounded,
           enabled: !isLocked,
           obscureText: _obscurePassword,
+          autofillHints: const [AutofillHints.password],
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => widget.onSubmit(),
           suffixIcon: IconButton(
             tooltip: _obscurePassword ? 'Show password' : 'Hide password',
             icon: Icon(

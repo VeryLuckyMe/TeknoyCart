@@ -2197,14 +2197,42 @@ class _SellTabState extends ConsumerState<SellTab> {
     }
 
     if (!authState.isSeller) {
-      return SellerKYCVerificationView(
-        userId: authState.id,
-        initialSellerType: 'STUDENT',
-        onVerificationSubmitted: () => setState(() {}),
-        onRefreshStatus: () async {
-          await ref.read(authNotifierProvider.notifier).refreshProfile();
-          if (mounted) setState(() {});
-        },
+      return Column(
+        children: [
+          if (authState.isPendingSeller)
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.16 : 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.45)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.hourglass_top_rounded, color: TeknoyTheme.citMaroon),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Seller application pending review. You can still shop while we review your details.',
+                      style: TextStyle(fontFamily: 'Inter', fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: SellerKYCVerificationView(
+              userId: authState.id,
+              initialSellerType: 'STUDENT',
+              onVerificationSubmitted: () => setState(() {}),
+              onRefreshStatus: () async {
+                await ref.read(authNotifierProvider.notifier).refreshProfile();
+                if (mounted) setState(() {});
+              },
+            ),
+          ),
+        ],
       );
     }
 

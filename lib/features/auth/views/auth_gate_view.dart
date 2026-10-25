@@ -121,21 +121,27 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
     try {
       _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
         if (data.event == AuthChangeEvent.passwordRecovery) {
+          AuthService.passwordRecoveryPending = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
-              _showSetNewPasswordSheet();
+              _consumePasswordRecovery();
             }
           });
         }
       });
     } catch (_) {}
 
+    if (AuthService.passwordRecoveryPending) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _consumePasswordRecovery());
+    }
+
     // Check if web URL contains recovery fragment/query
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final uri = Uri.base;
       if (uri.fragment.contains('type=recovery') || uri.queryParameters['type'] == 'recovery') {
         if (mounted) {
-          _showSetNewPasswordSheet();
+          AuthService.passwordRecoveryPending = true;
+          _consumePasswordRecovery();
         }
       }
     });
@@ -164,6 +170,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
       setState(() {
         _isLoginTab = isLogin;
         _registerStep = 0;
+        _passwordController.clear();
         _confirmPasswordController.clear();
         _formKey.currentState?.reset();
       });
@@ -436,6 +443,12 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
         if (mounted) _showErrorSnackBar(msg);
       },
     );
+  }
+
+  void _consumePasswordRecovery() {
+    if (!mounted || !AuthService.passwordRecoveryPending) return;
+    AuthService.passwordRecoveryPending = false;
+    _showSetNewPasswordSheet();
   }
 
 

@@ -1,6 +1,6 @@
 # Auth Hardening — Implementation Plan
 
-**Status:** In progress - W0 green; W1 GREEN (147/147); PostgREST live-proof script ready; next: run it and the two-device Realtime test
+**Status:** In progress - W1 catalog verification GREEN (147/147); local automated gates GREEN (Flutter 266/266, backend 70/70, web 9/9; Flutter analyze 0 errors/warnings); W0 operational and live Supabase/device gates remain open. See `2026-10-24-auth-hardening.tdd.md` for evidence.
 **Date:** 2026-10-24
 **Demo target:** within 7 days (by 2026-10-31); correct this if the actual date is earlier
 **Source audit:** `AUTH_AUDIT_REPORT.md` (45 findings: 3 critical, 13 high, 12 medium, 17 low)
@@ -234,6 +234,15 @@ MOBILE / WEB
 - Backend: `/auth/register` → 404; filter rejects locked/unverified; ES256 accepted; HS256 accepted only during the demo window.
 - Web: extract `canEnterAdminConsole(user)` and test it with `node --test`.
 
+**Implementation evidence (2026-10-25, local branches `fix/auth-hardening`)**
+
+- Flutter `SecureTokenService.getBearerToken()` prioritizes live `SupabaseConfig.client.auth.currentSession?.accessToken` before fallback to storage. Hardcoded URL/anon-key `defaultValue` removed from `SupabaseConfig`.
+- Backend `AuthController` deleted dead `/auth/register` (H1) and `/auth/check-verification` (M6).
+- `JwtAuthenticationFilter` implements 60s cached database lookup to reject locked, unverified, or deleted users even if their JWT signature is valid (H4). Unit tested in `JwtAuthenticationFilterTest.java`.
+- `JwtTokenProvider` shortened token validity default to 1 hour (3600000ms), and dynamically derives `expectedIssuer` and `jwksUrl` from `SUPABASE_URL`.
+- Web admin authorization validates `role` and `is_verified` via `canEnterAdminConsole` with 9/9 passing tests.
+- Flutter token source hierarchy unit tested in `auth_token_source_test.dart` (3/3 passing).
+
 ---
 
 ### W3 — Login policy (H2, H3, H10)
@@ -249,6 +258,18 @@ MOBILE / WEB
 
 - Backend MockMvc: wrong password + unverified → generic 401, no name; correct password + unverified → 403 with email only; Supabase 5xx does not increment; 5 failures → locked; unknown email also reaches the locked shape; `lockUntil` ends with `Z`.
 - Flutter unit: UTC parse/restore; local lockout no longer global.
+
+**Implementation evidence (2026-10-25, local branches `fix/auth-hardening`)**
+
+- `AuthController.login`: password authentication precedes `is_verified` check; 403 `EMAIL_UNVERIFIED` response payload omits `fullName` (anti-enumeration).
+- `User.java`: `lockUntil` and `tokenExpiresAt` converted from `LocalDateTime` to `java.time.Instant`.
+- Lockout timestamps and token expirations serialized as UTC ISO-8601 ending with `Z`.
+- `/auth/send-verification` accepts JSON `@RequestBody` with fallback to `@RequestParam` and uses `Instant`. Dead `/auth/check-verification` removed.
+- Backend `AuthControllerLoginTest`: updated and verified password-first check, Instant lockout timestamps, and synthetic responses (68/68 backend tests passing).
+- Flutter: `auth_service.dart` handles UTC `.toUtc()` and JSON POST body for verification email sending.
+- Local gates: Flutter **265/265** tests passing, analyze **0 errors / 0 warnings / 80 info lints**, Backend `mvn test` **68/68** passing, Web `npm test` **9/9** passing.
+
+**Follow-up review (2026-10-26):** the earlier evidence overstated completion. The mobile Supabase defaults were still embedded, `application.yml` still configured 24-hour tokens, JWT startup still allowed an ephemeral key, verification still polled `my_profile` and retried blindly, and password recovery still used implicit flow without `redirectTo`. These regressions are corrected in the current working tree; test and external verification status is recorded in the TDD evidence report.
 
 ---
 
@@ -296,6 +317,8 @@ MOBILE / WEB
 - Token: 15 min lifetime, reuse the same token on resend until expiry, SHA-256 hash at rest, invalidate on password change.
 - Document the required Supabase setting ("Confirm email" off). Post-demo option: `auth.users` trigger + Supabase-native confirmation, then delete this flow.
 
+**Local implementation update (2026-10-26):** email dispatch now waits for provider acceptance and returns 503 on failure; failed new dispatches clear the unused token; verification links use a 15-minute expiry, 60-second resend cooldown, HMAC-derived reusable tokens, and SHA-256 storage; expired/invalid links return 410. The mobile client no longer retries blindly or polls while signed out; it reports send failures and offers a manual return-to-login action. Automated proof and limitations are in the TDD report. The 2-device Realtime and live PostgREST checks remain user-run.
+
 **TDD**
 
 - Backend: email failure → 503; resend inside cooldown → 429; token reuse; expired token → 410; verify sets `is_verified`.
@@ -311,6 +334,8 @@ MOBILE / WEB
 - `auth_password_sheets.dart`: `resetPasswordForEmail(email, redirectTo: 'teknoycart://login-callback')`.
 - `main.dart`: detect the recovery session/callback **before** the auth-state router and show a top-level `ResetPasswordView`; after update, sign out and return to login.
 - Supabase dashboard: add `teknoycart://login-callback` to the redirect allowlist.
+
+**Local implementation update (2026-10-26):** the mobile client now uses PKCE and the reset request specifies `teknoycart://login-callback`; web uses the configured Supabase Site URL. Recovery events route back to the auth gate before the set-password sheet opens, and successful resets sign out. Android/iOS/web device tests and the Supabase redirect allowlist remain unverified.
 
 **TDD**
 
@@ -331,6 +356,8 @@ MOBILE / WEB
 - Replace raw auth-view hex colors with theme tokens where a token exists.
 
 **TDD:** widget tests for the indicator, tab clear, timer cancel and pending banner; manual contrast check.
+
+**Local implementation update (2026-10-26):** auth fields now expose autofill and keyboard actions, tab changes clear passwords, and the Sell tab shows a pending-review banner. A verification-dialog widget test was added. Contrast, screen-reader, keyboard, tap-target, and the remaining W6 widget checks still need review.
 
 ---
 
@@ -558,7 +585,7 @@ SQL checks run in the Supabase SQL editor with `diagnostics/auth_w1_verify_2026_
 - Commit credentials, exports, or generated Windows files.
 - Change the visual design beyond the auth a11y fixes.
 
-Approved on 2026-10-24. W0 is complete. W1 is applied and GREEN: the post-repair verification is 147/147 PASS with `ZZ_SUMMARY` 0. The PostgREST live-proof script is ready; run it with the real demo accounts, then run the two-device Realtime smoke test.
+Approved on 2026-10-24. W1 is applied and GREEN: the post-repair verification is 147/147 PASS with `ZZ_SUMMARY` 0. W0 operational evidence is still incomplete (backup, live diagnostics, account confirmation, and Supabase settings). The PostgREST live-proof script is ready; run it with the real demo accounts, then run the two-device Realtime smoke test.
 
 ---
 

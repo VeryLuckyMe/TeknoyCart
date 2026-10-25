@@ -120,12 +120,16 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
               controller: widget.firstNameController,
               label: 'First Name',
               icon: Icons.person_outline_rounded,
+              autofillHints: const [AutofillHints.givenName],
+              textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 16),
             AuthInputField(
               controller: widget.lastNameController,
               label: 'Last Name',
               icon: Icons.person_outline_rounded,
+              autofillHints: const [AutofillHints.familyName],
+              textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 20),
           ],
@@ -596,6 +600,8 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
             label: 'Password',
             icon: Icons.lock_outline_rounded,
             obscureText: _obscurePassword,
+            autofillHints: const [AutofillHints.newPassword],
+            textInputAction: TextInputAction.next,
             suffixIcon: IconButton(
               tooltip: _obscurePassword ? 'Show password' : 'Hide password',
               icon: Icon(
@@ -651,6 +657,9 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
             label: 'Confirm Password',
             icon: Icons.lock_clock_outlined,
             obscureText: _obscureConfirmPassword,
+            autofillHints: const [AutofillHints.newPassword],
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => widget.onSubmit(),
             suffixIcon: IconButton(
               tooltip: _obscureConfirmPassword ? 'Show password' : 'Hide password',
               icon: Icon(
