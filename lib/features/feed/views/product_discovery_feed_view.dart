@@ -167,11 +167,11 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                 ElevatedButton(
                   onPressed: () async {
                     final newPass = passCtrl.text.trim();
-                    if (newPass.length < 6) {
+                    if (newPass.length < 12) {
                       HapticFeedback.mediumImpact();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Password must be at least 6 characters.'),
+                          content: Text('Password must be at least 12 characters.'),
                         ),
                       );
                       return;

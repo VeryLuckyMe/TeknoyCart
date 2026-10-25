@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme.dart';
 
@@ -72,7 +73,10 @@ class AuthPasswordSheets {
                     if (email.isEmpty) return;
                     Navigator.pop(ctx);
                     try {
-                      await Supabase.instance.client.auth.resetPasswordForEmail(email);
+                      await Supabase.instance.client.auth.resetPasswordForEmail(
+                        email,
+                        redirectTo: kIsWeb ? null : 'teknoycart://login-callback',
+                      );
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Password reset instructions sent to your email.')),
@@ -203,10 +207,10 @@ class AuthPasswordSheets {
                       onPressed: () async {
                         final pass = newPasswordCtrl.text;
                         final confirm = confirmPasswordCtrl.text;
-                        if (pass.length < 6) {
+                        if (pass.length < 12) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Password must be at least 6 characters.'),
+                              content: Text('Password must be at least 12 characters.'),
                               backgroundColor: Colors.red,
                             ),
                           );
@@ -227,6 +231,7 @@ class AuthPasswordSheets {
                           await Supabase.instance.client.auth.updateUser(
                             UserAttributes(password: pass),
                           );
+                          await Supabase.instance.client.auth.signOut();
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(

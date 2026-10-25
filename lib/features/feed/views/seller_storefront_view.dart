@@ -52,9 +52,9 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
           .eq('seller_id', widget.sellerId)
           .maybeSingle();
 
-      // 2. Fetch full_name from users table
+      // 2. Fetch the public owner name (anon-safe view, no PII)
       final userRecord = await client
-          .from('users')
+          .from('public_profiles')
           .select('full_name')
           .eq('user_id', widget.sellerId)
           .maybeSingle();

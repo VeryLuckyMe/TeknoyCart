@@ -40,5 +40,7 @@ CREATE TABLE IF NOT EXISTS order_returns (
 CREATE INDEX IF NOT EXISTS idx_order_returns_order ON order_returns(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_returns_user ON order_returns(requested_by);
 
--- 4. Disable RLS for developer testing convenience
-ALTER TABLE public.order_returns DISABLE ROW LEVEL SECURITY;
+-- 4. RLS is intentionally NOT disabled here.
+--    Row Level Security is enabled with buyer/seller scoped policies in:
+--    TeknoyCart_Backend/migration_secure_checkout.sql
+--    Apply that migration to the live database before using this table in production.

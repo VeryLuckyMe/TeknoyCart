@@ -16,14 +16,21 @@ void main() async {
   // Ensure Flutter engine is ready before calling any platform plugins
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Supabase connection
-  await SupabaseConfig.initialize();
+  try {
+    // Initialize Supabase connection
+    await SupabaseConfig.initialize();
 
-  runApp(
-    const ProviderScope(
-      child: TeknoyCartApp(),
-    ),
-  );
+    runApp(
+      const ProviderScope(
+        child: TeknoyCartApp(),
+      ),
+    );
+  } catch (error, stackTrace) {
+    debugPrint('STARTUP_ERROR: $error\n$stackTrace');
+    runApp(
+      TeknoyStartupErrorApp(error: error),
+    );
+  }
 }
 
 // Global navigator key for post-splash auth state routing
@@ -142,6 +149,135 @@ class _InactivityWrapperState extends State<InactivityWrapper> {
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) => _resetTimer(),
       child: widget.child,
+    );
+  }
+}
+
+/// Fallback presentation when compile-time flags or initialization fails.
+/// Prevents the silent blank white screen on Flutter Web and provides actionable run commands.
+class TeknoyStartupErrorApp extends StatelessWidget {
+  final Object error;
+
+  const TeknoyStartupErrorApp({super.key, required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'TeknoyCart - Configuration Required',
+      theme: TeknoyTheme.darkTheme,
+      home: Scaffold(
+        backgroundColor: const Color(0xFF0D0D0F),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 540),
+              child: Container(
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1E),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: TeknoyTheme.citMaroon.withValues(alpha: 0.2),
+                      blurRadius: 30,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: TeknoyTheme.citMaroon.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.warning_amber_rounded,
+                            color: TeknoyTheme.citGold,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Text(
+                            'Configuration Required',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      error.toString(),
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 13,
+                        color: Color(0xFFD1D1D6),
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'How to run TeknoyCart:',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF121214),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF2C2C2E)),
+                      ),
+                      child: const SelectableText(
+                        'flutter run -d edge --dart-define-from-file=.env.json',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                          color: TeknoyTheme.citGold,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Or in VS Code:\n1. Open Run & Debug (Ctrl+Shift+D)\n2. Select "TeknoyCart - Edge"\n3. Press F5',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 13,
+                        color: Color(0xFF8E8E93),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

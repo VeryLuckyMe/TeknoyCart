@@ -43,8 +43,19 @@ class SecureTokenService {
   }
 
   /// Retrieves the active bearer token for backend requests.
-  /// Prefers Spring Boot backend token, then secure storage access token, falls back to Supabase session.
+  /// Prefers active Supabase session (live token, auto-refreshed by SDK), then falls back to secure storage.
   static Future<String?> getBearerToken() async {
+    // 1. Primary: live Supabase session (auto-refreshed by Supabase SDK)
+    try {
+      final sessionToken = SupabaseConfig.client.auth.currentSession?.accessToken;
+      if (sessionToken != null && sessionToken.isNotEmpty) {
+        return sessionToken;
+      }
+    } catch (e) {
+      debugPrint('SECURE_TOKEN_SESSION_READ: $e');
+    }
+
+    // 2. Fallback: stored backend JWT or access token from secure storage
     try {
       final backendToken = await _storage.read(key: _keyBackendToken);
       if (backendToken != null && backendToken.isNotEmpty) {
@@ -54,10 +65,11 @@ class SecureTokenService {
       if (token != null && token.isNotEmpty) {
         return token;
       }
-    } catch (e) { debugPrint('SECURE_TOKEN_READ: $e'); }
+    } catch (e) {
+      debugPrint('SECURE_TOKEN_READ: $e');
+    }
 
-    // Fallback to active Supabase session if secure storage read fails
-    return SupabaseConfig.client.auth.currentSession?.accessToken;
+    return null;
   }
 
   /// Retrieves the stored refresh token.

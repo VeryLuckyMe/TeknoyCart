@@ -1,4 +1,12 @@
 -- =============================================================
+-- ARCHIVED / SUPERSEDED - DO NOT RE-RUN
+--
+-- The live publication already contains public.chats and
+-- public.messages, and RLS is already enabled. W0 B02/V50-V52 are
+-- GREEN. This script's "disable RLS" section is unsafe and is
+-- retained only as historical evidence. Use
+-- migration_auth_hardening_2026_10_24.sql for the current state.
+-- =============================================================
 -- TeknoyCart: Enable Realtime & Disable RLS for Messaging
 -- Target Platform: Supabase / PostgreSQL
 -- Run this directly in the Supabase SQL Editor (FR-15, NFR-03)

@@ -115,7 +115,11 @@ class _MockHttpClientResponse extends Stream<List<int>> implements HttpClientRes
   List<int> get _bodyBytes {
     if (!_isSupabase) return _dummyGif;
     final body = overrides.supabaseBody;
-    return body != null ? utf8.encode(body) : _dummyJson;
+    if (body != null) return utf8.encode(body);
+    if (url.path.contains('place_orders_atomic')) {
+      return utf8.encode('{"success": true, "orders": [{"line_index": 0, "order_id": "mock-order-123"}]}');
+    }
+    return _dummyJson;
   }
 
   @override

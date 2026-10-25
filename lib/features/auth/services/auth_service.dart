@@ -12,6 +12,13 @@ import 'package:http/http.dart' as http;
 /// Authentication service backed by Supabase Auth.
 /// Enforces @cit.edu / @cit.edu institutional email restriction.
 class AuthService {
+  /// Demo password policy: 12+ characters, no composition rules (D17).
+  static const int minPasswordLength = 12;
+  static bool passwordRecoveryPending = false;
+
+  static bool isValidPasswordLength(String password) =>
+      password.length >= minPasswordLength;
+
   // Lazy getter — avoids accessing SupabaseConfig.client before initialization
   SupabaseClient get _client => SupabaseConfig.client;
 
@@ -23,6 +30,10 @@ class AuthService {
   Stream<Profile?> get authStateChanges {
     return _client.auth.onAuthStateChange.map((event) {
       if (isRegistering) return null;
+      if (event.event == AuthChangeEvent.passwordRecovery) {
+        passwordRecoveryPending = true;
+        return null;
+      }
       final user = event.session?.user;
       return user != null ? _userToProfile(user) : null;
     });
@@ -41,7 +52,8 @@ class AuthService {
           (user.email?.split('@').first ?? 'student'),
       email: user.email ?? '',
       role: (user.userMetadata?['role'] as String?) ?? 'BUYER',
-      isSellerVerified: (user.userMetadata?['is_seller_verified'] as bool?) ?? false,
+      isSellerVerified:
+          (user.userMetadata?['is_seller_verified'] as bool?) ?? false,
       avatarUrl: user.userMetadata?['avatar_url'] as String?,
       department: user.userMetadata?['department'] as String?,
       contact: user.userMetadata?['contact'] as String?,
@@ -55,17 +67,22 @@ class AuthService {
   /// Prevents stale role/verification states when auth.users.raw_user_meta_data is out of sync.
   Future<Profile> getEnrichedProfile(Profile profile) async {
     try {
+      // Own PII is exposed only through the owner-run my_profile view. The
+      // base users table grants only public columns to authenticated clients.
       final res = await _client
-          .from('users')
-          .select('full_name, role, is_seller_verified, student_id, contact, gcash_number')
-          .eq('user_id', profile.id)
+          .from('my_profile')
+          .select(
+              'full_name, role, is_seller_verified, student_id, contact, gcash_number')
           .maybeSingle();
       if (res != null) {
         final meta = _client.auth.currentUser?.userMetadata;
         final dept = (meta?['department'] as String?) ?? profile.department;
-        final avatar = (meta?['avatar_url'] as String?) ?? (meta?['avatarUrl'] as String?) ?? profile.avatarUrl;
+        final avatar = (meta?['avatar_url'] as String?) ??
+            (meta?['avatarUrl'] as String?) ??
+            profile.avatarUrl;
 
-        bool isVerified = (res['is_seller_verified'] as bool?) ?? profile.isSellerVerified;
+        bool isVerified =
+            (res['is_seller_verified'] as bool?) ?? profile.isSellerVerified;
         String userRole = res['role'] as String? ?? profile.role;
 
         // Check latest seller_verifications status to ensure instant sync upon admin approval
@@ -96,7 +113,9 @@ class AuthService {
           avatarUrl: avatar,
         );
       }
-    } catch (e) { debugPrint('AUTH_ENRICH_PROFILE: $e'); }
+    } catch (e) {
+      debugPrint('AUTH_ENRICH_PROFILE: $e');
+    }
     return profile;
   }
 
@@ -128,22 +147,27 @@ class AuthService {
     http.Response response;
 
     try {
-      response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': emailTrimmed,
-          'password': password,
-        }),
-      ).timeout(const Duration(seconds: 25));
+      response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': emailTrimmed,
+              'password': password,
+            }),
+          )
+          .timeout(const Duration(seconds: 25));
     } catch (e) {
-      throw Exception('Unable to reach server. Please check your internet connection.');
+      throw Exception(
+          'Unable to reach server. Please check your internet connection.');
     }
 
     Map<String, dynamic> body = {};
     try {
       body = jsonDecode(response.body) as Map<String, dynamic>;
-    } catch (e) { debugPrint('AUTH_LOGIN_PARSE: $e'); }
+    } catch (e) {
+      debugPrint('AUTH_LOGIN_PARSE: $e');
+    }
 
     if (response.statusCode == 200) {
       // Establish Supabase session using the minted session returned by backend
@@ -162,13 +186,19 @@ class AuthService {
       if (refreshToken != null) {
         await _client.auth.setSession(refreshToken);
       }
+      if (_client.auth.currentSession == null) {
+        await SecureTokenService.clearTokens();
+        throw Exception(
+            'Failed to establish an authenticated Supabase session.');
+      }
 
       final userData = body['user'] as Map<String, dynamic>?;
       final profile = currentUser;
       if (profile != null) {
         if (userData != null) {
           final backendRole = userData['role'] as String?;
-          final backendVerified = (userData['isSellerVerified'] as bool?) ?? (userData['is_seller_verified'] as bool?);
+          final backendVerified = (userData['isSellerVerified'] as bool?) ??
+              (userData['is_seller_verified'] as bool?);
           final backendName = userData['fullName'] as String?;
           return profile.copyWith(
             username: backendName ?? profile.username,
@@ -182,10 +212,13 @@ class AuthService {
       // Fallback profile from backend response if auth state stream hasn't settled yet
       return Profile(
         id: userData?['userId'] as String? ?? '',
-        username: userData?['fullName'] as String? ?? emailTrimmed.split('@').first,
+        username:
+            userData?['fullName'] as String? ?? emailTrimmed.split('@').first,
         email: userData?['email'] as String? ?? emailTrimmed,
         role: userData?['role'] as String? ?? 'BUYER',
-        isSellerVerified: (userData?['isSellerVerified'] as bool?) ?? (userData?['is_seller_verified'] as bool?) ?? false,
+        isSellerVerified: (userData?['isSellerVerified'] as bool?) ??
+            (userData?['is_seller_verified'] as bool?) ??
+            false,
         createdAt: DateTime.now(),
       );
     }
@@ -203,9 +236,11 @@ class AuthService {
       if (errorType == 'ACCOUNT_LOCKED') {
         DateTime? lockUntil;
         if (body['lockUntil'] != null) {
-          lockUntil = DateTime.tryParse(body['lockUntil'].toString());
+          lockUntil = DateTime.tryParse(body['lockUntil'].toString())?.toUtc();
         }
-        final secs = body['remainingSeconds'] is num ? (body['remainingSeconds'] as num).toInt() : 600;
+        final secs = body['remainingSeconds'] is num
+            ? (body['remainingSeconds'] as num).toInt()
+            : 600;
         throw AccountLockoutException(
           message: errorMessage,
           isLocked: true,
@@ -218,7 +253,9 @@ class AuthService {
     }
 
     if (response.statusCode == 400) {
-      final attempts = body['attemptsRemaining'] is num ? (body['attemptsRemaining'] as num).toInt() : null;
+      final attempts = body['attemptsRemaining'] is num
+          ? (body['attemptsRemaining'] as num).toInt()
+          : null;
       if (attempts != null || errorMessage.contains('attempts remaining')) {
         throw AccountLockoutException(
           message: errorMessage,
@@ -232,7 +269,6 @@ class AuthService {
     throw Exception(errorMessage);
   }
 
-
   // ── Sign Up ──
   Future<Profile> signUp({
     required String email,
@@ -242,8 +278,8 @@ class AuthService {
     required String studentId,
     String? department,
     String? storeName,
-    String? sellerType,  // 'STUDENT' or 'ORG' (only for SELLER role)
-    String? orgContact,  // contact number for ORG sellers
+    String? sellerType, // 'STUDENT' or 'ORG' (only for SELLER role)
+    String? orgContact, // contact number for ORG sellers
   }) async {
     if (role == 'BUYER') {
       if (!isValidCituEmail(email)) {
@@ -262,8 +298,8 @@ class AuthService {
     if (username.trim().isEmpty) {
       throw const FormatException('Username cannot be empty.');
     }
-    if (password.length < 6) {
-      throw const FormatException('Password must be at least 6 characters.');
+    if (!isValidPasswordLength(password)) {
+      throw const FormatException('Password must be at least 12 characters.');
     }
 
     final isOrgSeller = role == 'SELLER' && sellerType == 'ORG';
@@ -273,17 +309,18 @@ class AuthService {
       final studentIdTrimmed = studentId.trim();
       final studentIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
       if (!studentIdRegex.hasMatch(studentIdTrimmed)) {
-        throw const FormatException('Student ID must follow the format ##-####-###.');
+        throw const FormatException(
+            'Student ID must follow the format ##-####-###.');
       }
 
-      // Check if the Student ID is already registered in the DB
-      final existingUser = await _client
-          .from('users')
-          .select('user_id')
-          .eq('student_id', studentIdTrimmed)
-          .maybeSingle();
+      // The base users table no longer exposes student_id to anon. Ask the
+      // SECURITY DEFINER RPC for a boolean without leaking another student's row.
+      final available = await _client.rpc(
+        'is_student_id_available',
+        params: {'p_student_id': studentIdTrimmed},
+      );
 
-      if (existingUser != null) {
+      if (available != true) {
         throw const FormatException('This Student ID is already registered.');
       }
     }
@@ -306,35 +343,56 @@ class AuthService {
       if (user == null) {
         throw Exception('Registration failed. Please try again.');
       }
-
-      // Insert into users table for RBAC tracking
-      await _client.from('users').upsert({
-        'user_id': user.id,
-        'full_name': username.trim(),
-        'email': email.trim(),
-        'password_hash': 'SUPABASE_AUTH_MANAGED',
-        'role': role,
-        'is_verified': false, // Force Outlook email verification for all roles (FR-01)
-        'student_id': isOrgSeller ? null : studentId.trim(),
-        if (sellerType != null) 'seller_type': sellerType,
-      });
-
-      if (role == 'SELLER' && storeName != null && storeName.trim().isNotEmpty) {
-        await _client.from('store_profiles').upsert({
-          'seller_id': user.id,
-          'store_name': storeName.trim(),
-          if (isOrgSeller && orgContact != null && orgContact.trim().isNotEmpty)
-            'contact_number': orgContact.trim(),
-        });
+      if (response.session == null) {
+        throw Exception(
+          'Supabase email confirmation is enabled, but this app uses the '
+          'backend SMTP verification flow. Disable Supabase email confirmation '
+          'and try again.',
+        );
       }
 
-      // Trigger Spring Boot backend SMTP verification with retry
-      await _sendVerificationEmailWithRetry(email, username);
+      // The INSERT trigger owns email, password_hash, verification flags and
+      // lockout state. Clients may only submit the public signup columns, and
+      // ignoreDuplicates avoids the UPDATE guard when the row already exists.
+      await _client.from('users').upsert(
+        {
+          'user_id': user.id,
+          'full_name': username.trim(),
+          'role': role,
+          'student_id': isOrgSeller ? null : studentId.trim(),
+          if (sellerType != null) 'seller_type': sellerType,
+        },
+        ignoreDuplicates: true,
+      );
+
+      if (role == 'SELLER' &&
+          storeName != null &&
+          storeName.trim().isNotEmpty) {
+        await _client.from('store_profiles').upsert(
+          {
+            'seller_id': user.id,
+            'store_name': storeName.trim(),
+            if (isOrgSeller &&
+                orgContact != null &&
+                orgContact.trim().isNotEmpty)
+              'contact_number': orgContact.trim(),
+          },
+          onConflict: 'seller_id',
+        );
+      }
+
+      await sendVerificationEmail(email, username);
 
       // Instantly sign out to clear the session locally, since we're still in registration mode
       await _client.auth.signOut();
 
       return _userToProfile(user);
+    } catch (_) {
+      // A failed profile/email step must not leave the temporary signup session active.
+      try {
+        await _client.auth.signOut();
+      } catch (_) {}
+      rethrow;
     } finally {
       isRegistering = false;
     }
@@ -350,33 +408,22 @@ class AuthService {
   }
 
   Future<void> resendVerificationEmail(String email, String fullName) async {
-    await _sendVerificationEmailWithRetry(email, fullName);
+    await sendVerificationEmail(email, fullName);
   }
 
-  Future<void> _sendVerificationEmailWithRetry(String email, String fullName) async {
-    final url = Uri.parse('${ApiConfig.authUrl}/send-verification')
-        .replace(queryParameters: {
-          'email': email.trim(),
-          'fullName': fullName.trim(),
-        });
-
-    int attempts = 0;
-    while (attempts < 3) {
-      attempts++;
-      try {
-        final httpResponse = await http.post(url).timeout(const Duration(seconds: 15));
-        if (httpResponse.statusCode == 200) {
-          debugPrint('SMTP Verification email triggered successfully on attempt $attempts');
-          return;
-        } else {
-          debugPrint('SMTP Trigger returned status code: ${httpResponse.statusCode}, attempt $attempts');
-        }
-      } catch (e) {
-        debugPrint('Attempt $attempts: Failed to reach Spring Boot backend SMTP trigger ($e)');
-      }
-      if (attempts < 3) {
-        await Future.delayed(const Duration(seconds: 2));
-      }
+  Future<void> sendVerificationEmail(String email, String fullName) async {
+    final url = Uri.parse('${ApiConfig.authUrl}/send-verification');
+    final httpResponse = await http
+        .post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body:
+              jsonEncode({'email': email.trim(), 'fullName': fullName.trim()}),
+        )
+        .timeout(const Duration(seconds: 15));
+    if (httpResponse.statusCode != 200) {
+      throw Exception(
+          'Verification email could not be sent (HTTP ${httpResponse.statusCode}). Please try again later.');
     }
   }
 

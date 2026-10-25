@@ -58,6 +58,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   final Map<String, bool> _itemReservationMap = {};
   // FIX #1: Track resolved variant IDs per product to avoid re-querying on submit.
   final Map<String, String> _resolvedVariantIds = {};
+  final Map<String, double> _variantAdditionalPrices = {};
   bool _isLoadingInventory = true;
 
   bool get _isSingleProductCheckout => widget.isDirectBuy || widget.product != null;
@@ -82,8 +83,12 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       _itemReservationMap.values.any((isReserved) => isReserved);
 
   double get _totalPrice {
-    return _checkoutItems.fold<double>(0.0, (sum, item) => sum + (item.price * item.quantity));
+    return _checkoutItems.fold<double>(0.0, (sum, item) =>
+        sum + ((_unitPrice(item)) * item.quantity));
   }
+
+  double _unitPrice(CheckoutItem item) =>
+      item.price + (widget.agreedPrice == null ? (_variantAdditionalPrices[item.product.id] ?? 0) : 0);
 
   final List<CampusLandmark> _landmarks = const [
     CampusLandmark(
@@ -177,6 +182,13 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
           if (variantId != null) {
             _resolvedVariantIds[item.product.id] = variantId;
+            final variant = await client
+                .from('product_variants')
+                .select('additional_price')
+                .eq('variant_id', variantId)
+                .maybeSingle();
+            _variantAdditionalPrices[item.product.id] =
+                (variant?['additional_price'] as num?)?.toDouble() ?? 0;
           }
 
           Map<String, dynamic>? inventoryRecord;
@@ -224,200 +236,161 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     final authState = ref.read(authStateProvider).valueOrNull;
     final buyerId = authState?.id;
 
-    if (buyerId != null) {
-      try {
-        final client = SupabaseConfig.client;
+    if (buyerId == null) {
+      setState(() => _isSubmitting = false);
+      return;
+    }
 
-        for (final item in _checkoutItems) {
-          String? itemVariantId = _resolvedVariantIds[item.product.id] ?? item.variantId;
+    try {
+      final client = SupabaseConfig.client;
+      final String dbPaymentMethod =
+          _selectedPaymentMethod == 'GCash' ? 'GCASH' : 'CASH_ON_PICKUP';
 
-          // If still unresolved or invalid, resolve via multi-stage search & auto-heal
-          if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
-            try {
-              if (item.variantName != null && item.variantName!.isNotEmpty) {
-                final variants = await client
-                    .from('product_variants')
-                    .select('variant_id')
-                    .eq('product_id', item.product.id)
-                    .eq('variant_value', item.variantName!)
-                    .limit(1);
-                if ((variants as List).isNotEmpty && variants[0]['variant_id'] != null) {
-                  itemVariantId = variants[0]['variant_id'] as String;
-                }
-              }
+      final orderLines = <Map<String, dynamic>>[];
+      final resolvedVariantIds = <String>[];
+      for (final item in _checkoutItems) {
+        // ----------------------------------------------------------------
+        // Stage 1: Resolve variant ID (multi-stage auto-heal, Ponytail C-4)
+        // ----------------------------------------------------------------
+        String? itemVariantId = _resolvedVariantIds[item.product.id] ?? item.variantId;
 
-              if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
-                final anyVariants = await client
-                    .from('product_variants')
-                    .select('variant_id')
-                    .eq('product_id', item.product.id)
-                    .limit(1);
-                if ((anyVariants as List).isNotEmpty && anyVariants[0]['variant_id'] != null) {
-                  itemVariantId = anyVariants[0]['variant_id'] as String;
-                }
-              }
-
-              // Stage 3: No variant exists in DB — listing is not properly set up.
-              // Do NOT auto-create inventory on behalf of the seller (Ponytail Audit C-4).
-              if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
-                debugPrint('CHECKOUT_SUBMIT: No variant found for product ${item.product.id}. Listing inventory is not configured.');
-                // Fall through to the null-check below which will abort checkout with a user-visible error.
-              }
-            } catch (vErr) {
-              debugPrint("Variant fallback in submitCheckout: $vErr");
-            }
-          }
-
-          if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
-            if (mounted) {
-              setState(() => _isSubmitting = false);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '"${item.product.title}" is not yet set up for purchase — '
-                    'the seller has not configured its inventory. '
-                    'Try messaging the seller via chat.',
-                  ),
-                  backgroundColor: TeknoyTheme.error,
-                  duration: const Duration(seconds: 5),
-                ),
-              );
-            }
-            return;
-          }
-
-
-          // Find or create matching inquiry row.
-          final existingInquiries = await client
-              .from('inquiries')
-              .select('inquiry_id')
-              .eq('buyer_id', buyerId)
-              .eq('product_id', item.product.id)
-              .limit(1);
-
-          String inquiryId;
-          if ((existingInquiries as List).isNotEmpty) {
-            inquiryId = existingInquiries[0]['inquiry_id'] as String;
-          } else {
-            final insertedInquiry = await client.from('inquiries').insert({
-              'buyer_id': buyerId,
-              'product_id': item.product.id,
-              'variant_id': itemVariantId,
-              'quantity': item.quantity,
-              'inquiry_type': 'AVAILABILITY',
-              'message': 'Initiated checkout for ${item.product.title}',
-            }).select().single();
-            inquiryId = insertedInquiry['inquiry_id'] as String;
-          }
-
-          // FIX #3: DB enum uses 'CASH_ON_PICKUP' and 'GCASH'.
-          final String dbPaymentMethod =
-              _selectedPaymentMethod == 'GCash' ? 'GCASH' : 'CASH_ON_PICKUP';
-
-          // ATOMIC DB-LEVEL INVENTORY LOCK (Prevents race conditions / double-booking)
-          if (itemVariantId.isNotEmpty) {
-            try {
-              final rpcRes = await client.rpc('reserve_inventory_atomic', params: {
-                'p_variant_id': itemVariantId,
-                'p_quantity': item.quantity,
-                'p_allow_preorder': widget.isPreorder || item.product.isPreorderEnabled,
-              });
-              if (rpcRes is Map && rpcRes['success'] == false) {
-                final err = rpcRes['error']?.toString();
-                String errorMsg = 'Failed to reserve stock.';
-                if (err == 'INSUFFICIENT_STOCK') {
-                  errorMsg = 'Sorry, "${item.product.title}" was just claimed by another student!';
-                } else if (err == 'PRODUCT_NOT_ACTIVE') {
-                  errorMsg = 'This listing is no longer active.';
-                } else if (err == 'CANNOT_RESERVE_OWN_PRODUCT') {
-                  errorMsg = 'You cannot purchase your own product listing.';
-                }
-                if (mounted) {
-                  setState(() => _isSubmitting = false);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(errorMsg), backgroundColor: TeknoyTheme.error),
-                  );
-                }
-                return;
-              }
-            } catch (rpcErr) {
-              debugPrint("RPC reserve_inventory_atomic fallback: $rpcErr");
-            }
-          }
-
-          // Insert into orders with explicit is_preorder snapshot and safe expiration
-          await client.from('orders').insert({
-            'inquiry_id': inquiryId,
-            'buyer_id': buyerId,
-            'seller_id': item.product.sellerId,
-            'variant_id': itemVariantId,
-            'quantity': item.quantity,
-            'unit_price': item.price,
-            'total_amount': item.price * item.quantity,
-            'status': 'PLACED',
-            'version': 0,
-            'pickup_location': widget.isPreorder ? '[PRE-ORDER] $_selectedLocation' : _selectedLocation,
-            'pickup_day': widget.isPreorder ? 'When Batch Ready (Est. 3-7 Days)' : _selectedDay,
-            'pickup_time': _selectedTimeSlot,
-            'payment_method': dbPaymentMethod,
-            'is_preorder': widget.isPreorder,
-            'reservation_expires_at': widget.isPreorder ? null : DateTime.now().add(const Duration(hours: 24)).toIso8601String(),
-          });
-
-          // Send handshake message to chat room (ensuring chat room exists)
+        if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
           try {
-            final chatService = ref.read(chatServiceProvider);
-            final activeRoomId = widget.roomId ?? await chatService.getOrCreateChatRoom(
-              buyerId: buyerId,
-              sellerId: item.product.sellerId,
-              productId: item.product.id,
-            );
-
-            final handshakeMessage = widget.isPreorder
-                ? '📦 [PRE-ORDER PLACED]\nHello! I placed a pre-order for ${item.product.title} (Qty: ${item.quantity}).\nEstimated lead time: 3-7 business days.\nPreferred campus availability: $_selectedTimeSlot at $_selectedLocation.\nPlease message me here once the batch arrives on campus!'
-                : (widget.agreedPrice != null
-                    ? '🤝 Handshake Deal Confirmed! Agreed Tawad Price: ₱${item.price.toStringAsFixed(2)}. Meetup requested for $_selectedDay ($_selectedTimeSlot) at $_selectedLocation.'
-                    : '🤝 Handshake Deal Confirmed! Meetup requested for $_selectedDay ($_selectedTimeSlot) at $_selectedLocation.');
-
-            await ref.read(chatControllerProvider.notifier).postMessage(
-              senderId: buyerId,
-              receiverId: item.product.sellerId,
-              content: handshakeMessage,
-              roomId: activeRoomId,
-              product: item.product,
-            );
-          } catch (e) {
-            debugPrint("CHAT_CHECKOUT_MESSAGE_POST_ERROR: $e");
-          }
-
-          // Remove from cart if not single product direct/negotiated buy (Ponytail Audit M6)
-          if (!_isSingleProductCheckout) {
-            final effectiveVariantId = itemVariantId;
-            ref.read(cartProvider.notifier).removeFromCart(item.product.id, effectiveVariantId);
-            if (item.variantId != null && item.variantId != effectiveVariantId) {
-              ref.read(cartProvider.notifier).removeFromCart(item.product.id, item.variantId);
+            if (item.variantName != null && item.variantName!.isNotEmpty) {
+              final variants = await client
+                  .from('product_variants')
+                  .select('variant_id')
+                  .eq('product_id', item.product.id)
+                  .eq('variant_value', item.variantName!)
+                  .limit(1);
+              if ((variants as List).isNotEmpty && variants[0]['variant_id'] != null) {
+                itemVariantId = variants[0]['variant_id'] as String;
+              }
             }
+
+            if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
+              final anyVariants = await client
+                  .from('product_variants')
+                  .select('variant_id')
+                  .eq('product_id', item.product.id)
+                  .limit(1);
+              if ((anyVariants as List).isNotEmpty && anyVariants[0]['variant_id'] != null) {
+                itemVariantId = anyVariants[0]['variant_id'] as String;
+              }
+            }
+          } catch (vErr) {
+            debugPrint('CHECKOUT_VARIANT_RESOLVE_ERROR: $vErr');
           }
         }
 
-        if (mounted) {
-          setState(() => _isSubmitting = false);
-          _showSuccessDialog();
+        if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
+          if (mounted) {
+            setState(() => _isSubmitting = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '"${item.product.title}" is not yet set up for purchase — '
+                  'the seller has not configured its inventory. '
+                  'Try messaging the seller via chat.',
+                ),
+                backgroundColor: TeknoyTheme.error,
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          }
+          return; // Hard abort — no items processed yet at this point in the loop
         }
-      } catch (e) {
-        debugPrint("CHECKOUT_SUBMIT_ERROR: $e");
-        if (mounted) {
-          setState(() => _isSubmitting = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Checkout failed: $e'),
-              backgroundColor: TeknoyTheme.error,
-            ),
+
+        orderLines.add({
+          'product_id': item.product.id,
+          'variant_id': itemVariantId,
+          'quantity': item.quantity,
+          'unit_price': _unitPrice(item),
+          'pickup_location': widget.isPreorder ? '[PRE-ORDER] $_selectedLocation' : _selectedLocation,
+          'pickup_day': widget.isPreorder ? 'When Batch Ready (Est. 3-7 Days)' : _selectedDay,
+          'pickup_time': _selectedTimeSlot,
+          'is_preorder': widget.isPreorder,
+        });
+        resolvedVariantIds.add(itemVariantId);
+      }
+
+      // One RPC makes every line and inventory hold in the cart one transaction.
+      final dynamic rpcResult = await client.rpc('place_orders_atomic', params: {
+        'p_lines': orderLines,
+        'p_payment_method': dbPaymentMethod,
+      });
+      if (rpcResult is! Map || rpcResult['success'] != true || rpcResult['orders'] is! List) {
+        final error = rpcResult is Map ? rpcResult['error']?.toString() : null;
+        final message = switch (error) {
+          'INSUFFICIENT_STOCK' => 'Some items are no longer available. Refresh your cart and try again.',
+          'PREORDER_NOT_ALLOWED' => 'Pre-orders are not enabled for one of these listings.',
+          'INVALID_LISTING' => 'A listing or seller is no longer available.',
+          'PRODUCT_NOT_ACTIVE' => 'A listing is no longer active.',
+          'CANNOT_PURCHASE_OWN_PRODUCT' => 'You cannot purchase your own listing.',
+          'PRICE_MISMATCH' => 'The listing price changed or this negotiated price has not been confirmed in the system. Refresh the listing and try again.',
+          _ => 'Could not place this order. Please refresh and try again.',
+        };
+        throw Exception(message);
+      }
+
+      final createdOrders = (rpcResult['orders'] as List).cast<Map>();
+      for (var i = 0; i < _checkoutItems.length; i++) {
+        final item = _checkoutItems[i];
+        final itemVariantId = resolvedVariantIds[i];
+        final order = createdOrders.firstWhere((row) => row['line_index'] == i);
+        final orderId = order['order_id']?.toString();
+        if (orderId == null) continue;
+        try {
+          final chatService = ref.read(chatServiceProvider);
+          final activeRoomId = widget.roomId ?? await chatService.getOrCreateChatRoom(
+            buyerId: buyerId,
+            sellerId: item.product.sellerId,
+            productId: item.product.id,
           );
+
+          final handshakeMessage = widget.isPreorder
+              ? '📦 [PRE-ORDER PLACED]\nHello! I placed a pre-order for ${item.product.title} (Qty: ${item.quantity}).\nEstimated lead time: 3-7 business days.\nPreferred campus availability: $_selectedTimeSlot at $_selectedLocation.\nPlease message me here once the batch arrives on campus!'
+              : (widget.agreedPrice != null
+                  ? '🤝 Handshake Deal Confirmed! Agreed Tawad Price: ₱${item.price.toStringAsFixed(2)}. Meetup requested for $_selectedDay ($_selectedTimeSlot) at $_selectedLocation.'
+                  : '🤝 Handshake Deal Confirmed! Meetup requested for $_selectedDay ($_selectedTimeSlot) at $_selectedLocation.');
+
+          await ref.read(chatControllerProvider.notifier).postMessage(
+            senderId: buyerId,
+            receiverId: item.product.sellerId,
+            content: handshakeMessage,
+            roomId: activeRoomId,
+            product: item.product,
+          );
+        } catch (chatErr) {
+          // Chat message failure is non-fatal: the order already exists in the DB.
+          debugPrint('CHAT_CHECKOUT_MESSAGE_POST_ERROR: $chatErr');
+        }
+        if (!_isSingleProductCheckout) {
+          ref.read(cartProvider.notifier).removeFromCart(item.product.id, itemVariantId);
+          if (item.variantId != null && item.variantId != itemVariantId) {
+            ref.read(cartProvider.notifier).removeFromCart(item.product.id, item.variantId);
+          }
         }
       }
-    } else {
-      setState(() => _isSubmitting = false);
+
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        _showSuccessDialog();
+      }
+    } catch (e) {
+      // Catches RPC network errors, Postgres exceptions, and unexpected throws.
+      // Because place_orders_atomic is a single DB transaction, any error here
+      // means the inventory was NOT permanently altered for the failing item.
+      debugPrint('CHECKOUT_SUBMIT_ERROR: $e');
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Checkout failed: $e'),
+            backgroundColor: TeknoyTheme.error,
+          ),
+        );
+      }
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/theme.dart';
 import 'auth_form_fields.dart';
+import 'privacy_consent_sheet.dart';
 
 /// Modular Multi-step Register Form Widget extracted from AuthGateView (HIGH-05).
 class AuthRegisterForm extends StatefulWidget {
@@ -55,6 +56,7 @@ class AuthRegisterForm extends StatefulWidget {
 class _AuthRegisterFormState extends State<AuthRegisterForm> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _acceptedTerms = false;
 
   @override
   Widget build(BuildContext context) {
@@ -118,12 +120,16 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
               controller: widget.firstNameController,
               label: 'First Name',
               icon: Icons.person_outline_rounded,
+              autofillHints: const [AutofillHints.givenName],
+              textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 16),
             AuthInputField(
               controller: widget.lastNameController,
               label: 'Last Name',
               icon: Icons.person_outline_rounded,
+              autofillHints: const [AutofillHints.familyName],
+              textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 20),
           ],
@@ -594,6 +600,8 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
             label: 'Password',
             icon: Icons.lock_outline_rounded,
             obscureText: _obscurePassword,
+            autofillHints: const [AutofillHints.newPassword],
+            textInputAction: TextInputAction.next,
             suffixIcon: IconButton(
               tooltip: _obscurePassword ? 'Show password' : 'Hide password',
               icon: Icon(
@@ -609,8 +617,8 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
               if (val == null || val.isEmpty) {
                 return 'Please enter your password';
               }
-              if (val.length < 6) {
-                return 'Password must be at least 6 characters';
+              if (val.length < 12) {
+                return 'Password must be at least 12 characters';
               }
               return null;
             },
@@ -621,21 +629,21 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
             child: Row(
               children: [
                 Icon(
-                  widget.passwordController.text.length >= 6
+                  widget.passwordController.text.length >= 12
                       ? Icons.check_circle_rounded
                       : Icons.info_outline_rounded,
                   size: 13,
-                  color: widget.passwordController.text.length >= 6
+                  color: widget.passwordController.text.length >= 12
                       ? Colors.green
                       : (isDark ? Colors.white54 : Colors.black45),
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  'Must be at least 6 characters',
+                  'Must be at least 12 characters',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 11,
-                    color: widget.passwordController.text.length >= 6
+                    color: widget.passwordController.text.length >= 12
                         ? Colors.green
                         : (isDark ? Colors.white54 : Colors.black45),
                   ),
@@ -649,6 +657,9 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
             label: 'Confirm Password',
             icon: Icons.lock_clock_outlined,
             obscureText: _obscureConfirmPassword,
+            autofillHints: const [AutofillHints.newPassword],
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => widget.onSubmit(),
             suffixIcon: IconButton(
               tooltip: _obscureConfirmPassword ? 'Show password' : 'Hide password',
               icon: Icon(
@@ -670,7 +681,54 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
               return null;
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: Checkbox(
+                  key: const Key('auth-terms-checkbox'),
+                  value: _acceptedTerms,
+                  activeColor: TeknoyTheme.citMaroon,
+                  onChanged: widget.isLoading
+                      ? null
+                      : (value) => setState(() => _acceptedTerms = value ?? false),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      'I agree to the ',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => showPrivacyConsentSheet(context),
+                      child: const Text(
+                        'Terms of Student Commerce & Privacy Notice',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: TeknoyTheme.citMaroon,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
           Row(
             children: [
               Expanded(
@@ -694,7 +752,7 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
               Expanded(
                 child: ElevatedButton(
                   key: const Key('auth-submit-btn'),
-                  onPressed: widget.isLoading ? null : widget.onSubmit,
+                  onPressed: widget.isLoading || !_acceptedTerms ? null : widget.onSubmit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: TeknoyTheme.citMaroon,
                     foregroundColor: Colors.white,

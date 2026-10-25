@@ -96,7 +96,7 @@ class PresenceService {
   static Future<bool> isUserOnline(String userId) async {
     try {
       final result = await SupabaseConfig.client
-          .from('users')
+          .from('public_profiles')
           .select('last_seen_at')
           .eq('user_id', userId)
           .maybeSingle();
