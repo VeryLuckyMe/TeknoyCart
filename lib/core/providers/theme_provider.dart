@@ -12,7 +12,10 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   static const _storageKey = 'teknoycart_theme_mode';
   final _storage = const FlutterSecureStorage();
 
-  ThemeModeNotifier() : super(ThemeMode.light) {
+  ThemeModeNotifier()
+      : super(WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark
+            ? ThemeMode.dark
+            : ThemeMode.light) {
     _loadTheme();
   }
 

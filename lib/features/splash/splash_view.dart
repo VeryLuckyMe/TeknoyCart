@@ -108,31 +108,31 @@ class _SplashViewState extends ConsumerState<SplashView>
   }
 
   void _initControllers() {
-    // 3200ms total for Steps 1–7 assembly
+    // 1500ms total for Steps 1–7 assembly (tuned for crisp, snappy motion budget)
     _assemblyController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3200),
+      duration: const Duration(milliseconds: 1500),
     );
 
-    // 850ms for Step 8: In-place settle to AuthGateView
+    // 450ms for Step 8: In-place settle to AuthGateView
     _settleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 850),
+      duration: const Duration(milliseconds: 450),
     );
 
-    // 520ms for Iris Reveal exit on logged-in path
+    // 450ms for Iris Reveal exit on logged-in path
     _exitController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 520),
+      duration: const Duration(milliseconds: 450),
     );
   }
 
   void _initAnimations() {
-    // ── Step 2: Empty Cart flashes in from left (0.05 – 0.19) ──
-    _cartSlideX = Tween<double>(begin: -1.6, end: 0.0).animate(
+    // ── Step 2: Empty Cart smoothly slides in from left (0.04 – 0.20) ──
+    _cartSlideX = Tween<double>(begin: -1.0, end: 0.0).animate(
       CurvedAnimation(
         parent: _assemblyController,
-        curve: const Interval(0.05, 0.19, curve: Curves.easeOutExpo),
+        curve: const Interval(0.04, 0.20, curve: Curves.easeOutCubic),
       ),
     );
 
@@ -268,33 +268,37 @@ class _SplashViewState extends ConsumerState<SplashView>
       return;
     }
 
-    // Run 7-step vector assembly animation (3200ms)
-    await _assemblyController.forward();
-    if (!mounted) return;
-
-    // Check user session
+    // Check user session immediately for authenticated fast-path
     final session = SupabaseConfig.client.auth.currentSession;
     final isLoggedIn = session != null;
 
     if (isLoggedIn) {
-      // ── LOGGED-IN: Iris reveal into main Discovery Feed ──
+      // ── LOGGED-IN FAST-PATH: Jump assembly to final state and execute Iris Reveal (zero waiting) ──
+      _assemblyController.value = 1.0;
+      await Future.delayed(const Duration(milliseconds: 260));
+      if (!mounted) return;
+
       final renderBox = _medallionKey.currentContext?.findRenderObject() as RenderBox?;
       if (renderBox != null && renderBox.hasSize) {
         _capturedLogoCenter = renderBox.localToGlobal(renderBox.size.center(Offset.zero));
       }
       _exitController.forward();
-      await Future.delayed(const Duration(milliseconds: 200));
+      await Future.delayed(const Duration(milliseconds: 160));
       if (!mounted || _hasNavigated) return;
       _executeIrisNavigation();
-    } else {
-      // ── LOGGED-OUT: Seamless In-Place Settle into AuthGateView ──
-      setState(() {
-        _isSettling = true;
-      });
-      await _settleController.forward();
-      if (!mounted || _hasNavigated) return;
-      _executeAuthHandover();
+      return;
     }
+
+    // ── LOGGED-OUT: Snappy 1.5s vector assembly + in-place settle into AuthGate ──
+    await _assemblyController.forward();
+    if (!mounted) return;
+
+    setState(() {
+      _isSettling = true;
+    });
+    await _settleController.forward();
+    if (!mounted || _hasNavigated) return;
+    _executeAuthHandover();
   }
 
   void _finishNavigationDirectly() {

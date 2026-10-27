@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/product.dart';
 import '../../../../core/theme.dart';
@@ -19,8 +21,36 @@ class FeedProductCard extends StatefulWidget {
   State<FeedProductCard> createState() => _FeedProductCardState();
 }
 
-class _FeedProductCardState extends State<FeedProductCard> {
+class _FeedProductCardState extends State<FeedProductCard>
+    with SingleTickerProviderStateMixin {
   bool _isFavorite = false;
+  late final AnimationController _favAnimController;
+  late final Animation<double> _favScaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _favAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
+    _favScaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.72), weight: 35),
+      TweenSequenceItem(tween: Tween(begin: 0.72, end: 1.28), weight: 45),
+      TweenSequenceItem(tween: Tween(begin: 1.28, end: 1.0), weight: 20),
+    ]).animate(
+      CurvedAnimation(
+        parent: _favAnimController,
+        curve: Curves.easeOutBack,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _favAnimController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,10 +76,18 @@ class _FeedProductCardState extends State<FeedProductCard> {
         color: isDark ? TeknoyTheme.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
-          width: 1,
+          color: isDark ? const Color(0x18FFFFFF) : TeknoyTheme.lightBorder,
+          width: isDark ? 0.8 : 1.0,
         ),
-        boxShadow: TeknoyTheme.kElevationLow,
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : TeknoyTheme.kElevationLow,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
@@ -68,16 +106,30 @@ class _FeedProductCardState extends State<FeedProductCard> {
                       child: Container(
                         color: isDark ? const Color(0xFF1C1C22) : const Color(0xFFF3F3F5),
                         child: product.imageUrl != null && product.imageUrl!.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: product.imageUrl!,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  color: isDark ? const Color(0xFF1C1C22) : const Color(0xFFF3F3F5),
-                                ),
-                                errorWidget: (context, url, error) => const Center(
-                                  child: Icon(Icons.image_not_supported_rounded, color: Colors.grey, size: 28),
-                                ),
-                              )
+                            ? (kIsWeb
+                                ? Image.network(
+                                    product.imageUrl!,
+                                    fit: BoxFit.cover,
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        color: isDark ? const Color(0xFF1C1C22) : const Color(0xFFF3F3F5),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) => const Center(
+                                      child: Icon(Icons.image_not_supported_rounded, color: Colors.grey, size: 28),
+                                    ),
+                                  )
+                                : CachedNetworkImage(
+                                    imageUrl: product.imageUrl!,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) => Container(
+                                      color: isDark ? const Color(0xFF1C1C22) : const Color(0xFFF3F3F5),
+                                    ),
+                                    errorWidget: (context, url, error) => const Center(
+                                      child: Icon(Icons.image_not_supported_rounded, color: Colors.grey, size: 28),
+                                    ),
+                                  ))
                             : const Center(
                                 child: Icon(Icons.image_rounded, color: Colors.grey, size: 28),
                               ),
@@ -115,52 +167,55 @@ class _FeedProductCardState extends State<FeedProductCard> {
                     ),
                   ),
 
-                  // Wishlist / Favorite Button (top-right) - 44dp touch target
+                  // Wishlist / Favorite Button (top-right) - 44dp touch target with spring scale bounce
                   Positioned(
                     top: 4,
                     right: 4,
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () {
+                        HapticFeedback.lightImpact();
                         setState(() => _isFavorite = !_isFavorite);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              _isFavorite
-                                  ? 'Added "${product.title}" to saved items'
-                                  : 'Removed from saved items',
-                              style: const TextStyle(fontFamily: 'Inter', fontSize: 13),
-                            ),
-                            duration: const Duration(seconds: 1),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
+                        _favAnimController.forward(from: 0.0);
                       },
                       child: Container(
                         width: 44,
                         height: 44,
                         alignment: Alignment.center,
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 8,
-                                spreadRadius: 1,
+                        child: ScaleTransition(
+                          scale: _favScaleAnimation,
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF22222A).withValues(alpha: 0.88)
+                                  : Colors.white.withValues(alpha: 0.92),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.12)
+                                    : Colors.black.withValues(alpha: 0.06),
+                                width: 0.8,
                               ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Icon(
-                              _isFavorite
-                                  ? Icons.favorite_rounded
-                                  : Icons.favorite_border_rounded,
-                              size: 16,
-                              color: TeknoyTheme.citMaroon,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.08),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Icon(
+                                _isFavorite
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                                size: 16,
+                                color: _isFavorite
+                                    ? (isDark ? const Color(0xFFFF5252) : TeknoyTheme.citMaroon)
+                                    : (isDark ? Colors.white70 : const Color(0xFF555562)),
+                              ),
                             ),
                           ),
                         ),
@@ -238,11 +293,11 @@ class _FeedProductCardState extends State<FeedProductCard> {
                       children: [
                         Text(
                           '₱${product.price.toStringAsFixed(0)}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w800,
                             fontSize: 15.5,
-                            color: TeknoyTheme.citMaroon,
+                            color: isDark ? const Color(0xFFFF6E6E) : TeknoyTheme.citMaroon,
                             letterSpacing: -0.5,
                           ),
                         ),
