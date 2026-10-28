@@ -409,23 +409,38 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     if (confirmed != true) return;
 
     try {
-      final token = await SecureTokenService.getBearerToken();
-      final url = Uri.parse('${ApiConfig.ordersUrl}/$orderId/decline');
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'reason': 'Declined by seller'}),
-      );
-      if (response.statusCode >= 400) {
-        String msg = 'Failed to decline order';
-        try {
-          final parsed = jsonDecode(response.body);
-          if (parsed is Map && parsed['message'] != null) msg = parsed['message'].toString();
-        } catch (_) {}
-        throw Exception(msg);
+      bool rpcSucceeded = false;
+      try {
+        final rpcRes = await SupabaseConfig.client.rpc(
+          'cancel_order_as_seller',
+          params: {'p_order_id': orderId, 'p_reason': 'Declined by seller'},
+        );
+        if (rpcRes is Map && rpcRes['success'] == true) {
+          rpcSucceeded = true;
+        }
+      } catch (rpcErr) {
+        debugPrint('cancel_order_as_seller RPC attempt: $rpcErr');
+      }
+
+      if (!rpcSucceeded) {
+        final token = await SecureTokenService.getBearerToken();
+        final url = Uri.parse('${ApiConfig.ordersUrl}/$orderId/decline');
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'reason': 'Declined by seller'}),
+        );
+        if (response.statusCode >= 400) {
+          String msg = 'Failed to decline order';
+          try {
+            final parsed = jsonDecode(response.body);
+            if (parsed is Map && parsed['message'] != null) msg = parsed['message'].toString();
+          } catch (_) {}
+          throw Exception(msg);
+        }
       }
       await _fetchSellerOrders(forceRefresh: true);
       if (mounted) {
