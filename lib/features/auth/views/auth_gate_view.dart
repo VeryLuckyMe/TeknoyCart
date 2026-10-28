@@ -113,9 +113,9 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
+      value: 1.0, // Starts at 1.0 for seamless 0ms transition from SplashView
     );
     _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
-    _fadeController.forward();
 
     // Listen for password recovery events (when user clicks reset password link in email)
     try {

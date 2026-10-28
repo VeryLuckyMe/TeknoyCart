@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/brand.dart';
@@ -108,22 +109,22 @@ class _SplashViewState extends ConsumerState<SplashView>
   }
 
   void _initControllers() {
-    // 1500ms total for Steps 1–7 assembly (tuned for crisp, snappy motion budget)
+    // 1400ms total for Steps 1–7 assembly (comfortable viewing pacing with zero lag in release mode)
     _assemblyController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1400),
     );
 
-    // 450ms for Step 8: In-place settle to AuthGateView
+    // 400ms for Step 8: In-place settle to AuthGateView
     _settleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 450),
+      duration: const Duration(milliseconds: 400),
     );
 
-    // 450ms for Iris Reveal exit on logged-in path
+    // 350ms for Iris Reveal exit on logged-in path
     _exitController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 450),
+      duration: const Duration(milliseconds: 350),
     );
   }
 
@@ -275,7 +276,7 @@ class _SplashViewState extends ConsumerState<SplashView>
     if (isLoggedIn) {
       // ── LOGGED-IN FAST-PATH: Jump assembly to final state and execute Iris Reveal (zero waiting) ──
       _assemblyController.value = 1.0;
-      await Future.delayed(const Duration(milliseconds: 260));
+      await Future.delayed(const Duration(milliseconds: 100));
       if (!mounted) return;
 
       final renderBox = _medallionKey.currentContext?.findRenderObject() as RenderBox?;
@@ -283,13 +284,13 @@ class _SplashViewState extends ConsumerState<SplashView>
         _capturedLogoCenter = renderBox.localToGlobal(renderBox.size.center(Offset.zero));
       }
       _exitController.forward();
-      await Future.delayed(const Duration(milliseconds: 160));
+      await Future.delayed(const Duration(milliseconds: 100));
       if (!mounted || _hasNavigated) return;
       _executeIrisNavigation();
       return;
     }
 
-    // ── LOGGED-OUT: Snappy 1.5s vector assembly + in-place settle into AuthGate ──
+    // ── LOGGED-OUT: Fluid vector assembly + in-place settle into AuthGate ──
     await _assemblyController.forward();
     if (!mounted) return;
 
@@ -327,7 +328,8 @@ class _SplashViewState extends ConsumerState<SplashView>
       IrisRevealRoute(
         destination: const ProductDiscoveryFeedView(),
         originCenter: _capturedLogoCenter,
-        revealDuration: const Duration(milliseconds: 640),
+        revealDuration: const Duration(milliseconds: 380),
+        plainCrossfade: kIsWeb,
       ),
     );
   }
@@ -518,25 +520,27 @@ class _SplashViewState extends ConsumerState<SplashView>
                                                   child: SizedBox(
                                                     width: 140,
                                                     height: 140,
-                                                    child: CustomPaint(
-                                                      painter: TeknoyCartLogoPainter(
-                                                        cartSlideX: _cartSlideX.value,
-                                                        cartTilt: _cartTilt.value,
-                                                        cartBounceY: boxBounce + bookBounce,
-                                                        boxDropY: _boxDropY.value,
-                                                        boxOpacity: _boxOpacity.value,
-                                                        bookDropY: _bookDropY.value,
-                                                        bookOpacity: _bookOpacity.value,
-                                                        gear1DropY: _gear1DropY.value,
-                                                        gear1Opacity: _gear1Opacity.value,
-                                                        gear1Angle: (_gear1TurnFirst.value + _bothGearsTurnSecond.value) *
-                                                            2 *
-                                                            math.pi,
-                                                        gear2DropY: _gear2DropY.value,
-                                                        gear2Opacity: _gear2Opacity.value,
-                                                        gear2Angle: _bothGearsTurnSecond.value * 2 * math.pi,
-                                                        primaryColor: TeknoyTheme.citMaroon,
-                                                        isDark: isDark,
+                                                    child: RepaintBoundary(
+                                                      child: CustomPaint(
+                                                        painter: TeknoyCartLogoPainter(
+                                                          cartSlideX: _cartSlideX.value,
+                                                          cartTilt: _cartTilt.value,
+                                                          cartBounceY: boxBounce + bookBounce,
+                                                          boxDropY: _boxDropY.value,
+                                                          boxOpacity: _boxOpacity.value,
+                                                          bookDropY: _bookDropY.value,
+                                                          bookOpacity: _bookOpacity.value,
+                                                          gear1DropY: _gear1DropY.value,
+                                                          gear1Opacity: _gear1Opacity.value,
+                                                          gear1Angle: (_gear1TurnFirst.value + _bothGearsTurnSecond.value) *
+                                                              2 *
+                                                              math.pi,
+                                                          gear2DropY: _gear2DropY.value,
+                                                          gear2Opacity: _gear2Opacity.value,
+                                                          gear2Angle: _bothGearsTurnSecond.value * 2 * math.pi,
+                                                          primaryColor: TeknoyTheme.citMaroon,
+                                                          isDark: isDark,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
@@ -621,25 +625,11 @@ class _SplashViewState extends ConsumerState<SplashView>
     final cardBorder = isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE5E5EA);
     final titleColor = isDark ? Colors.white : const Color(0xFF1D1D1F);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: cardBorder, width: 1),
-            ),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+    final cardContent = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
                     Text(
                       'Welcome Back',
                       textAlign: TextAlign.center,
@@ -669,7 +659,7 @@ class _SplashViewState extends ConsumerState<SplashView>
                       controller: _dummyEmail,
                       label: 'Email Address',
                       icon: Icons.email_outlined,
-                      enabled: false,
+                      enabled: true,
                     ),
                     const SizedBox(height: 16),
 
@@ -679,11 +669,14 @@ class _SplashViewState extends ConsumerState<SplashView>
                       label: 'Password',
                       icon: Icons.lock_outline_rounded,
                       obscureText: true,
-                      enabled: false,
-                      suffixIcon: Icon(
-                        Icons.visibility_off_outlined,
-                        color: isDark ? Colors.white60 : Colors.black54,
-                        size: 20,
+                      enabled: true,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          Icons.visibility_off_outlined,
+                          color: isDark ? Colors.white60 : Colors.black54,
+                          size: 20,
+                        ),
+                        onPressed: null,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -700,7 +693,7 @@ class _SplashViewState extends ConsumerState<SplashView>
                         child: const Text(
                           'Forgot Password?',
                           style: TextStyle(
-                            fontFamily: 'Outfit',
+                            fontFamily: 'Inter',
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: TeknoyTheme.citGold,
@@ -708,47 +701,67 @@ class _SplashViewState extends ConsumerState<SplashView>
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
-                    // Login button preview matching AuthLoginForm
-                    Container(
-                      height: 50,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF990000),
-                            TeknoyTheme.citMaroon,
-                            Color(0xFF660000),
+                    // Login button preview matching AuthLoginForm exactly
+                    SizedBox(
+                      height: 52,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: const LinearGradient(
+                            colors: [
+                              TeknoyTheme.citMaroonLight,
+                              TeknoyTheme.citMaroon,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: TeknoyTheme.citMaroon.withValues(alpha: 0.4),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: TeknoyTheme.citMaroon.withValues(alpha: 0.35),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'Login',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
-                        ],
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'Login',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
                         ),
                       ),
                     ),
                   ],
                 ),
+              );
+
+    return RepaintBoundary(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: cardBorder, width: 1),
+              ),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: cardContent,
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 24),
-        Row(
+          const SizedBox(height: 24),
+          Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
@@ -775,6 +788,7 @@ class _SplashViewState extends ConsumerState<SplashView>
           ],
         ),
       ],
-    );
-  }
+    ),
+  );
+}
 }

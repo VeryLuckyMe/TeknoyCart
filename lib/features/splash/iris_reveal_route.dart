@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:teknoycart/features/splash/splash_painters.dart';
 
@@ -41,7 +42,7 @@ class IrisRevealRoute<T> extends PageRouteBuilder<T> {
   IrisRevealRoute({
     required this.destination,
     required this.originCenter,
-    this.revealDuration = const Duration(milliseconds: 640),
+    this.revealDuration = const Duration(milliseconds: 380),
     this.plainCrossfade = false,
   }) : super(
           pageBuilder: (context, animation, secondaryAnimation) => destination,
@@ -50,11 +51,11 @@ class IrisRevealRoute<T> extends PageRouteBuilder<T> {
           opaque: false, // Ensures splash canvas is visible under expanding circle
           barrierDismissible: false,
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            if (plainCrossfade || MediaQuery.of(context).disableAnimations) {
+            if (kIsWeb || plainCrossfade || MediaQuery.of(context).disableAnimations) {
               return FadeTransition(
                 opacity: CurvedAnimation(
                   parent: animation,
-                  curve: Curves.easeOut,
+                  curve: Curves.easeOutCubic,
                 ),
                 child: child,
               );

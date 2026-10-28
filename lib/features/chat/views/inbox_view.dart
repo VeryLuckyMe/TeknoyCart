@@ -538,30 +538,48 @@ class _InboxViewState extends ConsumerState<InboxView> {
       displayText = 'Tawad Offer: $lastMsg';
     }
 
-    // Soft warm tint for unread chats (matching reference mockup)
-    final rowBgColor = isUnread
-        ? (isDark ? const Color(0xFF1E1215) : Colors.white.withValues(alpha: 0.85))
-        : Colors.transparent;
+    // Default container background: Crisp white card container in light mode, darkSurfaceHigh in dark mode
+    final cardBgColor = isDark
+        ? (isUnread ? const Color(0xFF1F161A) : TeknoyTheme.darkSurfaceHigh)
+        : (isUnread ? const Color(0xFFFFFDF8) : Colors.white);
+
+    final cardBorderColor = isDark
+        ? (isUnread ? TeknoyTheme.citMaroon.withValues(alpha: 0.4) : TeknoyTheme.darkBorder)
+        : (isUnread ? TeknoyTheme.citMaroon.withValues(alpha: 0.2) : const Color(0xFFEDE8E1));
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
       decoration: BoxDecoration(
-        color: rowBgColor,
+        color: cardBgColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: cardBorderColor,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.035),
+            blurRadius: 7,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
+        clipBehavior: Clip.antiAlias,
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
+          // Greyer tint when hovering on web or holding on phone
           hoverColor: isDark
               ? TeknoyTheme.darkHover
-              : Colors.white,
+              : const Color(0xFFF1F1F5),
           highlightColor: isDark
-              ? const Color(0xFF262632)
-              : Colors.white,
+              ? TeknoyTheme.darkHighlight
+              : const Color(0xFFE5E5EB),
           splashColor: isDark
               ? TeknoyTheme.citMaroon.withValues(alpha: 0.15)
-              : TeknoyTheme.citMaroon.withValues(alpha: 0.04),
+              : TeknoyTheme.citMaroon.withValues(alpha: 0.05),
           onTap: () {
             HapticFeedback.lightImpact();
 
@@ -632,13 +650,9 @@ class _InboxViewState extends ConsumerState<InboxView> {
                                 color: TeknoyTheme.success,
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: isUnread
-                                      ? (isDark
-                                          ? const Color(0xFF1E1215)
-                                          : const Color(0xFFFFF7F0))
-                                      : (isDark
-                                          ? TeknoyTheme.darkBg
-                                          : Colors.white),
+                                  color: isDark
+                                      ? TeknoyTheme.darkSurfaceHigh
+                                      : Colors.white,
                                   width: 2.2,
                                 ),
                               ),
