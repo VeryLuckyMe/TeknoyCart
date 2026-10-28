@@ -195,7 +195,7 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
         final rpcRes = await SupabaseConfig.client.rpc(
           'cancel_order_as_seller',
           params: {'p_order_id': orderId, 'p_reason': 'Cancelled by seller from inventory inspector'},
-        );
+          ).timeout(const Duration(seconds: 15));
         if (rpcRes is Map && rpcRes['success'] == true) {
           cancelled = true;
         }
@@ -213,7 +213,7 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
               if (token != null) 'Authorization': 'Bearer $token',
             },
             body: jsonEncode({'reason': 'Cancelled by seller from inventory inspector'}),
-          );
+          ).timeout(const Duration(seconds: 15));
           if (response.statusCode < 400) {
             cancelled = true;
           }

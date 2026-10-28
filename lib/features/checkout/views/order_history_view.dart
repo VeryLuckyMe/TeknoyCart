@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/widgets/image_placeholder.dart';
@@ -342,7 +343,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
             if (token != null) 'Authorization': 'Bearer $token',
           },
           body: jsonEncode({}),
-        );
+        ).timeout(const Duration(seconds: 15));
         if (response.statusCode >= 400) {
           String msg = 'Failed to accept order (${response.statusCode})';
           try {
@@ -414,7 +415,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         final rpcRes = await SupabaseConfig.client.rpc(
           'cancel_order_as_seller',
           params: {'p_order_id': orderId, 'p_reason': 'Declined by seller'},
-        );
+        ).timeout(const Duration(seconds: 15));
         if (rpcRes is Map && rpcRes['success'] == true) {
           rpcSucceeded = true;
         }
@@ -432,7 +433,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
             if (token != null) 'Authorization': 'Bearer $token',
           },
           body: jsonEncode({'reason': 'Declined by seller'}),
-        );
+        ).timeout(const Duration(seconds: 15));
         if (response.statusCode >= 400) {
           String msg = 'Failed to decline order';
           try {

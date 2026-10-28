@@ -72,8 +72,8 @@ class AuthPasswordSheets {
     // Case 2: Code parameter snippet
     if (input.contains('code=')) {
       final normalized = input.startsWith('?')
-          ? 'http://localhost:3000/$input'
-          : 'http://localhost:3000/?$input';
+          ? 'https://app.teknoycart.local/$input'
+          : 'https://app.teknoycart.local/?$input';
       await auth.getSessionFromUrl(Uri.parse(normalized));
       return;
     }

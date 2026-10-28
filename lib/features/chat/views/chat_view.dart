@@ -312,26 +312,28 @@ class _ChatViewState extends ConsumerState<ChatView> {
         title: const Center(
           child: Text('Propose Offer Price', style: TextStyle(fontFamily: 'Outfit', color: TeknoyTheme.citMaroon, fontWeight: FontWeight.bold, fontSize: 18)),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Original Price: ₱${widget.product.price.toStringAsFixed(2)}',
-              style: const TextStyle(fontFamily: 'Inter', color: Colors.grey, fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: offerController,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Your Offer Price (₱)',
-                prefixText: '₱ ',
-                border: OutlineInputBorder(),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Original Price: ₱${widget.product.price.toStringAsFixed(2)}',
+                style: const TextStyle(fontFamily: 'Inter', color: Colors.grey, fontSize: 14),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              TextField(
+                controller: offerController,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Your Offer Price (₱)',
+                  prefixText: '₱ ',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(

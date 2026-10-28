@@ -18,6 +18,36 @@ void main() async {
   // Ensure Flutter engine is ready before calling any platform plugins
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Global crash boundary: catches unhandled asynchronous exceptions to prevent release APK crash
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('UNCAUGHT_GLOBAL_ERROR: $error\n$stack');
+    return true; // Handled, prevents sudden process termination
+  };
+
+  // Replaces the release-mode grey screen of death with an isolated recovery fallback
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return const Material(
+      color: Colors.transparent,
+      child: Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.warning_amber_rounded, color: TeknoyTheme.citGold, size: 32),
+              SizedBox(height: 8),
+              Text(
+                'Something went wrong displaying this section.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  };
+
   try {
     // Initialize Supabase connection
     await SupabaseConfig.initialize();
