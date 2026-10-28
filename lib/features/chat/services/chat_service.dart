@@ -265,7 +265,7 @@ class ChatService {
         'send_automated_chat_reply',
         params: {
           'p_chat_id': chatId,
-          'p_content': content,
+          'p_content': '🤖 ' + content,
         },
       );
     } catch (e) {
@@ -637,7 +637,7 @@ class ChatService {
                     'send_automated_chat_reply',
                     params: {
                       'p_chat_id': roomId,
-                      'p_content': responseText,
+                      'p_content': '🤖 $responseText',
                     },
                   );
                 } catch (e) {
@@ -733,12 +733,11 @@ class ChatService {
         final originalPrice = product.price;
         final discountPercent = ((originalPrice - offerPrice) / originalPrice) * 100;
 
-        // If discount is reasonable (within 25% of asking price), accept deal!
+        // Ponytail Audit: Never auto-accept on behalf of the seller.
         if (discountPercent <= 25 && offerPrice <= originalPrice) {
-          return "Sure! I can accept ₱${offerPrice.toStringAsFixed(0)}. Let's meet at the Library Lobby for the item exchange. Deal! 🤝";
+          return "Thanks for your offer of ₱${offerPrice.toStringAsFixed(0)}! I'll let the seller know. Please wait for them to review and respond. 📩";
         } else {
-          final counterPrice = (originalPrice * 0.90).roundToDouble();
-          return "That's a bit too low, sorry! The best I can do is ₱${counterPrice.toStringAsFixed(0)}. Can we agree on ₱${counterPrice.toStringAsFixed(0)}? Deal?";
+          return "That offer of ₱${offerPrice.toStringAsFixed(0)} is below the asking price of ₱${originalPrice.toStringAsFixed(0)}. The seller will review your proposal when they are online. 📩";
         }
       } else {
         return "I'm open to reasonable offers (tawad)! How much are you proposing?";

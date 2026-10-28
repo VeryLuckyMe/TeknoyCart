@@ -207,7 +207,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                total > 0 ? avgRating.toStringAsFixed(1) : '5.0',
+                                total > 0 ? avgRating.toStringAsFixed(1) : '—',
                                 style: const TextStyle(
                                   fontFamily: 'Outfit',
                                   fontSize: 38,

@@ -301,11 +301,13 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           return; // Hard abort — no items processed yet at this point in the loop
         }
 
+        // Always pass authoritative catalog unit price to satisfy place_orders_atomic integrity check
+        final catalogUnitPrice = item.product.price + (_variantAdditionalPrices[item.product.id] ?? 0.0);
         orderLines.add({
           'product_id': item.product.id,
           'variant_id': itemVariantId,
           'quantity': item.quantity,
-          'unit_price': _unitPrice(item),
+          'unit_price': catalogUnitPrice,
           'pickup_location': widget.isPreorder ? '[PRE-ORDER] $_selectedLocation' : _selectedLocation,
           'pickup_day': widget.isPreorder ? 'When Batch Ready (Est. 3-7 Days)' : _selectedDay,
           'pickup_time': _selectedTimeSlot,

@@ -40,6 +40,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
   late Map<String, dynamic> _order;
   bool _isActing = false;
   RealtimeChannel? _realtimeChannel;
+  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -48,6 +49,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     _order = Map<String, dynamic>.from(widget.order);
     _subscribeToOrderUpdates();
     _refreshOrder();
+    // orders is intentionally not published to Realtime (its WAL payload would
+    // expose the buyer's OTP to the seller), so poll while this screen is open.
+    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (!_isActing) _refreshOrder();
+    });
     if (_isGCash && _status == 'AWAITING_PAYMENT') {
       _syncPayment();
     }
@@ -79,6 +85,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _pollTimer?.cancel();
     _realtimeChannel?.unsubscribe();
     super.dispose();
   }
@@ -125,7 +132,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         if (data is Map<String, dynamic>) {
           if (mounted) {
             setState(() {
-              if (data['handoffOtp'] != null) _order['handoff_otp'] = data['handoffOtp'].toString();
               if (data['otpCreatedAt'] != null) _order['otp_created_at'] = data['otpCreatedAt'];
               if (data['otpFailedAttempts'] != null) _order['otp_failed_attempts'] = data['otpFailedAttempts'];
               if (data['pickupDay'] != null) _order['pickup_day'] = data['pickupDay'];
@@ -135,7 +141,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
               if (data['sellerHandedOff'] != null) _order['seller_handed_off'] = data['sellerHandedOff'];
               if (data['buyerConfirmedReceipt'] != null) _order['buyer_confirmed_receipt'] = data['buyerConfirmedReceipt'];
               if (data['handoffCompletedAt'] != null) _order['handoff_completed_at'] = data['handoffCompletedAt'];
-              if (data['returnOtp'] != null) _order['return_otp'] = data['returnOtp'].toString();
               if (data['refundReference'] != null) _order['refund_reference'] = data['refundReference'];
               if (data['disputeReason'] != null) _order['dispute_reason'] = data['disputeReason'];
               if (data['disputeRuling'] != null) _order['dispute_ruling'] = data['disputeRuling'];
@@ -239,8 +244,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
             order_id, total_amount, status, quantity, created_at,
             pickup_location, pickup_day, pickup_time, payment_method,
             seller_confirmed_at, buyer_confirmed_at, buyer_id, seller_id,
-            handoff_otp, otp_created_at, otp_failed_attempts, seller_handed_off, buyer_confirmed_receipt,
-            handoff_completed_at, return_otp, refund_reference,
+            seller_handed_off, buyer_confirmed_receipt,
+            handoff_completed_at, refund_reference,
             dispute_reason, dispute_ruling, return_completed_at, is_preorder,
             paymongo_checkout_session_id, paymongo_checkout_url, payment_expires_at, amount_centavos, payout_released,
             product_variants (
@@ -251,9 +256,25 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
           ''')
           .eq('order_id', _order['order_id'])
           .single();
+
+      final merged = {..._order, ...Map<String, dynamic>.from(res)};
+
+      // OTP columns are buyer-only and live behind a dedicated view. A seller
+      // gets no row here, so the code never reaches the verifying party.
+      try {
+        final codes = await SupabaseConfig.client
+            .from('my_order_codes')
+            .select('handoff_otp, otp_created_at, otp_failed_attempts, return_otp')
+            .eq('order_id', _order['order_id'])
+            .maybeSingle();
+        if (codes != null) {
+          merged.addAll(Map<String, dynamic>.from(codes));
+        }
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
-          _order = {..._order, ...Map<String, dynamic>.from(res)};
+          _order = merged;
         });
       }
     } catch (_) {}
@@ -535,7 +556,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
           }
         } catch (rpcErr) {
           debugPrint('verify_handoff_as_seller RPC attempt: ');
-          if (rpcErr.toString().contains('Invalid verification code') || rpcErr.toString().contains('Order is not in')) {
+          if (rpcErr.toString().contains('Invalid verification code') ||
+              rpcErr.toString().contains('expired') ||
+              rpcErr.toString().contains('Too many failed attempts') ||
+              rpcErr.toString().contains('Order is not in')) {
             rethrow;
           }
         }
@@ -1488,37 +1512,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                           );
                           if (rpcRes is Map && rpcRes['success'] == true) {
                             rpcSucceeded = true;
-                            if (rpcRes['handoff_otp'] != null) {
-                              _order['handoff_otp'] = rpcRes['handoff_otp'].toString();
-                            }
                             _order['status'] = 'MEETUP_SCHEDULED';
                           }
                         } catch (rpcErr) {
                           debugPrint('schedule_meetup_as_seller RPC error: ');
                         }
 
-                        // 2. Fallback 1: Direct Supabase update
-                        if (!rpcSucceeded) {
-                          try {
-                            final randomOtp = (100000 + (DateTime.now().microsecondsSinceEpoch % 900000)).toString();
-                            await SupabaseConfig.client.from('orders').update({
-                              'status': 'MEETUP_SCHEDULED',
-                              'pickup_day': selectedDay,
-                              'pickup_time': selectedTime,
-                              'pickup_location': selectedLandmark,
-                              'handoff_otp': randomOtp,
-                              'otp_created_at': DateTime.now().toUtc().toIso8601String(),
-                              'otp_failed_attempts': 0,
-                            }).eq('order_id', _order['order_id']);
-                            _order['handoff_otp'] = randomOtp;
-                            _order['status'] = 'MEETUP_SCHEDULED';
-                            rpcSucceeded = true;
-                          } catch (dbErr) {
-                            debugPrint('Direct DB update fallback attempt: ');
-                          }
-                        }
-
-                        // 3. Fallback 2: Call authoritative Spring API schedule
+                        // 2. Fallback: Call authoritative Spring API schedule
                         if (!rpcSucceeded) {
                           await _callSpringApi('schedule', {
                             'pickup_day': selectedDay,
