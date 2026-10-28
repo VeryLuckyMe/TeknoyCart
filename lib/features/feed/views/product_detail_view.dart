@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/models/product.dart';
@@ -1077,14 +1078,18 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                         color: isDark ? Colors.white : Colors.black87,
                         size: 20,
                       ),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Link copied: teknoycart.cit.edu/p/${product.id}'),
-                            duration: const Duration(seconds: 2),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
+                      onPressed: () async {
+                        final link = 'https://teknoycart.cit.edu/p/${product.id}';
+                        await Clipboard.setData(ClipboardData(text: link));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Link copied: $link'),
+                              duration: const Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
                       },
                     ),
                   ),
@@ -1304,7 +1309,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                                       Text(
                                         summary.total > 0
                                             ? '${summary.average.toStringAsFixed(1)} (${summary.total} reviews)'
-                                            : '5.0 (New Listing)',
+                                            : 'No reviews yet',
                                         style: const TextStyle(
                                           fontFamily: 'Inter',
                                           fontSize: 12,
@@ -1838,7 +1843,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                 ),
                 const SizedBox(height: 3),
                 const Text(
-                  'Verified Student Account',
+                  'Campus Student Seller',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 11,

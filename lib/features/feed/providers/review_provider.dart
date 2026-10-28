@@ -138,6 +138,7 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
 
     // Update state immediately (optimistic UI)
     // Replace if existing review for this order/buyer, else prepend
+    final previousState = state;
     final existingIndex = state.indexWhere((r) =>
         (orderId != null && r.orderId == orderId) ||
         (r.productId == productId && r.buyerId == buyerId));
@@ -167,7 +168,9 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
         'created_at': newReview.createdAt.toIso8601String(),
       });
     } catch (_) {
-      // Retain optimistic state if offline or table not yet migrated
+      // Do not leave a review on screen that the database rejected.
+      state = previousState;
+      rethrow;
     }
 
     return newReview;
@@ -195,6 +198,7 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
       updatedAt: DateTime.now(),
     );
 
+    final previousState = state;
     final updatedList = List<Review>.from(state);
     updatedList[index] = updated;
     state = updatedList;
@@ -209,7 +213,8 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('review_id', reviewId);
     } catch (_) {
-      // Optimistic update retained
+      state = previousState;
+      rethrow;
     }
   }
 
@@ -227,6 +232,7 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
       sellerRepliedAt: now,
     );
 
+    final previousState = state;
     final updatedList = List<Review>.from(state);
     updatedList[index] = updated;
     state = updatedList;
@@ -237,7 +243,8 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
         'seller_replied_at': now.toIso8601String(),
       }).eq('review_id', reviewId);
     } catch (_) {
-      // Optimistic update retained
+      state = previousState;
+      rethrow;
     }
   }
 }

@@ -1787,7 +1787,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                 final targetSellerId = rawId.isNotEmpty ? rawId : 'usr-seller';
                 final summary = ref.watch(sellerRatingSummaryProvider(targetSellerId));
                 final hasReviews = summary.total > 0;
-                final ratingScore = hasReviews ? summary.average.toStringAsFixed(1) : '5.0';
+                final ratingScore = hasReviews ? summary.average.toStringAsFixed(1) : '—';
 
                 return InkWell(
                   borderRadius: BorderRadius.circular(10),

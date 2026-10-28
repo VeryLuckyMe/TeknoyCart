@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/theme.dart';
@@ -180,13 +181,17 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
           IconButton(
             icon: const Icon(Icons.share_outlined, color: Colors.white),
             tooltip: 'Share Store',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Store link for "$storeName" copied to clipboard!'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+            onPressed: () async {
+              final link = 'https://teknoycart.cit.edu/store/$storeName';
+              await Clipboard.setData(ClipboardData(text: link));
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Store link for "$storeName" copied to clipboard!'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
             },
           ),
           PopupMenuButton<String>(
@@ -194,7 +199,7 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
             onSelected: (val) {
               if (val == 'report') {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Report submitted for admin review.')),
+                  const SnackBar(content: Text('To report a store, please email support@cit.edu with details.')),
                 );
               }
             },
@@ -439,7 +444,7 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                             final summary = ref.watch(sellerRatingSummaryProvider(widget.sellerId));
                             final ratingText = summary.total > 0
                                 ? '${summary.average.toStringAsFixed(1)} ★'
-                                : '5.0 ★';
+                                : 'No reviews ★';
                             final ratingLabel = summary.total > 0
                                 ? 'RATING (${summary.total})'
                                 : 'NEW SELLER';
