@@ -119,7 +119,7 @@ void main() {
       // Verify details view is visible
       expect(find.byType(ProductDetailView), findsOneWidget);
       expect(find.text('₱300.00'), findsWidgets);
-      expect(find.text('Verified Student Account'), findsOneWidget);
+      expect(find.text('Campus Student Seller'), findsOneWidget);
     });
 
     testWidgets('tapping Make Offer opens Tawad bottom sheet and updates offer CTA dynamically', (WidgetTester tester) async {

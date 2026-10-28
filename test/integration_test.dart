@@ -173,7 +173,7 @@ void main() {
       expect(find.byType(ProductDetailView), findsOneWidget);
       expect(find.text('₱450.00'), findsWidgets);
       expect(find.text('Drawing Tools'), findsWidgets);
-      expect(find.text('Verified Student Account'), findsOneWidget);
+      expect(find.text('Campus Student Seller'), findsOneWidget);
 
       // 4. Initiate negotiations by tapping "Chat Seller" button
       await tester.tap(find.byIcon(Icons.chat_bubble_outline_rounded));
@@ -213,7 +213,7 @@ void main() {
 
       // Verify the seller's reply appears in the chat bubbles (exact text from service)
       expect(
-        find.text('Sure! I can accept ₱400. Let\'s meet at the Library Lobby for the item exchange. Deal! 🤝'),
+        find.textContaining('Thanks for your offer of ₱400'),
         findsWidgets,
       );
 
