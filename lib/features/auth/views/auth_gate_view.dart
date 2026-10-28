@@ -427,6 +427,9 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
     AuthPasswordSheets.showForgotPasswordSheet(
       context: context,
       initialEmail: _emailController.text,
+      onPasswordRecoveryVerified: () {
+        if (mounted) _showSetNewPasswordSheet();
+      },
       onError: (msg) {
         if (mounted) _showErrorSnackBar(msg);
       },

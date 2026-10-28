@@ -26,12 +26,13 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Deep link support for returning from external payment gateways (PayMongo / GCash) -->
+            <!-- Deep link support for Supabase Auth recovery (teknoycart://login-callback) and external payment gateways (PayMongo / GCash) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="teknoycart"/>
+                <data android:scheme="teknoycart" android:host="login-callback"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

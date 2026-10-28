@@ -9,7 +9,9 @@ import 'package:teknoycart/core/widgets/responsive_frame.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/views/auth_gate_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent;
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
+import 'package:teknoycart/features/auth/services/auth_service.dart';
 import 'package:teknoycart/features/splash/splash_view.dart';
 
 void main() async {
@@ -19,6 +21,11 @@ void main() async {
   try {
     // Initialize Supabase connection
     await SupabaseConfig.initialize();
+    SupabaseConfig.client.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        AuthService.passwordRecoveryPending = true;
+      }
+    });
 
     runApp(
       const ProviderScope(

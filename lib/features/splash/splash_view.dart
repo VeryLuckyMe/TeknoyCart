@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/brand.dart';
 import '../../core/supabase_client.dart';
 import '../../core/theme.dart';
+import '../auth/services/auth_service.dart';
 import '../auth/views/auth_gate_view.dart';
 import '../auth/views/widgets/auth_form_fields.dart';
 import '../feed/views/product_discovery_feed_view.dart';
@@ -271,7 +272,7 @@ class _SplashViewState extends ConsumerState<SplashView>
 
     // Check user session immediately for authenticated fast-path
     final session = SupabaseConfig.client.auth.currentSession;
-    final isLoggedIn = session != null;
+    final isLoggedIn = session != null && !AuthService.passwordRecoveryPending;
 
     if (isLoggedIn) {
       // ── LOGGED-IN FAST-PATH: Jump assembly to final state and execute Iris Reveal (zero waiting) ──
@@ -308,7 +309,7 @@ class _SplashViewState extends ConsumerState<SplashView>
     ref.read(isSplashCompletedProvider.notifier).state = true;
 
     final session = SupabaseConfig.client.auth.currentSession;
-    if (session != null) {
+    if (session != null && !AuthService.passwordRecoveryPending) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const ProductDiscoveryFeedView()),
       );
