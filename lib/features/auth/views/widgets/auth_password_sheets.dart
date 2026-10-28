@@ -8,27 +8,26 @@ import '../../../../core/theme.dart';
 import '../../services/auth_service.dart';
 
 class AuthPasswordSheets {
-  /// Verifies a recovery input (either a redirected `localhost:3000/?code=...` URL,
-  /// a raw Supabase `/auth/v1/verify?token=...` link copied from the email,
-  /// or a 6-digit OTP recovery code).
+  /// Verifies a recovery input (either a redirected URL containing ?code=...,
+  /// a raw Supabase verify link from the email, or a 6-digit recovery OTP code).
   static Future<void> verifyRecoveryInput({
     required String email,
     required String rawInput,
   }) async {
     final input = rawInput.trim();
     if (input.isEmpty) {
-      throw Exception('Please paste the reset link or enter your recovery code.');
+      throw Exception('Please enter your recovery code or paste the link.');
     }
 
     final auth = Supabase.instance.client.auth;
 
-    // Case 1: User pasted a full URL (from browser address bar or copied from email)
+    // Case 1: User pasted a full URL
     if (input.startsWith('http://') ||
         input.startsWith('https://') ||
         input.startsWith('teknoycart://')) {
       final uri = Uri.parse(input);
 
-      // 1a. Redirected URL containing ?code=... (PKCE) or #access_token=... (Implicit)
+      // 1a. URL containing ?code=... (PKCE) or #access_token=... (Implicit)
       if (uri.queryParameters.containsKey('code') ||
           uri.fragment.contains('access_token=') ||
           uri.fragment.contains('error=')) {
@@ -36,7 +35,7 @@ class AuthPasswordSheets {
         return;
       }
 
-      // 1b. Raw email link: https://<project>.supabase.co/auth/v1/verify?token=...&type=recovery
+      // 1b. Raw email verification link: /auth/v1/verify?token=...&type=recovery
       final tokenParam =
           uri.queryParameters['token_hash'] ?? uri.queryParameters['token'];
       if (tokenParam != null && tokenParam.isNotEmpty) {
@@ -47,8 +46,7 @@ class AuthPasswordSheets {
           );
           return;
         } catch (_) {
-          // If token is a PKCE challenge token (e.g. pkce_...), resolve the 302 redirect location
-          // without opening an external browser and exchange the resulting ?code=... directly.
+          // Resolve any 302/303 redirect in-place to exchange the challenge token cleanly
           final client = http.Client();
           try {
             final req = http.Request('GET', uri)..followRedirects = false;
@@ -66,12 +64,12 @@ class AuthPasswordSheets {
         }
       }
 
-      // Fallback for any other callback URL format
+      // Fallback callback exchange
       await auth.getSessionFromUrl(uri);
       return;
     }
 
-    // Case 2: User pasted just the query parameter `code=...` or a raw token/6-digit OTP code
+    // Case 2: Code parameter snippet
     if (input.contains('code=')) {
       final normalized = input.startsWith('?')
           ? 'http://localhost:3000/$input'
@@ -80,7 +78,7 @@ class AuthPasswordSheets {
       return;
     }
 
-    // Case 3: 6-digit OTP code or raw token_hash
+    // Case 3: 6-digit OTP code or raw token hash
     try {
       if (email.trim().isNotEmpty) {
         await auth.verifyOTP(
@@ -111,6 +109,7 @@ class AuthPasswordSheets {
     bool isSending = false;
     bool isVerifying = false;
     bool isStepTwo = false;
+    bool showManualInput = false;
     String? inlineError;
     StreamSubscription<AuthState>? authSub;
 
@@ -138,7 +137,7 @@ class AuthPasswordSheets {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
-            // Listen once for automatic deep-link callback while the sheet is open
+            // Auto-detect when the user clicks the email link on their phone
             authSub ??=
                 Supabase.instance.client.auth.onAuthStateChange.listen((data) {
               if (data.event == AuthChangeEvent.passwordRecovery) {
@@ -179,7 +178,7 @@ class AuthPasswordSheets {
                         children: [
                           Icon(
                             isStepTwo
-                                ? Icons.mark_email_read_outlined
+                                ? Icons.mark_email_read_rounded
                                 : Icons.lock_reset_rounded,
                             color: TeknoyTheme.citMaroon,
                             size: 26,
@@ -187,9 +186,7 @@ class AuthPasswordSheets {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              isStepTwo
-                                  ? 'Verify Password Reset'
-                                  : 'Reset Password',
+                              isStepTwo ? 'Check Your Email' : 'Reset Password',
                               style: TextStyle(
                                 fontFamily: 'Outfit',
                                 fontSize: 22,
@@ -203,7 +200,7 @@ class AuthPasswordSheets {
                       const SizedBox(height: 8),
                       if (!isStepTwo) ...[
                         Text(
-                          'Enter your email address and we will send you a password reset link.',
+                          'Enter your institutional email address to receive password reset instructions.',
                           style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 13,
@@ -215,7 +212,8 @@ class AuthPasswordSheets {
                           controller: forgotEmailCtrl,
                           keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
-                            labelText: 'Email Address',
+                            labelText: 'Institutional Email Address',
+                            hintText: 'student@cit.edu',
                             prefixIcon: const Icon(Icons.email_outlined),
                             border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14)),
@@ -304,10 +302,11 @@ class AuthPasswordSheets {
                             setModalState(() {
                               inlineError = null;
                               isStepTwo = true;
+                              showManualInput = true;
                             });
                           },
                           child: Text(
-                            'Already received a reset link or code? Verify here',
+                            'Already have a reset code? Enter it here',
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 12.5,
@@ -320,10 +319,10 @@ class AuthPasswordSheets {
                         ),
                       ] else ...[
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
                             color: Colors.green.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
                             border: Border.all(
                                 color: Colors.green.withValues(alpha: 0.35)),
                           ),
@@ -331,135 +330,175 @@ class AuthPasswordSheets {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Icon(Icons.check_circle_outline,
-                                  color: Colors.green, size: 20),
-                              const SizedBox(width: 10),
+                                  color: Colors.green, size: 22),
+                              const SizedBox(width: 12),
                               Expanded(
-                                child: Text(
-                                  'Reset instructions sent to ${forgotEmailCtrl.text.trim().isEmpty ? "your email" : forgotEmailCtrl.text.trim()}. Tap the link in your email to open TeknoyCart automatically.',
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 12.5,
-                                    color:
-                                        isDark ? Colors.white : Colors.black87,
-                                    height: 1.35,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Reset Link Sent!',
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.green,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'We sent reset instructions to ${forgotEmailCtrl.text.trim()}.\n\nPlease open your email on this phone and tap the reset link to proceed.',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 12.5,
+                                        color: isDark
+                                            ? Colors.white70
+                                            : Colors.black87,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Text(
-                          'If clicking the email link opens localhost:3000 in your browser (or if you opened the email on another device), copy & paste that URL or the email reset link below:',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 12.5,
-                            color: isDark ? Colors.white70 : Colors.black54,
-                            height: 1.4,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: recoveryInputCtrl,
-                          decoration: InputDecoration(
-                            labelText:
-                                'Paste Reset Link, localhost URL, or Code',
-                            hintText:
-                                'http://localhost:3000/?code=... or 6-digit code',
-                            prefixIcon: const Icon(Icons.link_rounded),
-                            suffixIcon: IconButton(
-                              tooltip: 'Paste from clipboard',
-                              icon: const Icon(Icons.content_paste_rounded),
-                              onPressed: () async {
-                                final data = await Clipboard.getData(
-                                    Clipboard.kTextPlain);
-                                if (data?.text != null &&
-                                    data!.text!.trim().isNotEmpty) {
-                                  recoveryInputCtrl.text = data.text!.trim();
-                                  setModalState(() => inlineError = null);
-                                }
-                              },
+                        if (!showManualInput) ...[
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              setModalState(() => showManualInput = true);
+                            },
+                            icon: const Icon(Icons.pin_outlined, size: 18),
+                            label: const Text(
+                              'Enter code or link manually',
+                              style: TextStyle(fontFamily: 'Outfit'),
                             ),
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: isDark
+                                  ? Colors.white70
+                                  : TeknoyTheme.citMaroon,
+                              side: BorderSide(
+                                color: isDark
+                                    ? Colors.white24
+                                    : TeknoyTheme.citMaroon
+                                        .withValues(alpha: 0.4),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
                           ),
-                        ),
-                        if (inlineError != null) ...[
-                          const SizedBox(height: 10),
+                        ] else ...[
                           Text(
-                            inlineError!,
-                            style: const TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 12,
-                              color: Colors.redAccent,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 18),
-                        ElevatedButton(
-                          onPressed: isVerifying
-                              ? null
-                              : () async {
-                                  setModalState(() {
-                                    isVerifying = true;
-                                    inlineError = null;
-                                  });
-                                  try {
-                                    await verifyRecoveryInput(
-                                      email: forgotEmailCtrl.text.trim(),
-                                      rawInput: recoveryInputCtrl.text,
-                                    );
-                                    if (modalCtx.mounted) {
-                                      triggerSetNewPassword(modalCtx);
-                                    }
-                                  } catch (e) {
-                                    if (modalCtx.mounted) {
-                                      setModalState(() {
-                                        isVerifying = false;
-                                        inlineError = e
-                                            .toString()
-                                            .replaceAll('AuthException: ', '')
-                                            .replaceAll('Exception: ', '');
-                                      });
-                                    }
-                                  }
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: TeknoyTheme.citMaroon,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14)),
-                          ),
-                          child: isVerifying
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Verify & Set New Password',
-                                  style: TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontWeight: FontWeight.bold),
-                                ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: () {
-                            setModalState(() {
-                              inlineError = null;
-                              isStepTwo = false;
-                            });
-                          },
-                          child: Text(
-                            'Back to email entry',
+                            'If you received a 6-digit code or copied the reset link, paste it below:',
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 12.5,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: recoveryInputCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Reset Code or Link',
+                              hintText: 'e.g. 123456 or paste link',
+                              prefixIcon: const Icon(Icons.link_rounded),
+                              suffixIcon: IconButton(
+                                tooltip: 'Paste from clipboard',
+                                icon: const Icon(Icons.content_paste_rounded),
+                                onPressed: () async {
+                                  final data = await Clipboard.getData(
+                                      Clipboard.kTextPlain);
+                                  if (data?.text != null &&
+                                      data!.text!.trim().isNotEmpty) {
+                                    recoveryInputCtrl.text = data.text!.trim();
+                                    setModalState(() => inlineError = null);
+                                  }
+                                },
+                              ),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14)),
+                            ),
+                          ),
+                          if (inlineError != null) ...[
+                            const SizedBox(height: 10),
+                            Text(
+                              inlineError!,
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                color: Colors.redAccent,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 14),
+                          ElevatedButton(
+                            onPressed: isVerifying
+                                ? null
+                                : () async {
+                                    setModalState(() {
+                                      isVerifying = true;
+                                      inlineError = null;
+                                    });
+                                    try {
+                                      await verifyRecoveryInput(
+                                        email: forgotEmailCtrl.text.trim(),
+                                        rawInput: recoveryInputCtrl.text,
+                                      );
+                                      if (modalCtx.mounted) {
+                                        triggerSetNewPassword(modalCtx);
+                                      }
+                                    } catch (e) {
+                                      if (modalCtx.mounted) {
+                                        setModalState(() {
+                                          isVerifying = false;
+                                          inlineError = e
+                                              .toString()
+                                              .replaceAll(
+                                                  'AuthException: ', '')
+                                              .replaceAll('Exception: ', '');
+                                        });
+                                      }
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: TeknoyTheme.citMaroon,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
+                            ),
+                            child: isVerifying
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Verify & Set Password',
+                                    style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () {
+                            if (Navigator.of(modalCtx).canPop()) {
+                              Navigator.of(modalCtx).pop();
+                            }
+                          },
+                          child: Text(
+                            'Close',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 13,
                               color: isDark ? Colors.white60 : Colors.black54,
                             ),
                           ),
