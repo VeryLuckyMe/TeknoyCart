@@ -133,6 +133,7 @@ TeknoyCart_Project/
 | 31 | **`flutter-production-readiness`** | Pre-deployment hardening: global crash boundaries, offline resilience, image cache limits, and release stripping. |
 | 32 | **`performance-benchmark-profiling`** | Academic performance metrics generator: response time latency, API throughput, frame rates (60 FPS), and error rates. |
 | 33 | **`system-architecture-gap-auditor`** | Marketplace domain auditor: identifies missing e-commerce workflows, dead-end states, fraud vulnerabilities, and capstone gaps. |
+| 34 | **`mobile-release-divergence-auditor`** | Specializes in detecting bugs that work on localhost/Chrome/emulator but fail or crash in release APKs on physical Android devices. |
 
 ---
 

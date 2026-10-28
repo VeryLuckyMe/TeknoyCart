@@ -159,3 +159,12 @@ Added 3 dedicated expert skills to `.agents/skills/` and registered them in `AGE
      - Implemented `schedule_meetup_as_seller`, `verify_handoff_as_seller`, and `confirm_receipt_as_buyer` RPCs with `SECURITY DEFINER` and `search_path = public, pg_temp`.
      - Added Row Level Security (RLS) UPDATE policy allowing buyers and sellers to mutate their own orders directly in Supabase.
   2. Updated [`order_detail_view.dart`](file:///c:/Users/HP%20Laptop%2015s/.gemini/antigravity-ide/scratch/TeknoyCart_Project/TeknoyCart/lib/features/checkout/views/order_detail_view.dart) with three-tier execution hierarchy: Primary Supabase RPC → Direct Supabase DB update → Spring Boot fallback.
+
+---
+
+### J. `mobile-release-divergence-auditor` Skill & Localhost Divergence Hardening
+* **Purpose:** Built to detect and eliminate issues that run in development/localhost/Chrome/emulator but fail or crash once compiled into a production release APK on physical Android phones.
+* **Skill Installed:** [`.agents/skills/mobile-release-divergence-auditor/SKILL.md`](file:///c:/Users/HP%20Laptop%2015s/.gemini/antigravity-ide/scratch/TeknoyCart_Project/.agents/skills/mobile-release-divergence-auditor/SKILL.md)
+* **Automated Scanner Created:** [`.agents/skills/mobile-release-divergence-auditor/scripts/scan_divergence.py`](file:///c:/Users/HP%20Laptop%2015s/.gemini/antigravity-ide/scratch/TeknoyCart_Project/.agents/skills/mobile-release-divergence-auditor/scripts/scan_divergence.py)
+* **Immediate Bug Found & Fixed:**
+  - In [`wishlist_service.dart`](file:///c:/Users/HP%20Laptop%2015s/.gemini/antigravity-ide/scratch/TeknoyCart_Project/TeknoyCart/lib/core/services/wishlist_service.dart), `FlutterSecureStorage()` lacked `encryptedSharedPreferences: true`, causing KeyStore failures on Android 10+ devices. Fixed with full hardware-backed Keystore/Keychain options.

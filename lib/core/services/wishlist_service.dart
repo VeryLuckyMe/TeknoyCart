@@ -3,7 +3,14 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Local persistence service for student favorites / wishlist (Ponytail Audit H7).
 class WishlistService {
-  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const FlutterSecureStorage _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+    ),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock,
+    ),
+  );
   static const String _keyFavorites = 'teknoy_favorite_product_ids';
 
   static Future<Set<String>> getFavorites() async {
