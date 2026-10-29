@@ -4,12 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/product.dart';
+import '../../../../core/services/wishlist_service.dart';
 import '../../../../core/theme.dart';
 import '../../../../core/utils/order_ui_helper.dart';
 import '../../providers/review_provider.dart';
 import '../search_results_view.dart';
 
-class FeedProductCard extends StatefulWidget {
+class FeedProductCard extends ConsumerStatefulWidget {
   final Product product;
 
   const FeedProductCard({
@@ -18,12 +19,11 @@ class FeedProductCard extends StatefulWidget {
   });
 
   @override
-  State<FeedProductCard> createState() => _FeedProductCardState();
+  ConsumerState<FeedProductCard> createState() => _FeedProductCardState();
 }
 
-class _FeedProductCardState extends State<FeedProductCard>
+class _FeedProductCardState extends ConsumerState<FeedProductCard>
     with SingleTickerProviderStateMixin {
-  bool _isFavorite = false;
   late final AnimationController _favAnimController;
   late final Animation<double> _favScaleAnimation;
 
@@ -41,7 +41,7 @@ class _FeedProductCardState extends State<FeedProductCard>
     ]).animate(
       CurvedAnimation(
         parent: _favAnimController,
-        curve: Curves.easeOutBack,
+        curve: Curves.easeOutCubic,
       ),
     );
   }
@@ -56,6 +56,7 @@ class _FeedProductCardState extends State<FeedProductCard>
   Widget build(BuildContext context) {
     final product = widget.product;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isFavorite = ref.watch(isProductFavoritedProvider(product.id));
 
     // Choose badge color based on product condition
     Color badgeBg;
@@ -175,7 +176,7 @@ class _FeedProductCardState extends State<FeedProductCard>
                       behavior: HitTestBehavior.opaque,
                       onTap: () {
                         HapticFeedback.lightImpact();
-                        setState(() => _isFavorite = !_isFavorite);
+                        ref.read(wishlistProvider.notifier).toggle(product.id);
                         _favAnimController.forward(from: 0.0);
                       },
                       child: Container(
@@ -208,11 +209,11 @@ class _FeedProductCardState extends State<FeedProductCard>
                             ),
                             child: Center(
                               child: Icon(
-                                _isFavorite
+                                isFavorite
                                     ? Icons.favorite_rounded
                                     : Icons.favorite_border_rounded,
                                 size: 16,
-                                color: _isFavorite
+                                color: isFavorite
                                     ? (isDark ? const Color(0xFFFF5252) : TeknoyTheme.citMaroon)
                                     : (isDark ? Colors.white70 : const Color(0xFF555562)),
                               ),

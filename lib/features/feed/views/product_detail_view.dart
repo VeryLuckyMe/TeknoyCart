@@ -34,7 +34,6 @@ class ProductDetailView extends ConsumerStatefulWidget {
 class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   final PageController _pageController = PageController();
   int _currentImageIndex = 0;
-  bool _isFavorite = false;
   final Map<String, String> _selectedVariantsByAttr = {};
   int _availableStock = 1;
   bool _isLoadingInventory = false;
@@ -67,12 +66,6 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
     _selectedVariant = _getEffectiveVariantName();
     _fetchInventoryForCurrentVariant();
     _fetchProductImages();
-    _loadFavoriteStatus();
-  }
-
-  Future<void> _loadFavoriteStatus() async {
-    final fav = await WishlistService.isFavorite(product.id);
-    if (mounted) setState(() => _isFavorite = fav);
   }
 
   Future<void> _fetchProductImages() async {
@@ -1057,25 +1050,29 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                 actions: [
                   CircleAvatar(
                     backgroundColor: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.85),
-                    child: IconButton(
-                      tooltip: _isFavorite ? 'Remove from favorites' : 'Add to favorites',
-                      icon: Icon(
-                        _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                        color: TeknoyTheme.citMaroon,
-                        size: 20,
-                      ),
-                      onPressed: () async {
-                        final isFav = await WishlistService.toggleFavorite(product.id);
-                        if (mounted) {
-                          setState(() => _isFavorite = isFav);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(_isFavorite ? 'Saved to favorites' : 'Removed from favorites'),
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final isFavorite = ref.watch(isProductFavoritedProvider(product.id));
+                        return IconButton(
+                          tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
+                          icon: Icon(
+                            isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                            color: TeknoyTheme.citMaroon,
+                            size: 20,
+                          ),
+                          onPressed: () async {
+                            final isFav = await ref.read(wishlistProvider.notifier).toggle(product.id);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(isFav ? 'Saved to favorites' : 'Removed from favorites'),
                               duration: const Duration(seconds: 1),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          },
+                        );
                       },
                     ),
                   ),

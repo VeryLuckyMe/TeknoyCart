@@ -1,8 +1,10 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/core/services/wishlist_service.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
+import 'package:teknoycart/features/feed/views/widgets/feed_product_card.dart';
 
 class FakeWishlistStorage implements WishlistStorageAdapter {
   final Map<String, String> db = {};
@@ -79,6 +81,50 @@ void main() {
       expect(resolved, isNotNull);
       expect(resolved!.length, 1);
       expect(resolved.first.id, 'prod-1');
+    });
+  });
+
+  group('FeedProductCard Reactive Wishlist Sync Tests', () {
+    testWidgets('tapping heart on FeedProductCard updates wishlistProvider and reflects pre-saved state',
+        (WidgetTester tester) async {
+      final fakeStorage = FakeWishlistStorage();
+      final notifier = WishlistNotifier(storage: fakeStorage, autoLoad: false);
+      final product = Product(
+        id: 'prod-sync-1',
+        title: 'CIT-U PE Uniform Medium',
+        description: 'Official PE shirt',
+        price: 300.0,
+        category: 'Uniforms',
+        condition: 'New',
+        sellerId: 'seller-1',
+        createdAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            wishlistProvider.overrideWith((ref) => notifier),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 220,
+                height: 360,
+                child: FeedProductCard(product: product),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(notifier.state.contains('prod-sync-1'), isFalse);
+      expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.favorite_border_rounded));
+      await tester.pumpAndSettle();
+
+      expect(notifier.state.contains('prod-sync-1'), isTrue);
+      expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
     });
   });
 }
