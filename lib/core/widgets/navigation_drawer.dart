@@ -381,7 +381,9 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: Material(
-        color: Colors.transparent,
+        color: isActive
+            ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.15 : 0.08)
+            : Colors.transparent,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -393,9 +395,6 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
           ),
         ),
         child: ListTile(
-          tileColor: isActive
-              ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.15 : 0.08)
-              : Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),

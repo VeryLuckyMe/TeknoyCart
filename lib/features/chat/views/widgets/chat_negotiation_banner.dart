@@ -6,6 +6,7 @@ class ChatNegotiationBanner extends StatelessWidget {
   final double activeOfferPrice;
   final double askingPrice;
   final bool isBuyer;
+  final bool canOffer;
   final VoidCallback onOfferPrice;
   final VoidCallback onCheckout;
 
@@ -15,6 +16,7 @@ class ChatNegotiationBanner extends StatelessWidget {
     required this.activeOfferPrice,
     required this.askingPrice,
     required this.isBuyer,
+    this.canOffer = true,
     required this.onOfferPrice,
     required this.onCheckout,
   });
@@ -100,7 +102,7 @@ class ChatNegotiationBanner extends StatelessWidget {
               ),
             ),
           ] else if (activeState != 'agreed') ...[
-            if (isBuyer)
+            if (isBuyer && canOffer)
               TextButton.icon(
                 onPressed: onOfferPrice,
                 icon: const Icon(Icons.handshake_outlined, size: 16, color: TeknoyTheme.citMaroon),
@@ -112,6 +114,16 @@ class ChatNegotiationBanner extends StatelessWidget {
                     color: TeknoyTheme.citMaroon,
                     fontWeight: FontWeight.bold,
                   ),
+                ),
+              )
+            else if (isBuyer)
+              const Text(
+                'Out of Stock',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: TeknoyTheme.error,
                 ),
               ),
           ] else ...[

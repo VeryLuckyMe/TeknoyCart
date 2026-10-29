@@ -151,9 +151,12 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
       state = [newReview, ...state];
     }
 
-    // Persist to Supabase if available
+    // Persist with INSERT: PostgREST upserts emit ON CONFLICT DO UPDATE, and
+    // PostgreSQL then requires UPDATE grants on every column in the update
+    // list even when no conflict occurs. P0 deliberately withholds most of
+    // those grants, so a first-time review must be a plain insert.
     try {
-      await SupabaseConfig.client.from('product_reviews').upsert({
+      final row = await SupabaseConfig.client.from('product_reviews').insert({
         'order_id': orderId,
         'product_id': productId,
         'buyer_id': buyerId,
@@ -166,7 +169,21 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
         'variant_name': variantName,
         'is_anonymous': isAnonymous,
         'created_at': newReview.createdAt.toIso8601String(),
-      });
+      }).select('review_id').single();
+
+      // Keep the database-generated id so later edits and seller replies
+      // target a real row instead of the optimistic placeholder.
+      final savedId = row['review_id'] as String?;
+      if (savedId != null && savedId != reviewId) {
+        final index = state.indexWhere((r) => r.id == reviewId);
+        if (index >= 0) {
+          final synced = List<Review>.from(state);
+          synced[index] = synced[index].copyWith(id: savedId);
+          state = synced;
+          return synced[index];
+        }
+        return newReview.copyWith(id: savedId);
+      }
     } catch (_) {
       // Do not leave a review on screen that the database rejected.
       state = previousState;

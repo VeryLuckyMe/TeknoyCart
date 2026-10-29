@@ -6,7 +6,7 @@ class NotificationItem {
   final String userId;
   final String title;
   final String body;
-  final String type; // 'ORDER_STATUS' | 'PAYMENT' | 'KYC' | 'OFFER' | 'SYSTEM'
+  final String type; // 'ORDER_STATUS' | 'PAYMENT' | 'KYC' | 'OFFER' | 'REVIEW' | 'SYSTEM'
   final String? referenceId; // order_id, verification_id, etc.
   final String? referenceType; // 'ORDER' | 'KYC' | 'OFFER'
   final bool isRead;

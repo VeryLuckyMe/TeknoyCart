@@ -193,6 +193,11 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
 
     // Rebuild variant matrix combinations if multi-select attributes are present
     _rebuildVariantMatrix();
+    // The single-stock stepper must always start from the DB value, even when
+    // legacy category attributes happen to produce a variant matrix.
+    if (_variantMatrix.isNotEmpty) {
+      _singleStockQuantity = _variantMatrix.values.first.stock;
+    }
     _isLoadingInitial = false;
   }
 
@@ -453,6 +458,26 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
   }
 
   // ── SAVING LOGIC ──
+  /// Writes stock for an existing variant and fails loudly when RLS filters the
+  /// row out. PostgREST reports zero-row updates as success, which previously
+  /// surfaced as "Product updated successfully!" with the old stock still there.
+  Future<void> _updateStock(String variantId, int stock) async {
+    final updated = await SupabaseConfig.client
+        .from('inventory')
+        .update({
+          'stock_qty': stock,
+          'last_updated': DateTime.now().toIso8601String(),
+        })
+        .eq('variant_id', variantId)
+        .select('variant_id');
+
+    if (updated.isEmpty) {
+      throw Exception(
+        'Stock update was rejected. Only a verified seller can edit their own inventory.',
+      );
+    }
+  }
+
   Future<void> _saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -610,20 +635,19 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
       }
 
       // 5b. Update or insert active variants
-      if (_variantMatrix.isNotEmpty) {
+      // Route on the same predicate the UI uses: categories without a
+      // multi-select template render the single-stock stepper, so their stock
+      // must come from `_singleStockQuantity`, not the untouched variant value.
+      final categoryTemplates =
+          ref.read(categoryAttributeTemplatesProvider).valueOrNull?[_categoryName] ?? [];
+      if (categoryUsesVariantMatrix(categoryTemplates)) {
         for (final entry in _variantMatrix.entries) {
           final combo = entry.key;
           final item = entry.value;
 
           if (item.variantId != null && item.variantId!.isNotEmpty) {
             // Existing variant -> Update inventory
-            await SupabaseConfig.client
-                .from('inventory')
-                .update({
-                  'stock_qty': item.stock,
-                  'last_updated': DateTime.now().toIso8601String(),
-                })
-                .eq('variant_id', item.variantId!);
+            await _updateStock(item.variantId!, item.stock);
           } else {
             // Newly created variant -> Insert into product_variants + inventory
             final cleanCombo = combo.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
@@ -659,13 +683,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
         if (existingVars.isNotEmpty && existingVars.first is Map) {
           final firstVarId = existingVars.first['variant_id']?.toString();
           if (firstVarId != null && firstVarId.isNotEmpty) {
-            await SupabaseConfig.client
-                .from('inventory')
-                .update({
-                  'stock_qty': _singleStockQuantity,
-                  'last_updated': DateTime.now().toIso8601String(),
-                })
-                .eq('variant_id', firstVarId);
+            await _updateStock(firstVarId, _singleStockQuantity);
           }
         }
       }
@@ -1001,7 +1019,7 @@ class _EditProductViewState extends ConsumerState<EditProductView> {
                       final templates = templatesMap[_categoryName] ?? [];
                       final multiSelectTemplates = templates.where((t) => t.isMultiSelect).toList();
 
-                      if (multiSelectTemplates.isEmpty) {
+                      if (!categoryUsesVariantMatrix(templates)) {
                         // Single stock quantity for non-variant products
                         return _buildSectionCard(
                           isDark: isDark,

@@ -286,4 +286,7 @@ class FakeChatService extends ChatService {
     await Future.delayed(const Duration(milliseconds: 50));
     return 'room-demo';
   }
+
+  @override
+  Future<int?> fetchAvailableStock(String productId) async => 5;
 }

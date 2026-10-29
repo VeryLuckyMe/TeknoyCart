@@ -43,6 +43,10 @@ class _ChatViewState extends ConsumerState<ChatView> {
   double _agreedPrice = 0.0;
   double _offeredPrice = 0.0;
 
+  int? _productAvailable; // null until the inventory lookup resolves
+  bool get _isSoldOut =>
+      _productAvailable == 0 && !widget.product.isPreorderEnabled;
+
   bool _isOtherPartyDeleted = false;
   // Image upload state
   bool _isUploadingImage = false;
@@ -57,6 +61,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
   void initState() {
     super.initState();
     _agreedPrice = widget.product.price;
+    _loadProductAvailability();
     _checkOtherPartyDeleted();
     _markIncomingAsRead();
     _listenForTypingEvents();
@@ -303,7 +308,24 @@ class _ChatViewState extends ConsumerState<ChatView> {
     return null;
   }
 
+  Future<void> _loadProductAvailability() async {
+    final available =
+        await ref.read(chatServiceProvider).fetchAvailableStock(widget.product.id);
+    if (mounted) setState(() => _productAvailable = available);
+  }
+
   void _showOfferPriceDialog() {
+    if (_isSoldOut) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This item is out of stock, so offers are closed.'),
+          backgroundColor: TeknoyTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final offerController = TextEditingController();
     showDialog(
       context: context,
@@ -448,6 +470,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
             activeOfferPrice: activeOfferPrice,
             askingPrice: widget.product.price,
             isBuyer: ref.read(authStateProvider).valueOrNull?.id != widget.product.sellerId,
+            canOffer: !_isSoldOut,
             onOfferPrice: _showOfferPriceDialog,
             onCheckout: () {
               final checkoutPrice = (activeOfferPrice > 0)

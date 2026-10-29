@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/core/models/review.dart';
 import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/features/auth/models/profile.dart';
+import 'package:teknoycart/features/auth/providers/auth_provider.dart';
+import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
 import 'package:teknoycart/features/feed/providers/review_provider.dart';
 import 'package:teknoycart/features/feed/views/widgets/product_reviews_section.dart';
 import 'package:teknoycart/features/feed/views/widgets/review_submission_sheet.dart';
@@ -13,8 +16,11 @@ import 'package:teknoycart/features/feed/views/widgets/buyer_reviews_sheet.dart'
 import 'mock_http_client.dart';
 
 void main() {
+  late MockHttpOverrides mockHttp;
+
   setUpAll(() async {
-    HttpOverrides.global = MockHttpOverrides();
+    mockHttp = MockHttpOverrides();
+    HttpOverrides.global = mockHttp;
     TestWidgetsFlutterBinding.ensureInitialized();
     const MethodChannel('plugins.flutter.io/shared_preferences')
         .setMockMethodCallHandler((MethodCall methodCall) async {
@@ -184,6 +190,49 @@ void main() {
       expect(repliedReviews.first.hasReply, isTrue);
       expect(repliedReviews.first.sellerReply, 'Thanks for your feedback Hannah!');
     });
+
+    test('publishing a review uses INSERT and adopts the database id', () async {
+      // The insert response carries the generated review_id; the local state
+      // must keep it so edits and seller replies target the real row.
+      mockHttp.productReviewInsertBody = '{"review_id": "rev-db-1"}';
+      addTearDown(() => mockHttp.productReviewInsertBody = null);
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(reviewsNotifierProvider.notifier);
+
+      final saved = await notifier.submitReview(
+        orderId: 'ord-db-id-test',
+        productId: 'prod-db-id-test',
+        buyerId: 'buyer-db-id-test',
+        buyerName: 'Database Id Tester',
+        sellerId: 'seller-db-id-test',
+        rating: 5,
+        comment: 'First review for this completed order.',
+      );
+
+      expect(saved.id, 'rev-db-1');
+      expect(
+        container.read(orderReviewProvider('ord-db-id-test'))?.id,
+        'rev-db-1',
+      );
+
+      // A PostgREST upsert would send Prefer: resolution=merge-duplicates and
+      // require UPDATE grants that P0 intentionally withholds.
+      expect(mockHttp.lastReviewWriteMethod, 'POST');
+      expect(
+        mockHttp.lastReviewWriteUrl?.path,
+        endsWith('/rest/v1/product_reviews'),
+      );
+      expect(
+        mockHttp.lastReviewWritePrefer,
+        contains('return=representation'),
+      );
+      expect(
+        mockHttp.lastReviewWritePrefer,
+        isNot(contains('merge-duplicates')),
+      );
+    });
   });
 
   group('Reviews UI Component Tests', () {
@@ -300,6 +349,102 @@ void main() {
 
       // Verify Seller Response exists for seed review
       expect(find.text('Seller Response'), findsWidgets);
+    });
+
+    testWidgets('Seller order detail shows buyer review and reply action, never buyer edit controls', (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final seller = Profile(
+        id: 'usr-seller',
+        username: 'Wildcat Store',
+        email: 'seller@cit.edu',
+        role: 'SELLER',
+        isSellerVerified: true,
+        createdAt: DateTime.now(),
+      );
+
+      final order = <String, dynamic>{
+        'order_id': 'ord-mock-1',
+        'status': 'COMPLETED',
+        'total_amount': '450.00',
+        'payment_method': 'CASH_ON_PICKUP',
+        'buyer_id': 'usr-buyer-sample',
+        'seller_id': 'usr-seller',
+        'buyer_name': 'Marc Lopez',
+        'seller_name': 'Wildcat Store',
+        'created_at': DateTime(2026, 1, 1).toIso8601String(),
+      };
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            reviewsNotifierProvider.overrideWith((ref) => ReviewsNotifier(seedDemo: true)),
+            authStateProvider.overrideWith((ref) => AsyncValue.data(seller)),
+          ],
+          child: MaterialApp(
+            home: OrderDetailView(order: order, isSeller: true),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Buyer rated this'), findsOneWidget);
+      expect(find.text('Edit Reply'), findsOneWidget);
+      expect(find.textContaining('You rated this'), findsNothing);
+      expect(find.text('Rate & Review Order'), findsNothing);
+      expect(find.widgetWithText(TextButton, 'Edit'), findsNothing);
+
+      await tester.tap(find.text('Edit Reply'));
+      await tester.pumpAndSettle();
+      expect(find.text('Seller Response'), findsOneWidget);
+      expect(find.text('Publish Reply'), findsOneWidget);
+    });
+
+    testWidgets('Buyer order detail keeps the existing review edit controls', (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final buyer = Profile(
+        id: 'usr-buyer-sample',
+        username: 'Marc Lopez',
+        email: 'buyer@cit.edu',
+        role: 'BUYER',
+        isSellerVerified: false,
+        createdAt: DateTime.now(),
+      );
+
+      final order = <String, dynamic>{
+        'order_id': 'ord-mock-1',
+        'status': 'COMPLETED',
+        'total_amount': '450.00',
+        'payment_method': 'CASH_ON_PICKUP',
+        'buyer_id': 'usr-buyer-sample',
+        'seller_id': 'usr-seller',
+        'buyer_name': 'Marc Lopez',
+        'seller_name': 'Wildcat Store',
+        'created_at': DateTime(2026, 1, 1).toIso8601String(),
+      };
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            reviewsNotifierProvider.overrideWith((ref) => ReviewsNotifier(seedDemo: true)),
+            authStateProvider.overrideWith((ref) => AsyncValue.data(buyer)),
+          ],
+          child: MaterialApp(
+            home: OrderDetailView(order: order, isSeller: false),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('You rated this'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Edit'), findsOneWidget);
+      expect(find.textContaining('Buyer rated this'), findsNothing);
+      expect(find.text('Edit Reply'), findsNothing);
     });
   });
 }

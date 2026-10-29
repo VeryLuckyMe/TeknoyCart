@@ -285,6 +285,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                   if (_selectedCategory == 'Orders') {
                     return item.referenceType == 'ORDER' ||
                         item.type == 'ORDER_STATUS' ||
+                        item.type == 'REVIEW' ||
                         item.type.startsWith('ORDER');
                   } else if (_selectedCategory == 'Payments') {
                     return item.type == 'PAYMENT' ||
@@ -406,6 +407,14 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
         tagBg = Colors.orange.withValues(alpha: 0.14);
         tagColor = Colors.deepOrange;
         break;
+      case 'REVIEW':
+        icon = Icons.star_rounded;
+        iconBg = TeknoyTheme.citGold.withValues(alpha: isDark ? 0.22 : 0.15);
+        iconColor = isDark ? TeknoyTheme.citGold : const Color(0xFFB8860B);
+        tagLabel = 'REVIEW';
+        tagBg = TeknoyTheme.citGold.withValues(alpha: 0.15);
+        tagColor = isDark ? TeknoyTheme.citGold : const Color(0xFFB8860B);
+        break;
       case 'ORDER_STATUS':
       default:
         icon = Icons.shopping_bag_rounded;
@@ -494,7 +503,8 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
                   MaterialPageRoute(
                     builder: (_) => OrderDetailView(
                       order: {'order_id': item.referenceId!},
-                      isSeller: item.title.contains('Payment') ||
+                      isSeller: item.type == 'REVIEW' ||
+                          item.title.contains('Payment') ||
                           item.title.contains('Sale') ||
                           item.title.contains('New Order'),
                     ),

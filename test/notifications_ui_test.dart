@@ -8,6 +8,7 @@ import 'package:teknoycart/core/providers/notification_provider.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
+import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 import 'mock_http_client.dart';
 
@@ -341,6 +342,78 @@ void main() {
       await tester.tap(find.text('Orders'));
       await tester.pumpAndSettle();
       expect(find.text('📋 New Seller Application'), findsNothing);
+    });
+
+    testWidgets('8. Review notification uses REVIEW styling, filters into Orders, and opens seller order detail', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final sellerUser = Profile(
+        id: 'seller-ui-test-01',
+        username: 'teknoy_seller',
+        email: 'seller@cit.edu',
+        role: 'SELLER',
+        isSellerVerified: true,
+        createdAt: DateTime.now(),
+      );
+
+      final reviewNotifications = [
+        NotificationItem(
+          id: 'notif-review-01',
+          userId: sellerUser.id,
+          title: '⭐ New Review Received',
+          body: 'A buyer rated Engineering Calculus Textbook 5 out of 5. Tap to view and reply.',
+          type: 'REVIEW',
+          referenceId: 'order-104',
+          referenceType: 'ORDER',
+          isRead: false,
+          createdAt: DateTime.now().subtract(const Duration(minutes: 2)),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => AsyncValue.data(sellerUser)),
+            unreadNotificationCountProvider.overrideWithValue(1),
+            notificationProvider.overrideWith(() => FakeNotificationNotifier(reviewNotifications)),
+          ],
+          child: const MaterialApp(
+            home: ProductDiscoveryFeedView(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Notifications'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('⭐ New Review Received'), findsOneWidget);
+      expect(find.text('REVIEW'), findsOneWidget);
+      expect(find.byIcon(Icons.star_rounded), findsOneWidget);
+
+      await tester.tap(find.text('Orders'));
+      await tester.pumpAndSettle();
+      expect(find.text('⭐ New Review Received'), findsOneWidget);
+
+      await tester.tap(find.text('Payments'));
+      await tester.pumpAndSettle();
+      expect(find.text('⭐ New Review Received'), findsNothing);
+
+      await tester.tap(find.text('Account'));
+      await tester.pumpAndSettle();
+      expect(find.text('⭐ New Review Received'), findsNothing);
+
+      await tester.tap(find.text('All'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('⭐ New Review Received'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(OrderDetailView), findsOneWidget);
     });
   });
 }

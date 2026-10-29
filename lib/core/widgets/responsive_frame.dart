@@ -13,19 +13,19 @@ class ResponsiveMobileFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Enforce frame only on Web platform when the width is larger than a standard smartphone
-        if (!kIsWeb || constraints.maxWidth <= 500) {
-          return child;
-        }
+    // Enforce frame only on Web platform when the width is larger than a standard smartphone
+    if (!kIsWeb) return child;
+    final mediaSize = MediaQuery.sizeOf(context);
+    if (mediaSize.width <= 500) {
+      return child;
+    }
 
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        
-        const phoneBorderWidth = 10.0;
-        const phoneFrameWidth = 460.0;
-        const phoneWidth = phoneFrameWidth - (phoneBorderWidth * 2); // 440.0
-        final phoneHeight = (constraints.maxHeight - 24.0).clamp(650.0, 940.0) - (phoneBorderWidth * 2);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    const phoneBorderWidth = 10.0;
+    const phoneFrameWidth = 460.0;
+    const phoneWidth = phoneFrameWidth - (phoneBorderWidth * 2); // 440.0
+    final phoneHeight = (mediaSize.height - 24.0).clamp(650.0, 940.0) - (phoneBorderWidth * 2);
 
         return Scaffold(
           backgroundColor: isDark ? const Color(0xFF0C0C0F) : TeknoyTheme.lightSurfaceMuted,
@@ -89,7 +89,7 @@ class ResponsiveMobileFrame extends StatelessWidget {
                   width: phoneFrameWidth,
                   height: 940,
                   constraints: BoxConstraints(
-                    maxHeight: constraints.maxHeight - 24,
+                    maxHeight: mediaSize.height - 24,
                   ),
                   decoration: BoxDecoration(
                     color: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBg,
@@ -180,7 +180,5 @@ class ResponsiveMobileFrame extends StatelessWidget {
             ],
           ),
         );
-      },
-    );
   }
 }

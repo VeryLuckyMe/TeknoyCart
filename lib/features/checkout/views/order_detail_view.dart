@@ -21,6 +21,7 @@ import 'widgets/qr_scanner_sheet.dart';
 import 'package:teknoycart/core/models/review.dart';
 import 'package:teknoycart/features/feed/providers/review_provider.dart';
 import 'package:teknoycart/features/feed/views/widgets/review_submission_sheet.dart';
+import 'package:teknoycart/features/feed/views/widgets/seller_reply_dialog.dart';
 import 'package:teknoycart/core/config/api_config.dart';
 
 String get backendUrl => ApiConfig.ordersUrl;
@@ -115,16 +116,28 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
       onTimeout: () => throw TimeoutException('Connection timed out. Please check your network connection and try again.'),
     );
     if (response.statusCode >= 400) {
-      String errorMessage = 'Error ${response.statusCode}';
+      // Spring Security rejects unauthenticated requests before the controller
+      // runs, and that body carries no "message". Prefer a real server message
+      // when one exists, otherwise explain what the bare status means.
+      String? serverMessage;
       try {
         final parsed = jsonDecode(response.body);
         if (parsed is Map && parsed['message'] != null) {
-          errorMessage = parsed['message'].toString();
+          serverMessage = parsed['message'].toString();
         }
       } catch (_) {
-        if (response.body.isNotEmpty) errorMessage = response.body;
+        if (response.body.isNotEmpty &&
+            response.statusCode != 401 &&
+            response.statusCode != 403) {
+          serverMessage = response.body;
+        }
       }
-      throw Exception(errorMessage);
+      if (serverMessage == null &&
+          (response.statusCode == 401 || response.statusCode == 403)) {
+        throw Exception(
+            'Your session has expired. Please sign out and sign in again.');
+      }
+      throw Exception(serverMessage ?? 'Error ${response.statusCode}');
     }
     try {
       if (response.body.isNotEmpty) {
@@ -475,29 +488,40 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     setState(() => _isActing = true);
     try {
       if (action == 'cancel') {
-        final reason = body['reason'] as String? ?? 'Seller declined';
+        final reason = body['reason'] as String? ?? 'Cancelled by buyer';
         bool rpcSucceeded = false;
-        try {
-          final rpcRes = await SupabaseConfig.client.rpc(
-            'cancel_order_as_seller',
-            params: {
-              'p_order_id': _order['order_id'],
-              'p_reason': reason,
-            },
-          );
-          if (rpcRes is Map && rpcRes['success'] == true) {
-            rpcSucceeded = true;
-          } else if (rpcRes is Map && rpcRes['error'] != null) {
-            throw Exception(rpcRes['error']);
+        String? rpcStatus;
+        // The Supabase RPC is seller-scoped: it answers "Only the seller can
+        // cancel this order" for a buyer, so calling it first guaranteed a
+        // failed round trip (and surfaced an error before the backend call).
+        // Buyers go straight to the backend, which authorises owner-or-seller.
+        if (widget.isSeller) {
+          try {
+            final rpcRes = await SupabaseConfig.client.rpc(
+              'cancel_order_as_seller',
+              params: {
+                'p_order_id': _order['order_id'],
+                'p_reason': reason,
+              },
+            );
+            if (rpcRes is Map && rpcRes['success'] == true) {
+              rpcSucceeded = true;
+              rpcStatus = rpcRes['status']?.toString();
+            } else if (rpcRes is Map && rpcRes['error'] != null) {
+              throw Exception(rpcRes['error']);
+            }
+          } catch (rpcErr) {
+            debugPrint('cancel_order_as_seller RPC attempt: $rpcErr');
           }
-        } catch (rpcErr) {
-          debugPrint('cancel_order_as_seller RPC attempt: $rpcErr');
         }
 
         if (rpcSucceeded) {
           if (mounted) {
             setState(() {
-              _order['status'] = 'CANCELLED';
+              // Escrowed orders route to REFUND_PENDING, so never hardcode CANCELLED.
+              _order['status'] = (rpcStatus != null && rpcStatus.isNotEmpty)
+                  ? rpcStatus
+                  : 'CANCELLED';
               _order['dispute_reason'] = reason;
             });
           }
@@ -749,6 +773,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
 
   void _showCancelConfirmationDialog() {
     String selectedReason = 'Changed my mind';
+    final needsRefund = _status == 'ESCROWED' || _status == 'PAYMENT_SUBMITTED';
     const cancelReasons = [
       'Changed my mind',
       'Found a better price elsewhere',
@@ -763,11 +788,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.cancel_outlined, color: Colors.red, size: 24),
-              SizedBox(width: 8),
-              Text('Cancel Order?', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+              const Icon(Icons.cancel_outlined, color: Colors.red, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                needsRefund ? 'Cancel & Request Refund?' : 'Cancel Order?',
+                style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           content: Column(
@@ -790,7 +818,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                 },
               ),
               const SizedBox(height: 12),
-              const Text('This will release the item reservation and notify the other party.', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.black54)),
+              Text(
+                needsRefund
+                    ? 'The buyer already paid. This order will be flagged for a PayMongo refund and the reserved stock will be handled by the platform.'
+                    : 'This will release the item reservation and notify the other party.',
+                style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.black54),
+              ),
             ],
           ),
           actions: [
@@ -803,11 +836,20 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                 Navigator.pop(context);
                 final actorId = ref.read(authStateProvider).valueOrNull?.id;
                 if (actorId != null) {
-                  await _handleSpringAction('cancel', {'reason': selectedReason}, 'Order cancelled successfully.');
+                  await _handleSpringAction(
+                    'cancel',
+                    {'reason': selectedReason},
+                    needsRefund
+                        ? 'Cancellation recorded. The order is now flagged for refund.'
+                        : 'Order cancelled successfully.',
+                  );
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Yes, Cancel Order', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: Text(
+                needsRefund ? 'Yes, Cancel & Refund' : 'Yes, Cancel Order',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
@@ -897,6 +939,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         variantName: variantName,
         existingReview: existing,
       ),
+    );
+  }
+
+  void _openSellerReply(Review review) {
+    showDialog(
+      context: context,
+      builder: (_) => SellerReplyDialog(review: review),
     );
   }
 
@@ -2166,19 +2215,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         buttons.add(const SizedBox(height: 10));
         buttons.add(_actionBtn('Report No-Show', Colors.orange, Icons.person_off_rounded, _showNoShowDialog));
         buttons.add(const SizedBox(height: 10));
-        buttons.add(SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _isActing ? null : _showCancelConfirmationDialog,
-            icon: const Icon(Icons.cancel_outlined, size: 18, color: Colors.red),
-            label: const Text('Cancel Order', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red)),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Colors.red, width: 1.5),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-          ),
-        ));
+        buttons.add(_sellerCancelBtn('Cancel Order'));
       }
 
       if (_status == 'REFUND_PENDING') {
@@ -2227,6 +2264,23 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
 
       if (_status == 'REFUND_REQUESTED') {
         buttons.add(_actionBtn('Issue GCash Refund', Colors.green, Icons.currency_exchange_rounded, _showConfirmRefundDialog));
+      }
+
+      // Seller cancellation for in-flight orders. PLACED and NEEDS_REVIEW have
+      // their own dedicated actions above, so they are intentionally excluded.
+      // Kept last so the destructive action sits below the primary workflow.
+      final showSellerCancel = _status == 'ACCEPTED' ||
+          _status == 'AWAITING_PAYMENT' ||
+          _status == 'ESCROWED' ||
+          _status == 'PAYMENT_SUBMITTED' ||
+          (_status == 'MEETUP_SCHEDULED' && !_isGCash);
+      if (showSellerCancel) {
+        if (buttons.isNotEmpty) buttons.add(const SizedBox(height: 10));
+        buttons.add(_sellerCancelBtn(
+          (_status == 'ESCROWED' || _status == 'PAYMENT_SUBMITTED')
+              ? 'Cancel & Request Refund'
+              : 'Cancel Order',
+        ));
       }
     } else {
       // Buyer actions
@@ -2663,116 +2717,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         buttons.add(_actionBtn('Request Return / Refund', Colors.orange, Icons.assignment_return_rounded, _showReturnRequestDialog));
       }
 
-      if (_status == 'COMPLETED') {
-        final orderId = _order['order_id']?.toString() ?? '';
-        final existingReview = ref.watch(orderReviewProvider(orderId));
-        final product = _extractProductFromOrder();
-        final variant = _order['product_variants'] as Map<String, dynamic>?;
-        final variantValue = variant?['variant_value'] as String?;
-
-        if (existingReview == null) {
-          buttons.add(
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [TeknoyTheme.citMaroon, Color(0xFF9E1B1B)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ElevatedButton.icon(
-                onPressed: () => _openReviewSheet(product, orderId, variantValue, null),
-                icon: const Icon(Icons.star_rounded, size: 22, color: TeknoyTheme.citGold),
-                label: const Text(
-                  'Rate & Review Order',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: Colors.white,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-            ),
-          );
-        } else {
-          buttons.add(
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: isDark ? TeknoyTheme.darkSurfaceRaised : const Color(0xFFF7F7FA),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle_rounded, color: TeknoyTheme.citGold, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Text(
-                              'You rated this ',
-                              style: TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.bold),
-                            ),
-                            Row(
-                              children: List.generate(
-                                existingReview.rating,
-                                (_) => const Icon(Icons.star_rounded, size: 14, color: TeknoyTheme.citGold),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (existingReview.comment.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            '"${existingReview.comment}"',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 11,
-                              fontStyle: FontStyle.italic,
-                              color: isDark ? Colors.white60 : Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => _openReviewSheet(product, orderId, variantValue, existingReview),
-                    child: const Text('Edit', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon)),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-        buttons.add(const SizedBox(height: 10));
-        buttons.add(_actionBtn('Request Return / Refund', Colors.orange, Icons.assignment_return_rounded, _showReturnRequestDialog));
-      }
-
-      if (_status == 'RETURN_APPROVED') {
-        final returnOtp = (_order['return_otp'] != null && _order['return_otp'].toString().isNotEmpty)
+      if (_status == 'RETURN_APPROVED') {        final returnOtp = (_order['return_otp'] != null && _order['return_otp'].toString().isNotEmpty)
             ? _order['return_otp'].toString()
             : '------';
         buttons.add(
@@ -2864,6 +2809,142 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
       }
     }
 
+    if (_status == 'COMPLETED') {
+      final orderId = _order['order_id']?.toString() ?? '';
+      final existingReview = ref.watch(orderReviewProvider(orderId));
+      final product = _extractProductFromOrder();
+      final variant = _order['product_variants'] as Map<String, dynamic>?;
+      final variantValue = variant?['variant_value'] as String?;
+
+      if (existingReview == null) {
+        if (!widget.isSeller) {
+          buttons.add(
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [TeknoyTheme.citMaroon, Color(0xFF9E1B1B)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: TeknoyTheme.citMaroon.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ElevatedButton.icon(
+                onPressed: () => _openReviewSheet(product, orderId, variantValue, null),
+                icon: const Icon(Icons.star_rounded, size: 22, color: TeknoyTheme.citGold),
+                label: const Text(
+                  'Rate & Review Order',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+          );
+        }
+      } else {
+        final isBuyerReview = !widget.isSeller;
+        buttons.add(
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isDark ? TeknoyTheme.darkSurfaceRaised : const Color(0xFFF7F7FA),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isBuyerReview ? Icons.check_circle_rounded : Icons.rate_review_rounded,
+                  color: TeknoyTheme.citGold,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            isBuyerReview ? 'You rated this ' : 'Buyer rated this ',
+                            style: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
+                          Row(
+                            children: List.generate(
+                              existingReview.rating,
+                              (_) => const Icon(Icons.star_rounded, size: 14, color: TeknoyTheme.citGold),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (existingReview.comment.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '"${existingReview.comment}"',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                            color: isDark ? Colors.white60 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                      if (!isBuyerReview && existingReview.hasReply) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Your reply: ${existingReview.sellerReply}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: isBuyerReview
+                      ? () => _openReviewSheet(product, orderId, variantValue, existingReview)
+                      : () => _openSellerReply(existingReview),
+                  child: Text(
+                    isBuyerReview ? 'Edit' : (existingReview.hasReply ? 'Edit Reply' : 'Reply'),
+                    style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: TeknoyTheme.citMaroon),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      if (!widget.isSeller) {
+        buttons.add(const SizedBox(height: 10));
+        buttons.add(_actionBtn('Request Return / Refund', Colors.orange, Icons.assignment_return_rounded, _showReturnRequestDialog));
+      }
+    }
+
     if (buttons.isEmpty) return const SizedBox();
 
     return Column(children: [
@@ -2884,6 +2965,31 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           elevation: 0,
+        ),
+      ),
+    );
+  }
+
+  Widget _sellerCancelBtn(String label) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        key: const Key('seller_cancel_action'),
+        onPressed: _isActing ? null : _showCancelConfirmationDialog,
+        icon: const Icon(Icons.cancel_outlined, size: 18, color: Colors.red),
+        label: Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+            color: Colors.red,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Colors.red, width: 1.5),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
     );
