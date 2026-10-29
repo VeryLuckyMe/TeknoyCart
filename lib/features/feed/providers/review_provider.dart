@@ -105,6 +105,11 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
     }
   }
 
+  /// Manually refresh reviews from database (e.g. on pull-to-refresh or product view open)
+  Future<void> refreshReviews() async {
+    await _loadFromSupabase();
+  }
+
   /// Submit a new review for an order and product
   Future<Review> submitReview({
     String? orderId,
@@ -137,11 +142,14 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
     );
 
     // Update state immediately (optimistic UI)
-    // Replace if existing review for this order/buyer, else prepend
+    // Replace if existing review for this exact order, else prepend
     final previousState = state;
-    final existingIndex = state.indexWhere((r) =>
-        (orderId != null && r.orderId == orderId) ||
-        (r.productId == productId && r.buyerId == buyerId));
+    final existingIndex = orderId != null
+        ? state.indexWhere((r) => r.orderId == orderId)
+        : state.indexWhere((r) =>
+            r.productId == productId &&
+            r.buyerId == buyerId &&
+            r.orderId == null);
 
     if (existingIndex >= 0) {
       final updatedList = List<Review>.from(state);

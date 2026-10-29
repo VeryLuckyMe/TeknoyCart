@@ -21,6 +21,16 @@ class ProductReviewsSection extends ConsumerStatefulWidget {
 class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
   String _selectedFilter = 'All'; // 'All', '5', '4', '3', 'Photos'
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(reviewsNotifierProvider.notifier).refreshReviews();
+      }
+    });
+  }
+
   void _openImageLightbox(BuildContext context, String imageUrl) {
     showDialog(
       context: context,

@@ -233,6 +233,41 @@ void main() {
         isNot(contains('merge-duplicates')),
       );
     });
+
+    test('Multiple reviews for the same product across different orders are both preserved', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(reviewsNotifierProvider.notifier);
+
+      // Order 1 review
+      await notifier.submitReview(
+        orderId: 'ord-repeat-1',
+        productId: 'prod-repeat-test',
+        buyerId: 'buyer-repeat-user',
+        buyerName: 'Harvey Valmera',
+        sellerId: 'seller-repeat-user',
+        rating: 5,
+        comment: 'First purchase review',
+        tags: ['Item as described'],
+      );
+
+      // Order 2 review for the same product by the same buyer
+      await notifier.submitReview(
+        orderId: 'ord-repeat-2',
+        productId: 'prod-repeat-test',
+        buyerId: 'buyer-repeat-user',
+        buyerName: 'Harvey Valmera',
+        sellerId: 'seller-repeat-user',
+        rating: 5,
+        comment: 'Second purchase review - solid repeat purchase',
+        tags: ['Fast meetup'],
+      );
+
+      final productReviews = container.read(reviewsForProductProvider('prod-repeat-test'));
+      expect(productReviews.length, 2);
+      expect(productReviews.any((r) => r.orderId == 'ord-repeat-1'), isTrue);
+      expect(productReviews.any((r) => r.orderId == 'ord-repeat-2'), isTrue);
+    });
   });
 
   group('Reviews UI Component Tests', () {
