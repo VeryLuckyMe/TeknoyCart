@@ -155,3 +155,4 @@ final searchHistoryProvider = StateNotifierProvider<SearchHistoryNotifier, List<
 final hasSearchHistoryProvider = Provider<bool>((ref) {
   return ref.watch(searchHistoryProvider).isNotEmpty;
 });
+

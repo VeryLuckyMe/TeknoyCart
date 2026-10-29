@@ -188,10 +188,10 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                       const SizedBox(height: 16),
                       const Text(
                         'You have no listings yet.',
-                        style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      const Text(
                         'List items to see them here and manage your campus inventory.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey),

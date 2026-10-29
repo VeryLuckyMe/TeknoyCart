@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/core/services/search_history_service.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/search_results_view.dart';
@@ -11,7 +10,6 @@ import 'package:teknoycart/features/feed/views/widgets/search_history_chips.dart
 Widget _createTestApp({
   required Widget child,
   List<String>? initialHistory,
-  void Function(String)? onSelectQuery,
 }) {
   return ProviderScope(
     overrides: [

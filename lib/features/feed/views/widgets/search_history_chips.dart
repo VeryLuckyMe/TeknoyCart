@@ -151,3 +151,4 @@ class SearchHistoryChips extends ConsumerWidget {
     );
   }
 }
+
