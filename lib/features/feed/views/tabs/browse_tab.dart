@@ -108,14 +108,14 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Search Input Deck with Filter Tune Button
+        // Search Input Deck with Filter Tune Button (Compact Headroom)
         Padding(
-          padding: const EdgeInsets.fromLTRB(16.0, 4.0, 16.0, 10.0),
+          padding: const EdgeInsets.fromLTRB(16.0, 2.0, 16.0, 6.0),
           child: Row(
             children: [
               Expanded(
                 child: Container(
-                  height: 48,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF18181C) : Colors.white,
                     borderRadius: BorderRadius.circular(8),
@@ -139,26 +139,26 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                     textInputAction: TextInputAction.search,
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontSize: 16,
+                      fontSize: 15,
                       color: isDark ? Colors.white : const Color(0xFF191C1D),
                     ),
                     decoration: InputDecoration(
                       hintText: 'Search textbooks, uniforms, snacks...',
                       hintStyle: TextStyle(
                         fontFamily: 'Inter',
-                        fontSize: 14,
+                        fontSize: 13.5,
                         color: isDark ? Colors.white38 : TeknoyTheme.citMaroonMuted.withValues(alpha: 0.7),
                       ),
-                      prefixIcon: const Icon(Icons.search_rounded, color: TeknoyTheme.citMaroonMuted),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 20, color: TeknoyTheme.citMaroonMuted),
                       suffixIcon: searchQuery.isNotEmpty
                           ? IconButton(
                               tooltip: 'Clear search',
-                              icon: const Icon(Icons.clear_rounded, color: TeknoyTheme.citMaroonMuted),
+                              icon: const Icon(Icons.clear_rounded, size: 18, color: TeknoyTheme.citMaroonMuted),
                               onPressed: () => ref.read(searchQueryProvider.notifier).state = '',
                             )
                           : null,
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                   ),
                 ),
@@ -170,8 +170,8 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                 child: GestureDetector(
                   onTap: () => showProductFilterSheet(context, ref),
                   child: Container(
-                  height: 48,
-                  width: 48,
+                  height: 44,
+                  width: 44,
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF18181C) : Colors.white,
                     borderRadius: BorderRadius.circular(8),
@@ -185,17 +185,18 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                       const Center(
                         child: Icon(
                           Icons.tune_rounded,
+                          size: 20,
                           color: TeknoyTheme.citMaroon,
                         ),
                       ),
                       // Gold dot: signals condition/price filters are active
                       if (hasAdvancedFilters)
                         Positioned(
-                          top: 8,
-                          right: 8,
+                          top: 7,
+                          right: 7,
                           child: Container(
-                            width: 8,
-                            height: 8,
+                            width: 7,
+                            height: 7,
                             decoration: const BoxDecoration(
                               color: TeknoyTheme.citGold,
                               shape: BoxShape.circle,
@@ -211,7 +212,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
           ),
         ),
 
-        // Wildcat Campus Spotlight Carousel (Interactive 3-Slide Anti-Slop with Search Auto-Collapse)
+        // Wildcat Campus Spotlight Carousel (Compact 86px Anti-Forehead Carousel with Search Auto-Collapse)
         AnimatedSize(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
@@ -221,7 +222,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     SizedBox(
-                      height: 124,
+                      height: 86,
                       child: PageView.builder(
                         key: const Key('browse_spotlight_pageview'),
                         controller: _spotlightController,
@@ -234,11 +235,11 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                           final isSpotlightActive = selectedCategory == slide.category;
 
                           return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 2.0),
                             child: Material(
                               color: Colors.transparent,
                               child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(14),
                                 onTap: () {
                                   HapticFeedback.selectionClick();
                                   ref.read(selectedCategoryProvider.notifier).state =
@@ -251,31 +252,31 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                     ),
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(14),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: TeknoyTheme.citMaroon.withValues(alpha: 0.25),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 4),
+                                        color: TeknoyTheme.citMaroon.withValues(alpha: 0.22),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 3),
                                       ),
                                     ],
                                   ),
                                   child: Stack(
                                     children: [
                                       Positioned(
-                                        right: -12,
-                                        bottom: -18,
+                                        right: -10,
+                                        bottom: -14,
                                         child: Opacity(
-                                          opacity: 0.16,
+                                          opacity: 0.14,
                                           child: Icon(
                                             slide.watermarkIcon,
-                                            size: 145,
+                                            size: 110,
                                             color: TeknoyTheme.citGold,
                                           ),
                                         ),
                                       ),
                                       Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                                        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           mainAxisAlignment: MainAxisAlignment.center,
@@ -283,17 +284,17 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                                             Row(
                                               children: [
                                                 Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                   decoration: BoxDecoration(
                                                     color: TeknoyTheme.citGold,
-                                                    borderRadius: BorderRadius.circular(6),
+                                                    borderRadius: BorderRadius.circular(5),
                                                   ),
                                                   child: Row(
                                                     mainAxisSize: MainAxisSize.min,
                                                     children: [
                                                       Icon(
                                                         slide.badgeIcon,
-                                                        size: 12,
+                                                        size: 10,
                                                         color: TeknoyTheme.citMaroon,
                                                       ),
                                                       const SizedBox(width: 3),
@@ -301,10 +302,10 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                                                         slide.badge,
                                                         style: const TextStyle(
                                                           fontFamily: 'Outfit',
-                                                          fontSize: 9,
+                                                          fontSize: 8.5,
                                                           fontWeight: FontWeight.w900,
                                                           color: TeknoyTheme.citMaroon,
-                                                          letterSpacing: 0.8,
+                                                          letterSpacing: 0.6,
                                                         ),
                                                       ),
                                                     ],
@@ -312,10 +313,10 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                                                 ),
                                                 const Spacer(),
                                                 Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                   decoration: BoxDecoration(
                                                     color: Colors.black.withValues(alpha: 0.22),
-                                                    borderRadius: BorderRadius.circular(12),
+                                                    borderRadius: BorderRadius.circular(10),
                                                   ),
                                                   child: Row(
                                                     mainAxisSize: MainAxisSize.min,
@@ -324,15 +325,15 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                                                         isSpotlightActive ? 'Filtering' : 'View Deals',
                                                         style: const TextStyle(
                                                           fontFamily: 'Inter',
-                                                          fontSize: 10,
+                                                          fontSize: 9.5,
                                                           fontWeight: FontWeight.w600,
                                                           color: Colors.white,
                                                         ),
                                                       ),
-                                                      const SizedBox(width: 4),
+                                                      const SizedBox(width: 3),
                                                       const Icon(
                                                         Icons.arrow_forward_ios_rounded,
-                                                        size: 9,
+                                                        size: 8,
                                                         color: TeknoyTheme.citGold,
                                                       ),
                                                     ],
@@ -340,20 +341,20 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                                                 ),
                                               ],
                                             ),
-                                            const SizedBox(height: 8),
+                                            const SizedBox(height: 4),
                                             Text(
                                               slide.title,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(
                                                 fontFamily: 'Outfit',
-                                                fontSize: 16,
+                                                fontSize: 14.5,
                                                 fontWeight: FontWeight.bold,
                                                 color: Colors.white,
                                                 letterSpacing: -0.2,
                                               ),
                                             ),
-                                            const SizedBox(height: 4),
+                                            const SizedBox(height: 2),
                                             Text(
                                               isSpotlightActive
                                                   ? slide.activeSubtitle
@@ -362,7 +363,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                                               overflow: TextOverflow.ellipsis,
                                               style: TextStyle(
                                                 fontFamily: 'Inter',
-                                                fontSize: 11,
+                                                fontSize: 10.5,
                                                 color: Colors.white.withValues(alpha: 0.82),
                                               ),
                                             ),
@@ -378,33 +379,33 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                         },
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(_spotlightSlides.length, (i) {
                         final isActive = i == _activeSpotlightPage;
                         return AnimatedContainer(
                           duration: const Duration(milliseconds: 220),
-                          margin: const EdgeInsets.symmetric(horizontal: 3),
-                          height: 5,
-                          width: isActive ? 18 : 6,
+                          margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                          height: 4,
+                          width: isActive ? 14 : 5,
                           decoration: BoxDecoration(
                             color: isActive
                                 ? TeknoyTheme.citGold
                                 : (isDark ? Colors.white24 : TeknoyTheme.citMaroon.withValues(alpha: 0.25)),
-                            borderRadius: BorderRadius.circular(3),
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         );
                       }),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 5),
                   ],
                 ),
         ),
 
-        // Horizontal Category Pills
+        // Horizontal Category Pills (Compact 34px)
         SizedBox(
-          height: 38,
+          height: 34,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -418,8 +419,8 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                   ref.read(selectedCategoryProvider.notifier).state = cat;
                 },
                 child: Container(
-                  margin: const EdgeInsets.only(right: 8.0),
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  margin: const EdgeInsets.only(right: 6.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 14.0),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: isSelected
@@ -453,7 +454,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                      fontSize: 14,
+                      fontSize: 13,
                       color: isSelected
                           ? Colors.white
                           : (isDark ? Colors.white70 : const Color(0xFF475569)),
@@ -464,6 +465,7 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
             },
           ),
         ),
+        const SizedBox(height: 4),
 
         // Products list view / Canvas
         Expanded(
