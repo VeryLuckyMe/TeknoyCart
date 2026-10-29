@@ -49,15 +49,16 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     WidgetsBinding.instance.addObserver(this);
     _order = Map<String, dynamic>.from(widget.order);
     _subscribeToOrderUpdates();
-    _refreshOrder();
+    _refreshOrder().then((_) {
+      if (mounted && _isGCash && _status == 'AWAITING_PAYMENT') {
+        _syncPayment();
+      }
+    });
     // orders is intentionally not published to Realtime (its WAL payload would
     // expose the buyer's OTP to the seller), so poll while this screen is open.
     _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (!_isActing) _refreshOrder();
     });
-    if (_isGCash && _status == 'AWAITING_PAYMENT') {
-      _syncPayment();
-    }
   }
 
   void _subscribeToOrderUpdates() {
@@ -271,6 +272,30 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
           .single();
 
       final merged = {..._order, ...Map<String, dynamic>.from(res)};
+
+      if (merged['seller_name'] == null && merged['seller_id'] != null) {
+        try {
+          final sid = merged['seller_id'] as String;
+          final sellerRow = await SupabaseConfig.client
+              .from('sellers')
+              .select('store_name')
+              .eq('seller_id', sid)
+              .maybeSingle();
+          final storeName = sellerRow?['store_name'] as String?;
+          if (storeName != null && storeName.isNotEmpty) {
+            merged['seller_name'] = storeName;
+          } else {
+            final profRow = await SupabaseConfig.client
+                .from('public_profiles')
+                .select('full_name')
+                .eq('user_id', sid)
+                .maybeSingle();
+            if (profRow?['full_name'] != null) {
+              merged['seller_name'] = profRow!['full_name'];
+            }
+          }
+        } catch (_) {}
+      }
 
       // OTP columns are buyer-only and live behind a dedicated view. A seller
       // gets no row here, so the code never reaches the verifying party.
@@ -1818,7 +1843,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     final pickupDay = _order['pickup_day'] as String? ?? '—';
     final pickupTime = _order['pickup_time'] as String? ?? '—';
     final createdAt = OrderUiHelper.formatDate(_order['created_at']);
-    final orderId = (_order['order_id'] as String?)?.substring(0, 8).toUpperCase() ?? '—';
+    final rawOrderId = (_order['order_id'] as String? ?? '').trim();
+    final orderId = rawOrderId.isEmpty
+        ? '—'
+        : (rawOrderId.length > 8 ? rawOrderId.substring(0, 8) : rawOrderId).toUpperCase();
 
     final sellerConfirmed = _order['seller_confirmed_at'] != null;
     final buyerConfirmed = _order['buyer_confirmed_at'] != null;
@@ -1868,7 +1896,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                   children: [
                     Text(productName, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 4),
-                    Text('₱ ${_order['total_amount']}', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)),
+                    Text('₱ ${_order['total_amount'] ?? '0.00'}', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)),
                     const SizedBox(height: 4),
                     Text('Placed: $createdAt', style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: isDark ? Colors.white54 : Colors.black45)),
                   ],
