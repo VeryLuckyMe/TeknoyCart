@@ -12,10 +12,12 @@ import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/views/cart_view.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/core/providers/notification_provider.dart';
+import 'package:teknoycart/core/services/wishlist_service.dart';
 import 'tabs/browse_tab.dart';
 import 'tabs/sell_tab.dart';
 import 'tabs/profile_tab.dart';
 import 'notifications_view.dart';
+import 'wishlist_view.dart';
 
 // Export for compatibility with other modules & tests
 export 'tabs/profile_tab.dart' show userCompletedDealsCountProvider, TextStyles;
@@ -413,6 +415,65 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
         ),
         centerTitle: true,
         actions: [
+          // ── 0. Saved Wishlist Action ──
+          Consumer(
+            builder: (context, ref, child) {
+              final favCount = ref.watch(wishlistCountProvider);
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      favCount > 0 ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                      color: favCount > 0
+                          ? const Color(0xFFD90429)
+                          : (isDark ? Colors.white70 : TeknoyTheme.citMaroonMuted),
+                      size: 22,
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const WishlistView(),
+                        ),
+                      );
+                    },
+                    tooltip: 'Saved Wishlist',
+                  ),
+                  if (favCount > 0)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD90429),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isDark ? TeknoyTheme.darkBg : Colors.white,
+                            width: 1.5,
+                          ),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          '$favCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+
           // ── 1. Shopping Cart Action ──
           Consumer(
             builder: (context, ref, child) {

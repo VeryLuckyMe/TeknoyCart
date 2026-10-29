@@ -6,6 +6,7 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/reports/views/financial_reports_view.dart';
 import 'package:teknoycart/features/chat/views/inbox_view.dart';
 import 'package:teknoycart/features/feed/views/manage_listings_view.dart';
+import 'package:teknoycart/features/feed/views/wishlist_view.dart';
 import 'package:teknoycart/features/checkout/views/order_history_view.dart';
 
 /// Upgraded sliding Navigation Drawer reflecting a multi-billion-dollar brand layout.
@@ -254,6 +255,18 @@ class TeknoyNavigationDrawer extends ConsumerWidget {
                               MaterialPageRoute(builder: (context) => const OrderHistoryView()),
                             );
                           }
+                        },
+                      ),
+                      _buildNavTile(
+                        context,
+                        icon: Icons.favorite_border_rounded,
+                        title: 'Saved Wishlist',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const WishlistView()),
+                          );
                         },
                       ),
                       if (user.isSeller) ...[

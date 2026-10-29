@@ -1,14 +1,20 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/core/services/wishlist_service.dart';
+import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/product_detail_view.dart';
+import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 import 'package:teknoycart/features/feed/views/widgets/feed_product_card.dart';
 import 'package:teknoycart/features/feed/views/wishlist_view.dart';
+import 'mock_http_client.dart';
 
 class FakeWishlistStorage implements WishlistStorageAdapter {
   final Map<String, String> db = {};
@@ -30,6 +36,19 @@ class FakeCartStorage implements CartStorageService {
 }
 
 void main() {
+  setUpAll(() async {
+    HttpOverrides.global = MockHttpOverrides();
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const MethodChannel('plugins.flutter.io/shared_preferences')
+        .setMockMethodCallHandler((MethodCall methodCall) async {
+      if (methodCall.method == 'getAll') {
+        return <String, dynamic>{};
+      }
+      return null;
+    });
+    await SupabaseConfig.initialize();
+  });
+
   group('WishlistNotifier Unit Tests', () {
     late FakeWishlistStorage fakeStorage;
     late WishlistNotifier notifier;
@@ -285,6 +304,96 @@ void main() {
 
       expect(cartNotifier.state, isEmpty);
       expect(find.byType(ProductDetailView), findsOneWidget);
+    });
+  });
+
+  group('Wishlist Navigation Entry Points Tests', () {
+    late Profile testStudent;
+
+    setUp(() {
+      testStudent = Profile(
+        id: 'usr-student-42',
+        username: 'Mikel Wildcat',
+        email: 'mikel.student@cit.edu',
+        studentId: '21-0492-811',
+        department: 'College of Computer Studies',
+        contact: '09171234567',
+        gcashNumber: '09171234567',
+        role: 'BUYER',
+        isSellerVerified: false,
+        createdAt: DateTime.now(),
+      );
+    });
+
+    testWidgets('ProductDiscoveryFeedView AppBar renders Saved Wishlist action with badge and opens WishlistView',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final notifier = WishlistNotifier(storage: FakeWishlistStorage(), autoLoad: false);
+      await notifier.restoreAll({'prod-1', 'prod-2'});
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            wishlistProvider.overrideWith((ref) => notifier),
+            authStateProvider.overrideWithValue(AsyncValue.data(testStudent)),
+            productsListProvider.overrideWith((ref) => Future.value(<Product>[])),
+          ],
+          child: const MaterialApp(
+            home: ProductDiscoveryFeedView(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final wishlistAction = find.byTooltip('Saved Wishlist');
+      expect(wishlistAction, findsOneWidget);
+      expect(find.text('2'), findsWidgets);
+
+      await tester.tap(wishlistAction);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WishlistView), findsOneWidget);
+    });
+
+    testWidgets('ProfileTab renders My Saved Wishlist row under Marketplace & Orders and opens WishlistView',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final notifier = WishlistNotifier(storage: FakeWishlistStorage(), autoLoad: false);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            wishlistProvider.overrideWith((ref) => notifier),
+            authStateProvider.overrideWithValue(AsyncValue.data(testStudent)),
+            productsListProvider.overrideWith((ref) => Future.value(<Product>[])),
+          ],
+          child: const MaterialApp(
+            home: ProductDiscoveryFeedView(initialTab: 4),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final rowFinder = find.text('My Saved Wishlist');
+      expect(rowFinder, findsOneWidget);
+
+      await tester.ensureVisible(rowFinder);
+      await tester.tap(rowFinder);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WishlistView), findsOneWidget);
     });
   });
 }

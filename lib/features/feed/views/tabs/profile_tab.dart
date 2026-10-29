@@ -13,6 +13,7 @@ import 'package:teknoycart/features/feed/providers/review_provider.dart';
 import 'package:teknoycart/features/feed/views/manage_listings_view.dart';
 import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
 import 'package:teknoycart/features/feed/views/widgets/buyer_reviews_sheet.dart';
+import 'package:teknoycart/features/feed/views/wishlist_view.dart';
 
 /// Provider to dynamically count completed orders/deals for a given user ID
 final userCompletedDealsCountProvider = FutureProvider.family<int, String>((ref, userId) async {
@@ -920,6 +921,18 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                       title: 'My Orders & Reservations',
                       subtitle: 'Track active meetup deals and purchase history',
                       onTap: () => widget.onNavigateTab?.call(3),
+                      isDark: isDark,
+                    ),
+                    _buildGroupedSettingRow(
+                      icon: Icons.favorite_border_rounded,
+                      title: 'My Saved Wishlist',
+                      subtitle: 'View and manage your favorited campus items',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const WishlistView()),
+                        );
+                      },
                       isDark: isDark,
                     ),
                     _buildGroupedSettingRow(
