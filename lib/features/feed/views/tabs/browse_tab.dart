@@ -17,7 +17,79 @@ class BrowseTab extends ConsumerStatefulWidget {
   ConsumerState<BrowseTab> createState() => _BrowseTabState();
 }
 
+class _SpotlightSlideData {
+  final String badge;
+  final IconData badgeIcon;
+  final String title;
+  final String defaultSubtitle;
+  final String activeSubtitle;
+  final String category;
+  final IconData watermarkIcon;
+  final List<Color> gradientColors;
+
+  const _SpotlightSlideData({
+    required this.badge,
+    required this.badgeIcon,
+    required this.title,
+    required this.defaultSubtitle,
+    required this.activeSubtitle,
+    required this.category,
+    required this.watermarkIcon,
+    required this.gradientColors,
+  });
+}
+
 class _BrowseTabState extends ConsumerState<BrowseTab> {
+  final PageController _spotlightController = PageController();
+  int _activeSpotlightPage = 0;
+
+  static const List<_SpotlightSlideData> _spotlightSlides = [
+    _SpotlightSlideData(
+      badge: 'CAMPUS SPOTLIGHT',
+      badgeIcon: Icons.bolt_rounded,
+      title: 'Save 50% on Engineering Drawing Boards',
+      defaultSubtitle: 'Verified student listings from CEA graduates • Tap to filter',
+      activeSubtitle: 'Showing verified Drawing Tools • Tap to view all',
+      category: 'Drawing Tools',
+      watermarkIcon: Icons.architecture_rounded,
+      gradientColors: [
+        TeknoyTheme.citMaroon,
+        Color(0xFFA01A26),
+      ],
+    ),
+    _SpotlightSlideData(
+      badge: 'TEXTBOOK DEALS',
+      badgeIcon: Icons.local_fire_department_rounded,
+      title: 'Up to 40% Off Senior Engineering Books',
+      defaultSubtitle: 'Pre-loved textbooks from CIT-U upperclassmen • Tap to filter',
+      activeSubtitle: 'Showing verified Books • Tap to view all',
+      category: 'Books',
+      watermarkIcon: Icons.menu_book_rounded,
+      gradientColors: [
+        Color(0xFF5C0A14),
+        Color(0xFF8C1D2C),
+      ],
+    ),
+    _SpotlightSlideData(
+      badge: 'WILDCAT ESSENTIALS',
+      badgeIcon: Icons.verified_rounded,
+      title: 'Official CIT-U Uniforms & Lanyards',
+      defaultSubtitle: 'PE shirts, department polos & campus gear • Tap to filter',
+      activeSubtitle: 'Showing verified Uniforms • Tap to view all',
+      category: 'Uniforms',
+      watermarkIcon: Icons.checkroom_rounded,
+      gradientColors: [
+        Color(0xFF4A0E17),
+        Color(0xFF7A1624),
+      ],
+    ),
+  ];
+
+  @override
+  void dispose() {
+    _spotlightController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -139,151 +211,196 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
           ),
         ),
 
-        // Wildcat Campus Spotlight Hero (Interactive & Consolidated Anti-Slop)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () {
-                HapticFeedback.selectionClick();
-                final isSpotlight = selectedCategory == 'Drawing Tools';
-                ref.read(selectedCategoryProvider.notifier).state =
-                    isSpotlight ? 'All' : 'Drawing Tools';
-              },
-              child: Ink(
-                height: 124,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      TeknoyTheme.citMaroon,
-                      TeknoyTheme.citMaroonLight.withValues(alpha: 0.88),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: TeknoyTheme.citMaroon.withValues(alpha: 0.28),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Stack(
+        // Wildcat Campus Spotlight Carousel (Interactive 3-Slide Anti-Slop with Search Auto-Collapse)
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          child: searchQuery.trim().isNotEmpty
+              ? const SizedBox.shrink()
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Positioned(
-                      right: -12,
-                      bottom: -18,
-                      child: Opacity(
-                        opacity: 0.16,
-                        child: Icon(
-                          Icons.architecture_rounded,
-                          size: 155,
-                          color: TeknoyTheme.citGold,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: TeknoyTheme.citGold,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.bolt_rounded,
-                                      size: 12,
-                                      color: TeknoyTheme.citMaroon,
+                    SizedBox(
+                      height: 124,
+                      child: PageView.builder(
+                        key: const Key('browse_spotlight_pageview'),
+                        controller: _spotlightController,
+                        itemCount: _spotlightSlides.length,
+                        onPageChanged: (index) {
+                          setState(() => _activeSpotlightPage = index);
+                        },
+                        itemBuilder: (context, index) {
+                          final slide = _spotlightSlides[index];
+                          final isSpotlightActive = selectedCategory == slide.category;
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  ref.read(selectedCategoryProvider.notifier).state =
+                                      isSpotlightActive ? 'All' : slide.category;
+                                },
+                                child: Ink(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: slide.gradientColors,
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
                                     ),
-                                    SizedBox(width: 3),
-                                    Text(
-                                      'CAMPUS SPOTLIGHT',
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w900,
-                                        color: TeknoyTheme.citMaroon,
-                                        letterSpacing: 0.8,
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: TeknoyTheme.citMaroon.withValues(alpha: 0.25),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      Positioned(
+                                        right: -12,
+                                        bottom: -18,
+                                        child: Opacity(
+                                          opacity: 0.16,
+                                          child: Icon(
+                                            slide.watermarkIcon,
+                                            size: 145,
+                                            color: TeknoyTheme.citGold,
+                                          ),
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                  decoration: BoxDecoration(
+                                                    color: TeknoyTheme.citGold,
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        slide.badgeIcon,
+                                                        size: 12,
+                                                        color: TeknoyTheme.citMaroon,
+                                                      ),
+                                                      const SizedBox(width: 3),
+                                                      Text(
+                                                        slide.badge,
+                                                        style: const TextStyle(
+                                                          fontFamily: 'Outfit',
+                                                          fontSize: 9,
+                                                          fontWeight: FontWeight.w900,
+                                                          color: TeknoyTheme.citMaroon,
+                                                          letterSpacing: 0.8,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const Spacer(),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black.withValues(alpha: 0.22),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        isSpotlightActive ? 'Filtering' : 'View Deals',
+                                                        style: const TextStyle(
+                                                          fontFamily: 'Inter',
+                                                          fontSize: 10,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      const Icon(
+                                                        Icons.arrow_forward_ios_rounded,
+                                                        size: 9,
+                                                        color: TeknoyTheme.citGold,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              slide.title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                                letterSpacing: -0.2,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              isSpotlightActive
+                                                  ? slide.activeSubtitle
+                                                  : slide.defaultSubtitle,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontFamily: 'Inter',
+                                                fontSize: 11,
+                                                color: Colors.white.withValues(alpha: 0.82),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      selectedCategory == 'Drawing Tools' ? 'Filtering' : 'View Deals',
-                                      style: const TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const Icon(
-                                      Icons.arrow_forward_ios_rounded,
-                                      size: 9,
-                                      color: TeknoyTheme.citGold,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Save 50% on Engineering Drawing Boards',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: -0.2,
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            selectedCategory == 'Drawing Tools'
-                                ? 'Showing verified Drawing Tools • Tap to view all'
-                                : 'Verified student listings from CEA graduates • Tap to filter',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 11,
-                              color: Colors.white.withValues(alpha: 0.8),
-                            ),
-                          ),
-                        ],
+                          );
+                        },
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(_spotlightSlides.length, (i) {
+                        final isActive = i == _activeSpotlightPage;
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          height: 5,
+                          width: isActive ? 18 : 6,
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? TeknoyTheme.citGold
+                                : (isDark ? Colors.white24 : TeknoyTheme.citMaroon.withValues(alpha: 0.25)),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 8),
                   ],
                 ),
-              ),
-            ),
-          ),
         ),
-        const SizedBox(height: 8),
 
         // Horizontal Category Pills
         SizedBox(
