@@ -3,8 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/core/services/wishlist_service.dart';
+import 'package:teknoycart/features/auth/providers/auth_provider.dart';
+import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
+import 'package:teknoycart/features/feed/views/product_detail_view.dart';
 import 'package:teknoycart/features/feed/views/widgets/feed_product_card.dart';
+import 'package:teknoycart/features/feed/views/wishlist_view.dart';
 
 class FakeWishlistStorage implements WishlistStorageAdapter {
   final Map<String, String> db = {};
@@ -14,6 +18,15 @@ class FakeWishlistStorage implements WishlistStorageAdapter {
   Future<void> write(String key, String value) async => db[key] = value;
   @override
   Future<void> delete(String key) async => db.remove(key);
+}
+
+class FakeCartStorage implements CartStorageService {
+  @override
+  Future<String?> read(String key) async => null;
+  @override
+  Future<void> write(String key, String value) async {}
+  @override
+  Future<void> delete(String key) async {}
 }
 
 void main() {
@@ -125,6 +138,153 @@ void main() {
 
       expect(notifier.state.contains('prod-sync-1'), isTrue);
       expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+    });
+  });
+
+  group('WishlistView Screen Widget Tests', () {
+    late Product regularProduct;
+    late Product preorderProduct;
+
+    setUp(() {
+      regularProduct = Product(
+        id: 'prod-reg-1',
+        title: 'Engineering Thermodynamics Book',
+        description: 'Clean textbook',
+        price: 420.0,
+        category: 'Books',
+        condition: 'Like New',
+        sellerId: 'seller-1',
+        createdAt: DateTime.now(),
+      );
+
+      preorderProduct = Product(
+        id: 'prod-pre-2',
+        title: 'Custom CS Department Lanyard',
+        description: 'Pre-order batch',
+        price: 150.0,
+        category: 'Campus Gear',
+        condition: 'New',
+        sellerId: 'seller-2',
+        isPreorderEnabled: true,
+        createdAt: DateTime.now(),
+      );
+    });
+
+    testWidgets('empty wishlist renders Your Wishlist is Empty and Explore Campus Deals CTA',
+        (WidgetTester tester) async {
+      final notifier = WishlistNotifier(storage: FakeWishlistStorage(), autoLoad: false);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            wishlistProvider.overrideWith((ref) => notifier),
+            productsListProvider.overrideWith((ref) => Future.value([regularProduct])),
+          ],
+          child: const MaterialApp(
+            home: WishlistView(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Your Wishlist is Empty'), findsOneWidget);
+      expect(find.text('Explore Campus Deals'), findsOneWidget);
+    });
+
+    testWidgets('populated wishlist renders saved items, supports Add to Cart, Remove with Undo, and Clear All',
+        (WidgetTester tester) async {
+      final notifier = WishlistNotifier(storage: FakeWishlistStorage(), autoLoad: false);
+      await notifier.restoreAll({'prod-reg-1', 'prod-pre-2'});
+      final cartNotifier = CartNotifier(storage: FakeCartStorage(), autoLoad: false);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            wishlistProvider.overrideWith((ref) => notifier),
+            cartProvider.overrideWith((ref) => cartNotifier),
+            productsListProvider.overrideWith(
+              (ref) => Future.value([regularProduct, preorderProduct]),
+            ),
+          ],
+          child: const MaterialApp(
+            home: WishlistView(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('2 Saved Items'), findsOneWidget);
+      expect(find.text('Engineering Thermodynamics Book'), findsOneWidget);
+      expect(find.text('Custom CS Department Lanyard'), findsOneWidget);
+
+      // Quick Add to Cart on regular product
+      await tester.tap(find.byKey(const Key('wishlist_action_prod-reg-1')));
+      await tester.pumpAndSettle();
+      expect(cartNotifier.state.length, 1);
+      expect(cartNotifier.state.first.product.id, 'prod-reg-1');
+
+      // Dismiss current snackbar before testing remove + undo
+      ScaffoldMessenger.of(tester.element(find.byType(WishlistView))).clearSnackBars();
+      await tester.pumpAndSettle();
+
+      // Remove single item and Undo
+      await tester.tap(find.byKey(const Key('wishlist_remove_prod-reg-1')));
+      await tester.pumpAndSettle();
+      expect(notifier.state.contains('prod-reg-1'), isFalse);
+      expect(find.text('1 Saved Item'), findsOneWidget);
+
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+      expect(notifier.state.contains('prod-reg-1'), isTrue);
+      expect(find.text('2 Saved Items'), findsOneWidget);
+
+      // Clear All with confirmation dialog + Undo
+      ScaffoldMessenger.of(tester.element(find.byType(WishlistView))).clearSnackBars();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Clear All'));
+      await tester.pumpAndSettle();
+      expect(find.text('Clear Saved Wishlist?'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Clear All'));
+      await tester.pumpAndSettle();
+      expect(notifier.state, isEmpty);
+      expect(find.text('Your Wishlist is Empty'), findsOneWidget);
+
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+      expect(notifier.state.length, 2);
+    });
+
+    testWidgets('tapping action on pre-order item routes to ProductDetailView instead of direct cart insert',
+        (WidgetTester tester) async {
+      final notifier = WishlistNotifier(storage: FakeWishlistStorage(), autoLoad: false);
+      await notifier.restoreAll({'prod-pre-2'});
+      final cartNotifier = CartNotifier(storage: FakeCartStorage(), autoLoad: false);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            wishlistProvider.overrideWith((ref) => notifier),
+            cartProvider.overrideWith((ref) => cartNotifier),
+            authStateProvider.overrideWithValue(const AsyncValue.data(null)),
+            productsListProvider.overrideWith(
+              (ref) => Future.value([preorderProduct]),
+            ),
+          ],
+          child: const MaterialApp(
+            home: WishlistView(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('View Pre-Order'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('wishlist_action_prod-pre-2')));
+      await tester.pumpAndSettle();
+
+      expect(cartNotifier.state, isEmpty);
+      expect(find.byType(ProductDetailView), findsOneWidget);
     });
   });
 }
