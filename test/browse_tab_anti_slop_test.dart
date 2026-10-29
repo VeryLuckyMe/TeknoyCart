@@ -109,6 +109,18 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Calculus');
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('browse_spotlight_pageview')), findsNothing);
+
+    // 5. Cross-platform scroll behavior: scrolling down scrolls away the banner while pinning category pills
+    await tester.enterText(find.byType(TextField), '');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('browse_spotlight_pageview')), findsOneWidget);
+
+    // Drag the scroll view upwards by 400px (scrolling down into the listings)
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
+    await tester.pumpAndSettle();
+
+    // Verify pinned category pills remain visible under the header
+    expect(find.text('Books'), findsOneWidget);
   });
 }
 
