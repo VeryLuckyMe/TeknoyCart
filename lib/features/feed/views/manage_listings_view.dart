@@ -8,6 +8,7 @@ import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/edit_product_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
+import 'package:teknoycart/features/reports/views/financial_reports_view.dart';
 import 'widgets/reserved_orders_sheet.dart';
 
 class ManageListingsView extends ConsumerStatefulWidget {
@@ -573,6 +574,19 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
         title: const Text('Manage My Listings', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
         backgroundColor: isDark ? const Color(0xFF0F0A0A) : Colors.white,
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.insights_rounded, color: TeknoyTheme.citMaroon),
+            tooltip: 'Sales Analytics & Reports',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FinancialReportsView()),
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: content,
       floatingActionButton: FloatingActionButton.extended(

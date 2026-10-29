@@ -14,6 +14,7 @@ import 'package:teknoycart/features/feed/views/manage_listings_view.dart';
 import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
 import 'package:teknoycart/features/feed/views/widgets/buyer_reviews_sheet.dart';
 import 'package:teknoycart/features/feed/views/wishlist_view.dart';
+import 'package:teknoycart/features/reports/views/financial_reports_view.dart';
 
 /// Provider to dynamically count completed orders/deals for a given user ID
 final userCompletedDealsCountProvider = FutureProvider.family<int, String>((ref, userId) async {
@@ -966,7 +967,20 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                       },
                       isDark: isDark,
                     ),
-                    if (isSeller && isVerified)
+                    if (isSeller && isVerified) ...[
+                      _buildGroupedSettingRow(
+                        icon: Icons.insights_rounded,
+                        title: 'Sales & Financial Reports',
+                        subtitle: 'View revenue breakdown, metrics, and export PDF statements',
+                        showDivider: true,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const FinancialReportsView()),
+                          );
+                        },
+                        isDark: isDark,
+                      ),
                       _buildGroupedSettingRow(
                         icon: Icons.store_mall_directory_outlined,
                         title: 'Public Storefront Page',
@@ -985,6 +999,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                         },
                         isDark: isDark,
                       ),
+                    ],
                   ],
                 ),
 
@@ -1569,6 +1584,39 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FinancialReportsView()),
+                  );
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  side: BorderSide(
+                    color: isDark ? TeknoyTheme.citGold.withValues(alpha: 0.6) : TeknoyTheme.citMaroon.withValues(alpha: 0.4),
+                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: Icon(
+                  Icons.insights_rounded,
+                  size: 16,
+                  color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                ),
+                label: Text(
+                  'Sales Analytics',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
