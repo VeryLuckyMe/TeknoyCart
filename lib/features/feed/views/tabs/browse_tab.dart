@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme.dart';
+import '../../../../core/services/search_history_service.dart';
 import '../../providers/product_provider.dart';
 import '../product_detail_view.dart';
 import '../search_results_view.dart';
 import '../widgets/feed_product_card.dart';
 import '../widgets/product_card_skeleton.dart';
 import '../widgets/product_filter_sheet.dart';
+import '../widgets/search_history_chips.dart';
 
 /// Modular Browse Tab for ProductDiscoveryFeedView (HIGH-04).
 class BrowseTab extends ConsumerStatefulWidget {
@@ -131,11 +133,13 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                   child: TextField(
                     onChanged: (val) => ref.read(searchQueryProvider.notifier).state = val,
                     onSubmitted: (val) {
-                      if (val.trim().isNotEmpty) {
+                      final query = val.trim();
+                      if (query.isNotEmpty) {
+                        ref.read(searchHistoryProvider.notifier).addQuery(query);
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => SearchResultsView(initialQuery: val.trim()),
+                            builder: (_) => SearchResultsView(initialQuery: query),
                           ),
                         );
                       }
@@ -214,6 +218,28 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
               ),
             ],
           ),
+        ),
+      ),
+
+      // 1.1 Search History Chips (visible when searchQuery is empty and history exists)
+      SliverToBoxAdapter(
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          child: searchQuery.trim().isNotEmpty
+              ? const SizedBox.shrink()
+              : SearchHistoryChips(
+                  padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 6.0),
+                  onSelectQuery: (selected) {
+                    ref.read(searchHistoryProvider.notifier).addQuery(selected);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SearchResultsView(initialQuery: selected),
+                      ),
+                    );
+                  },
+                ),
         ),
       ),
 
@@ -497,6 +523,19 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               ),
                             ),
+                            if (searchQuery.trim().isNotEmpty)
+                              SearchHistoryChips(
+                                padding: const EdgeInsets.only(top: 18.0),
+                                onSelectQuery: (selected) {
+                                  ref.read(searchHistoryProvider.notifier).addQuery(selected);
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => SearchResultsView(initialQuery: selected),
+                                    ),
+                                  );
+                                },
+                              ),
                           ],
                         ),
                       ),

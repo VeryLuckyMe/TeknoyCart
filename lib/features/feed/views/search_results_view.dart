@@ -6,6 +6,8 @@ import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/product_detail_view.dart';
 import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
 import 'package:teknoycart/features/feed/views/widgets/product_filter_sheet.dart';
+import 'package:teknoycart/core/services/search_history_service.dart';
+import 'package:teknoycart/features/feed/views/widgets/search_history_chips.dart';
 
 class SearchResultsView extends ConsumerStatefulWidget {
   final String initialQuery;
@@ -31,6 +33,13 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
     _searchController.addListener(() {
       if (mounted) setState(() {});
     });
+    if (widget.initialQuery.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(searchHistoryProvider.notifier).addQuery(widget.initialQuery);
+        }
+      });
+    }
   }
 
   @override
@@ -40,8 +49,12 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
   }
 
   void _submitSearch(String query) {
+    final trimmed = query.trim();
+    if (trimmed.isNotEmpty) {
+      ref.read(searchHistoryProvider.notifier).addQuery(trimmed);
+    }
     setState(() {
-      _activeQuery = query.trim();
+      _activeQuery = trimmed;
     });
   }
 
@@ -168,8 +181,18 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                   padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 0.0),
                   sliver: SliverList.list(
                     children: [
-                  // ── Section 1: Stores Container
-                  Row(
+                      // ── Section 0: Recent Search History Chips (visible when query is empty)
+                      if (_activeQuery.isEmpty)
+                        SearchHistoryChips(
+                          padding: const EdgeInsets.only(bottom: 14.0),
+                          onSelectQuery: (selected) {
+                            _searchController.text = selected;
+                            _submitSearch(selected);
+                          },
+                        ),
+
+                      // ── Section 1: Stores Container
+                      Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(6),
@@ -542,6 +565,13 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                                   ),
                                 ),
                               ],
+                              SearchHistoryChips(
+                                padding: const EdgeInsets.only(top: 18.0),
+                                onSelectQuery: (selected) {
+                                  _searchController.text = selected;
+                                  _submitSearch(selected);
+                                },
+                              ),
                             ],
                           ),
                         ),
