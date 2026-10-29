@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/core/services/deep_link_service.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/providers/theme_provider.dart';
@@ -88,6 +89,17 @@ class TeknoyCartApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final deepLinkService = ref.watch(deepLinkServiceProvider);
+    deepLinkService.initialize();
+
+    ref.listen<bool>(isSplashCompletedProvider, (previous, next) {
+      if (next) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          deepLinkService.flushPending();
+        });
+      }
+    });
+
     // Listen for auth state transitions after the cold-start splash has completed
     ref.listen<AsyncValue<Profile?>>(authStateProvider, (previous, next) {
       if (!ref.read(isSplashCompletedProvider)) return;
@@ -101,6 +113,9 @@ class TeknoyCartApp extends ConsumerWidget {
           MaterialPageRoute(builder: (_) => const ProductDiscoveryFeedView()),
           (route) => false,
         );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          deepLinkService.flushPending();
+        });
       } else if (prevUser != null && nextUser == null) {
         // User logged out: return cleanly to auth gate
         appNavigatorKey.currentState?.pushAndRemoveUntil(

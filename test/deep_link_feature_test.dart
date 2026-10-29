@@ -7,10 +7,14 @@ import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/core/services/deep_link_service.dart';
 import 'package:teknoycart/core/services/wishlist_service.dart';
 import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
+import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 import 'package:teknoycart/features/feed/views/wishlist_view.dart';
+import 'package:teknoycart/features/splash/splash_view.dart';
+import 'package:teknoycart/main.dart';
 import 'mock_http_client.dart';
 
 class _NoOpWishlistStorage implements WishlistStorageAdapter {
@@ -206,6 +210,49 @@ void main() {
 
       expect(service.pendingDestination, isNull);
       expect(find.byType(OrderDetailView), findsOneWidget);
+    });
+
+    testWidgets('TeknoyCartApp root integration wires deepLinkServiceProvider and routes on incoming PayMongo return link',
+        (WidgetTester tester) async {
+      final fakeSource = FakeAppLinkSource();
+      addTearDown(fakeSource.dispose);
+
+      final testUser = Profile(
+        id: 'usr-buyer-1',
+        username: 'Teknoy Buyer',
+        email: 'buyer@cit.edu',
+        createdAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appLinkSourceProvider.overrideWithValue(fakeSource),
+            isSplashCompletedProvider.overrideWith((ref) => true),
+            authStateProvider.overrideWithValue(AsyncValue.data(testUser)),
+            productsListProvider.overrideWith((ref) => Future.value(<Product>[])),
+            wishlistProvider.overrideWith(
+              (ref) => WishlistNotifier(storage: _NoOpWishlistStorage(), autoLoad: false),
+            ),
+          ],
+          child: const TeknoyCartApp(),
+        ),
+      );
+
+      // Replace SplashView with ProductDiscoveryFeedView to simulate active post-splash state
+      appNavigatorKey.currentState?.pushReplacement(
+        MaterialPageRoute(builder: (_) => const ProductDiscoveryFeedView()),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Simulate PayMongo browser redirect returning to app
+      fakeSource.emit(Uri.parse('teknoycart://order?id=paymongo-escrow-88'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byType(OrderDetailView), findsOneWidget);
+      expect(find.textContaining('PAYMONGO'), findsOneWidget);
     });
   });
 }

@@ -354,9 +354,10 @@ class _BrowseTabState extends ConsumerState<BrowseTab> {
             data: (_) {
               if (filteredProducts.isEmpty) {
                 return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 16.0),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(

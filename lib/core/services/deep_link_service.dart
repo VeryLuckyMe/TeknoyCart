@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 import 'package:teknoycart/features/feed/views/wishlist_view.dart';
+import 'package:teknoycart/features/splash/splash_view.dart';
+import 'package:teknoycart/main.dart' show appNavigatorKey;
 
 sealed class DeepLinkDestination {
   const DeepLinkDestination();
@@ -275,3 +279,19 @@ class DeepLinkService {
     _initialized = false;
   }
 }
+
+final appLinkSourceProvider = Provider<AppLinkSource>((ref) {
+  return DefaultAppLinkSource();
+});
+
+final deepLinkServiceProvider = Provider<DeepLinkService>((ref) {
+  final source = ref.watch(appLinkSourceProvider);
+  final service = DeepLinkService(
+    navigatorKey: appNavigatorKey,
+    source: source,
+    isNavigationReady: () => ref.read(isSplashCompletedProvider),
+    isAuthenticated: () => ref.read(authStateProvider).valueOrNull != null,
+  );
+  ref.onDispose(service.dispose);
+  return service;
+});
