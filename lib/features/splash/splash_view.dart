@@ -89,20 +89,33 @@ class _SplashViewState extends ConsumerState<SplashView>
     // Dynamically measure the exact sub-pixel distance between screen center and resting medallion center
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final medallionBox = _medallionKey.currentContext?.findRenderObject() as RenderBox?;
-      final scaffoldBox = _scaffoldKey.currentContext?.findRenderObject() as RenderBox?;
-      if (medallionBox != null && scaffoldBox != null && medallionBox.hasSize && scaffoldBox.hasSize) {
-        final medallionCenter = medallionBox.localToGlobal(
-          medallionBox.size.center(Offset.zero),
-          ancestor: scaffoldBox,
-        );
-        final screenCenter = scaffoldBox.size.center(Offset.zero);
-        final diff = screenCenter.dy - medallionCenter.dy;
-        if (diff > 0) {
-          setState(() {
-            _travelY = diff;
-          });
+      try {
+        final medallionContext = _medallionKey.currentContext;
+        final scaffoldContext = _scaffoldKey.currentContext;
+        if (medallionContext == null || scaffoldContext == null || !mounted) return;
+
+        final medallionBox = medallionContext.findRenderObject() as RenderBox?;
+        final scaffoldBox = scaffoldContext.findRenderObject() as RenderBox?;
+        if (medallionBox != null &&
+            scaffoldBox != null &&
+            medallionBox.attached &&
+            scaffoldBox.attached &&
+            medallionBox.hasSize &&
+            scaffoldBox.hasSize) {
+          final medallionCenter = medallionBox.localToGlobal(
+            medallionBox.size.center(Offset.zero),
+            ancestor: scaffoldBox,
+          );
+          final screenCenter = scaffoldBox.size.center(Offset.zero);
+          final diff = screenCenter.dy - medallionCenter.dy;
+          if (diff > 0 && mounted) {
+            setState(() {
+              _travelY = diff;
+            });
+          }
         }
+      } catch (_) {
+        // Fallback gracefully without throwing ancestor deactivation exception
       }
     });
 

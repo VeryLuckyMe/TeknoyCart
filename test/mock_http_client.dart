@@ -10,6 +10,22 @@ class MockHttpOverrides extends HttpOverrides {
   /// client.
   String? supabaseBody;
 
+  /// Optional JSON object served for a POST to `product_reviews`.
+  /// `.select().single()` requires an object, not the default array payload.
+  String? productReviewInsertBody;
+
+  /// Method, URL, and `Prefer` header of the last POST to `product_reviews`.
+  /// Lets regression tests prove writes use INSERT rather than an upsert.
+  String? lastReviewWriteMethod;
+  Uri? lastReviewWriteUrl;
+  String? lastReviewWritePrefer;
+
+  /// Every request path opened by the client, in order. Lets regression tests
+  /// assert which endpoint a code path chose (for example, that a buyer
+  /// cancellation never calls a seller-only Supabase RPC). Clear it in a test
+  /// before acting, because the overrides instance is shared per test file.
+  final List<String> requestedPaths = [];
+
   @override
   HttpClient createHttpClient(SecurityContext? context) {
     return _MockHttpClient(this);
@@ -23,12 +39,19 @@ class _MockHttpClient implements HttpClient {
 
   @override
   Future<HttpClientRequest> openUrl(String method, Uri url) async {
-    return _MockHttpClientRequest(url, overrides);
+    overrides.requestedPaths.add(url.path);
+    if (method == 'POST' && url.path.endsWith('/rest/v1/product_reviews')) {
+      overrides.lastReviewWriteMethod = method;
+      overrides.lastReviewWriteUrl = url;
+      overrides.lastReviewWritePrefer = null;
+    }
+    return _MockHttpClientRequest(method, url, overrides);
   }
 
   @override
   Future<HttpClientRequest> getUrl(Uri url) async {
-    return _MockHttpClientRequest(url, overrides);
+    overrides.requestedPaths.add(url.path);
+    return _MockHttpClientRequest('GET', url, overrides);
   }
 
   @override
@@ -38,12 +61,14 @@ class _MockHttpClient implements HttpClient {
 }
 
 class _MockHttpClientRequest implements HttpClientRequest {
+  @override
+  final String method;
   final Uri url;
   final MockHttpOverrides overrides;
-  _MockHttpClientRequest(this.url, this.overrides);
+  _MockHttpClientRequest(this.method, this.url, this.overrides);
 
   @override
-  late final HttpHeaders headers = _MockHttpHeaders(url);
+  late final HttpHeaders headers = _MockHttpHeaders(url, overrides);
 
   @override
   List<Cookie> get cookies => const [];
@@ -62,11 +87,11 @@ class _MockHttpClientRequest implements HttpClientRequest {
 
   @override
   Future<HttpClientResponse> close() async {
-    return _MockHttpClientResponse(url, overrides);
+    return _MockHttpClientResponse(method, url, overrides);
   }
 
   @override
-  Future<HttpClientResponse> get done async => _MockHttpClientResponse(url, overrides);
+  Future<HttpClientResponse> get done async => _MockHttpClientResponse(method, url, overrides);
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -76,7 +101,8 @@ class _MockHttpClientRequest implements HttpClientRequest {
 
 class _MockHttpHeaders implements HttpHeaders {
   final Uri url;
-  _MockHttpHeaders(this.url);
+  final MockHttpOverrides overrides;
+  _MockHttpHeaders(this.url, this.overrides);
 
   bool get _isSupabase => url.host.contains('supabase.co') || url.path.contains('api/');
 
@@ -91,15 +117,23 @@ class _MockHttpHeaders implements HttpHeaders {
   }
 
   @override
+  void set(String name, Object value, {bool preserveHeaderCase = false}) {
+    if (name.toLowerCase() == 'prefer') {
+      overrides.lastReviewWritePrefer = value.toString();
+    }
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) {
     return null;
   }
 }
 
 class _MockHttpClientResponse extends Stream<List<int>> implements HttpClientResponse {
+  final String method;
   final Uri url;
   final MockHttpOverrides overrides;
-  _MockHttpClientResponse(this.url, this.overrides);
+  _MockHttpClientResponse(this.method, this.url, this.overrides);
 
   bool get _isSupabase => url.host.contains('supabase.co') || url.path.contains('api/');
 
@@ -116,6 +150,10 @@ class _MockHttpClientResponse extends Stream<List<int>> implements HttpClientRes
     if (!_isSupabase) return _dummyGif;
     final body = overrides.supabaseBody;
     if (body != null) return utf8.encode(body);
+    if (method == 'POST' && url.path.endsWith('/rest/v1/product_reviews')) {
+      return utf8.encode(
+          overrides.productReviewInsertBody ?? '{"review_id": "mock-review-123"}');
+    }
     if (url.path.contains('place_orders_atomic')) {
       return utf8.encode('{"success": true, "orders": [{"line_index": 0, "order_id": "mock-order-123"}]}');
     }
@@ -164,7 +202,7 @@ class _MockHttpClientResponse extends Stream<List<int>> implements HttpClientRes
   List<Cookie> get cookies => const [];
 
   @override
-  late final HttpHeaders headers = _MockHttpHeaders(url);
+  late final HttpHeaders headers = _MockHttpHeaders(url, overrides);
 
   @override
   dynamic noSuchMethod(Invocation invocation) {

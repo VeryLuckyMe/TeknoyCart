@@ -172,7 +172,9 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Cancel In-Flight Order?'),
         content: const Text(
-          'Cancelling this order will release its reserved stock hold immediately back to Available inventory.',
+          'Cancelling an unpaid order releases its reserved stock immediately. '
+          'Orders with GCash already held in escrow are flagged for refund and '
+          'stay reserved until the refund is completed.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Keep Order')),
@@ -189,6 +191,7 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
     setState(() => _cancellingOrderId = orderId);
     try {
       bool cancelled = false;
+      String? resultingStatus;
 
       // 1. Primary path: Supabase cancel_order_as_seller RPC
       try {
@@ -198,6 +201,7 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
           ).timeout(const Duration(seconds: 15));
         if (rpcRes is Map && rpcRes['success'] == true) {
           cancelled = true;
+          resultingStatus = rpcRes['status']?.toString();
         }
       } catch (_) {}
 
@@ -216,15 +220,29 @@ class _ReservedOrdersSheetState extends State<ReservedOrdersSheet> {
           ).timeout(const Duration(seconds: 15));
           if (response.statusCode < 400) {
             cancelled = true;
+            try {
+              final body = jsonDecode(response.body);
+              if (body is Map && body['status'] != null) {
+                resultingStatus = body['status'].toString();
+              }
+            } catch (_) {}
           }
         } catch (_) {}
       }
 
       if (cancelled) {
         if (mounted) {
+          final String message;
+          if (resultingStatus == 'REFUND_PENDING') {
+            message = 'Order cancelled. Escrowed payment flagged for admin refund.';
+          } else if (resultingStatus == 'REFUND_REQUESTED') {
+            message = 'Order cancelled. Refund verification is now required.';
+          } else {
+            message = 'Order cancelled. Reserved hold released back to inventory.';
+          }
           ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-            const SnackBar(
-              content: Text('Order cancelled. Reserved hold released back to inventory.'),
+            SnackBar(
+              content: Text(message),
               backgroundColor: TeknoyTheme.success,
               behavior: SnackBarBehavior.floating,
             ),

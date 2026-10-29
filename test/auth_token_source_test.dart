@@ -1,9 +1,19 @@
+import 'dart:convert';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 
 final secureStorageMemory = <String, String>{};
+
+String _jwtWithExpiry(Duration fromNow) {
+  String segment(Map<String, dynamic> value) =>
+      base64Url.encode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
+  return '${segment({'alg': 'HS256', 'typ': 'JWT'})}.'
+      '${segment({'exp': DateTime.now().add(fromNow).millisecondsSinceEpoch ~/ 1000})}.'
+      'signature';
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -55,7 +65,22 @@ void main() {
   });
 
   group('SecureTokenService - Token Source Hierarchy (Finding H5, H11)', () {
-    test('getBearerToken falls back to stored tokens when no live Supabase session exists', () async {
+    test('getBearerToken prefers a non-expired backend JWT over the stored access token', () async {
+      expect(SupabaseConfig.client.auth.currentSession, isNull);
+
+      final backendJwt = _jwtWithExpiry(const Duration(hours: 1));
+      await SecureTokenService.saveTokens(
+        accessToken: 'stored_access_token_abc',
+        backendToken: backendJwt,
+      );
+
+      final token = await SecureTokenService.getBearerToken();
+      // Spring Boot validates its own JWT, so it must win over the Supabase token.
+      expect(token, equals(backendJwt));
+    });
+
+    test('getBearerToken falls back to the stored access token when no live session exists',
+        () async {
       expect(SupabaseConfig.client.auth.currentSession, isNull);
 
       await SecureTokenService.saveTokens(
@@ -64,8 +89,9 @@ void main() {
       );
 
       final token = await SecureTokenService.getBearerToken();
-      // When live session is null, returns stored token
-      expect(token, equals('stored_backend_token_123'));
+      // Opaque backend tokens cannot be checked for expiry, so the stored
+      // Supabase access token remains the fallback.
+      expect(token, equals('stored_access_token_abc'));
     });
 
     test('getBearerToken returns null when neither live session nor stored tokens exist', () async {

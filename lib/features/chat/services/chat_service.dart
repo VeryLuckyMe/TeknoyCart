@@ -27,6 +27,39 @@ class ChatService {
 
   List<Message> get activeMessages => List.unmodifiable(_activeMessages);
 
+  /// Total sellable units across a product's variants (`stock_qty - reserved_qty`).
+  /// Returns null when there are no variant rows to judge from.
+  static int? availableStockFromVariants(List<dynamic> rows) {
+    if (rows.isEmpty) return null;
+    var available = 0;
+    for (final row in rows) {
+      if (row is! Map) continue;
+      final inv = row['inventory'];
+      final invMap = inv is List && inv.isNotEmpty ? inv.first : inv;
+      if (invMap is! Map) continue;
+      final stock = (invMap['stock_qty'] as num?)?.toInt() ?? 0;
+      final reserved = (invMap['reserved_qty'] as num?)?.toInt() ?? 0;
+      final sellable = stock - reserved;
+      if (sellable > 0) available += sellable;
+    }
+    return available;
+  }
+
+  /// Real availability for offer gating and automated replies. Null means the
+  /// lookup failed, so callers must not claim the item is in stock.
+  Future<int?> fetchAvailableStock(String productId) async {
+    try {
+      final rows = await _client
+          .from('product_variants')
+          .select('inventory(stock_qty, reserved_qty)')
+          .eq('product_id', productId);
+      return availableStockFromVariants(rows as List<dynamic>);
+    } catch (e) {
+      debugPrint('FETCH_AVAILABLE_STOCK_ERROR: $e');
+      return null;
+    }
+  }
+
   // ── Initialize with seed messages for demo ──
   ChatService() {
     _seedDemoMessages();
@@ -626,6 +659,7 @@ class ChatService {
               meetupSpots: customMeetupSpots,
               gcashNumber: sellerGcash,
               orderStatus: latestOrderStatus,
+              stock: await fetchAvailableStock(product.id) ?? 0,
             );
 
             if (responseText != null) {
@@ -671,6 +705,8 @@ class ChatService {
         product,
         gcashNumber: '09171234567',
         orderStatus: 'APPROVED',
+        // Demo rooms have no real inventory; keep the seeded listing available.
+        stock: 3,
       );
       if (responseText != null) {
         Future.delayed(const Duration(seconds: 2), () {
@@ -705,6 +741,7 @@ class ChatService {
     String? meetupSpots,
     String? gcashNumber,
     String? orderStatus,
+    int stock = 0,
   }) {
     final msg = messageText.toLowerCase().trim();
 
@@ -714,9 +751,16 @@ class ChatService {
             ? 'Clarence'
             : 'the seller');
 
-    const int stock = 3; // fallback stock for demo/unknown products
-
     // 0. Bargaining / Tawad / Offer Inquiry
+    if (stock <= 0 &&
+        (msg.contains('can we agree on ₱') ||
+            msg.contains('deal?') ||
+            msg.contains('tawad') ||
+            msg.contains('offer') ||
+            msg.contains('discount'))) {
+      return "The ${product.title} is currently out of stock, so the seller isn't accepting offers on it right now.";
+    }
+
     if (msg.contains('can we agree on ₱') || msg.contains('deal?') || msg.contains('tawad') || msg.contains('offer') || msg.contains('discount')) {
       double? offerPrice;
       final pesoMatch = RegExp(r'[₱pP]\s*([0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)').firstMatch(messageText);

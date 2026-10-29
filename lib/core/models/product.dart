@@ -129,6 +129,12 @@ class CategoryAttributeTemplate {
       };
 }
 
+/// Whether a category tracks stock per Size/Color variant instead of a single
+/// quantity. The Edit screen renders one or the other from this predicate, so
+/// the save path must use it too or the edited number lands in the wrong field.
+bool categoryUsesVariantMatrix(List<CategoryAttributeTemplate> templates) =>
+    templates.any((t) => t.isMultiSelect);
+
 @immutable
 class Product {
   final String id;

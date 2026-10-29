@@ -312,6 +312,17 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
       return;
     }
 
+    if (_availableStock <= 0 && !product.isPreorderEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This item is out of stock, so offers are closed.'),
+          backgroundColor: TeknoyTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final originalPrice = product.price;
     final offerController = TextEditingController(
       text: (originalPrice * 0.90).round().toString(), // Default 10% tawad discount
@@ -2106,10 +2117,17 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                 child: SizedBox(
                   height: 48,
                   child: ElevatedButton(
-                    onPressed: () => _showMakeAnOfferDialog(context),
+                    onPressed: (!_isLoadingInventory &&
+                            (_availableStock > 0 || product.isPreorderEnabled))
+                        ? () => _showMakeAnOfferDialog(context)
+                        : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: TeknoyTheme.citGold,
                       foregroundColor: const Color(0xFF4A3800),
+                      disabledBackgroundColor:
+                          isDark ? Colors.white12 : Colors.grey.shade300,
+                      disabledForegroundColor:
+                          isDark ? Colors.white38 : Colors.grey.shade600,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
