@@ -1,4 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/chat/models/message.dart';
 import 'package:teknoycart/features/chat/services/chat_service.dart';
 import 'package:teknoycart/core/models/product.dart';
@@ -50,3 +53,91 @@ final chatControllerProvider = StateNotifierProvider<ChatController, AsyncValue<
   final service = ref.watch(chatServiceProvider);
   return ChatController(service);
 });
+
+/// Reactive notifier tracking unread messages for the current user across all chats.
+class UnreadChatCountNotifier extends StateNotifier<int> {
+  final SupabaseClient _client;
+  final String? _userId;
+  RealtimeChannel? _channel;
+
+  UnreadChatCountNotifier(this._client, this._userId, {bool autoInit = true}) : super(0) {
+    if (autoInit && _userId != null && _userId.isNotEmpty) {
+      fetchExactCount();
+      _subscribeRealtime();
+    }
+  }
+
+  void handleIncomingMessage(Map<String, dynamic> record) {
+    final senderId = record['sender_id'] as String?;
+    final isRead = record['is_read'] as bool? ?? false;
+    if (senderId != null && senderId != _userId && !isRead) {
+      increment();
+    }
+  }
+
+  Future<void> fetchExactCount() async {
+    final uid = _userId;
+    if (uid == null || uid.isEmpty) return;
+    try {
+      final response = await _client
+          .from('messages')
+          .select('message_id')
+          .neq('sender_id', uid)
+          .eq('is_read', false)
+          .count(CountOption.exact);
+      if (mounted) {
+        state = response.count;
+      }
+    } catch (_) {}
+  }
+
+  void _subscribeRealtime() {
+    final uid = _userId;
+    if (uid == null || uid.isEmpty) return;
+
+    _channel?.unsubscribe();
+    _channel = _client
+        .channel('public:unread_messages:$uid')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'messages',
+          callback: (payload) {
+            handleIncomingMessage(payload.newRecord);
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'messages',
+          callback: (payload) {
+            fetchExactCount();
+          },
+        )
+        .subscribe();
+  }
+
+  void increment() => state = state + 1;
+  void decrement() => state = state > 0 ? state - 1 : 0;
+  void reset() => state = 0;
+  void refresh() => fetchExactCount();
+
+  @override
+  void dispose() {
+    _channel?.unsubscribe();
+    super.dispose();
+  }
+}
+
+/// Provider for unread chat count notifier
+final unreadChatCountNotifierProvider =
+    StateNotifierProvider<UnreadChatCountNotifier, int>((ref) {
+  final profile = ref.watch(authStateProvider).valueOrNull;
+  return UnreadChatCountNotifier(SupabaseConfig.client, profile?.id);
+});
+
+/// Public reactive unread message count provider
+final unreadChatCountProvider = Provider<int>((ref) {
+  return ref.watch(unreadChatCountNotifierProvider);
+});
+

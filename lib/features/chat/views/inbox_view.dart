@@ -6,6 +6,7 @@ import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/chat/views/chat_view.dart';
+import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/chat/services/chat_service.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/chat/services/presence_service.dart';
@@ -601,7 +602,11 @@ class _InboxViewState extends ConsumerState<InboxView> {
               ChatService().markMessagesAsRead(
                 roomId: room['chat_id'] as String,
                 currentUserId: currentUserId,
-              );
+              ).then((_) {
+                if (mounted) {
+                  ref.read(unreadChatCountNotifierProvider.notifier).refresh();
+                }
+              });
             }
 
             // 3. Navigate to chat and force refresh when popping back

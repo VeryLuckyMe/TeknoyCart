@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/widgets/navigation_drawer.dart';
 import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/chat/views/inbox_view.dart';
 import 'package:teknoycart/features/checkout/views/order_history_view.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
@@ -240,6 +241,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     required bool isActive,
     bool isActionFocus = false,
     bool hasBadge = false,
+    int? badgeCount,
     VoidCallback? onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -301,19 +303,48 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
                   ),
                   if (hasBadge)
                     Positioned(
-                      top: -2,
-                      right: -2,
+                      top: -3,
+                      right: badgeCount != null && badgeCount > 0 ? -6 : -2,
                       child: Container(
-                        width: 8,
-                        height: 8,
+                        padding: badgeCount != null && badgeCount > 0
+                            ? const EdgeInsets.symmetric(horizontal: 4, vertical: 1)
+                            : EdgeInsets.zero,
                         decoration: BoxDecoration(
                           color: const Color(0xFFD90429),
-                          shape: BoxShape.circle,
+                          borderRadius: badgeCount != null && badgeCount > 0
+                              ? BorderRadius.circular(8)
+                              : null,
+                          shape: badgeCount != null && badgeCount > 0
+                              ? BoxShape.rectangle
+                              : BoxShape.circle,
                           border: Border.all(
                             color: isDark ? TeknoyTheme.darkBg : Colors.white,
                             width: 1.5,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFD90429).withValues(alpha: 0.4),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
+                        constraints: BoxConstraints(
+                          minWidth: badgeCount != null && badgeCount > 0 ? 14 : 8,
+                          minHeight: badgeCount != null && badgeCount > 0 ? 14 : 8,
+                        ),
+                        child: badgeCount != null && badgeCount > 0
+                            ? Text(
+                                badgeCount > 99 ? '99+' : '$badgeCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.bold,
+                                  height: 1.1,
+                                ),
+                                textAlign: TextAlign.center,
+                              )
+                            : null,
                       ),
                     ),
                 ],
@@ -375,6 +406,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final unreadChatCount = ref.watch(unreadChatCountProvider);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -660,7 +692,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               activeIcon: Icons.forum_rounded,
               label: 'Messages',
               isActive: _activeTab == 1,
-              hasBadge: false,
+              hasBadge: unreadChatCount > 0,
+              badgeCount: unreadChatCount,
               onTap: () => _onTabSelected(1),
             ),
             _buildBottomNavItem(
