@@ -502,40 +502,72 @@ class ProductListNotifier
         state = AsyncValue.data(cached);
       }
 
-      // Fetch live products from Supabase
-      final response = await _supabase
-          .from('products')
-          .select('''
-            product_id,
-            name,
-            description,
-            base_price,
-            status,
-            is_preorder_enabled,
-            category_id,
-            category_attributes,
-            seller_id,
-            created_at,
-            users (
-              full_name,
-              store_profiles (
-                store_name
+      // Fetch live products from Supabase with graceful fallback if unauthenticated RLS restricts users join
+      dynamic response;
+      try {
+        response = await _supabase
+            .from('products')
+            .select('''
+              product_id,
+              name,
+              description,
+              base_price,
+              status,
+              is_preorder_enabled,
+              category_id,
+              category_attributes,
+              seller_id,
+              created_at,
+              users (
+                full_name,
+                store_profiles (
+                  store_name
+                )
+              ),
+              product_images (
+                image_url,
+                is_primary
+              ),
+              product_variants (
+                variant_id,
+                variant_value,
+                inventory (
+                  stock_qty
+                )
               )
-            ),
-            product_images (
-              image_url,
-              is_primary
-            ),
-            product_variants (
-              variant_id,
-              variant_value,
-              inventory (
-                stock_qty
+            ''')
+            .eq('status', 'ACTIVE')
+            .order('created_at', ascending: false);
+      } catch (joinErr) {
+        debugPrint('PRODUCTS_FETCH_JOIN_RESTRICTED: Falling back to direct products query without users join ($joinErr)');
+        response = await _supabase
+            .from('products')
+            .select('''
+              product_id,
+              name,
+              description,
+              base_price,
+              status,
+              is_preorder_enabled,
+              category_id,
+              category_attributes,
+              seller_id,
+              created_at,
+              product_images (
+                image_url,
+                is_primary
+              ),
+              product_variants (
+                variant_id,
+                variant_value,
+                inventory (
+                  stock_qty
+                )
               )
-            )
-          ''')
-          .eq('status', 'ACTIVE')
-          .order('created_at', ascending: false);
+            ''')
+            .eq('status', 'ACTIVE')
+            .order('created_at', ascending: false);
+      }
 
       final rows = response as List<dynamic>;
 
