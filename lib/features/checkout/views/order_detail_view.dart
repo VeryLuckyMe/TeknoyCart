@@ -2295,11 +2295,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
       }
 
       // Seller cancellation for in-flight orders. PLACED and NEEDS_REVIEW have
-      // their own dedicated actions above, so they are intentionally excluded.
-      // Kept last so the destructive action sits below the primary workflow.
-      final showSellerCancel = _status == 'ACCEPTED' ||
-          _status == 'AWAITING_PAYMENT' ||
-          _status == 'ESCROWED' ||
+      // their own dedicated actions above. ACCEPTED and AWAITING_PAYMENT are
+      // committed agreements where unilateral seller cancellation is disallowed.
+      final showSellerCancel = _status == 'ESCROWED' ||
           _status == 'PAYMENT_SUBMITTED' ||
           (_status == 'MEETUP_SCHEDULED' && !_isGCash);
       if (showSellerCancel) {

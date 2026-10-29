@@ -99,26 +99,19 @@ void main() {
   });
 
   group('Seller cancellation actions', () {
-    testWidgets('ACCEPTED cash order exposes Cancel Order alongside schedule', (tester) async {
+    testWidgets('ACCEPTED cash order exposes schedule and hides Cancel Order for seller', (tester) async {
       await tester.pumpWidget(_view(_order(status: 'ACCEPTED', paymentMethod: 'CASH_ON_PICKUP'), isSeller: true));
       await tester.pumpAndSettle();
 
       expect(find.text('Schedule Meetup & Notify Buyer'), findsOneWidget);
-      expect(find.text('Cancel Order'), findsOneWidget);
+      expect(find.text('Cancel Order'), findsNothing);
     });
 
-    testWidgets('ACCEPTED GCash order (buyer has not paid) exposes Cancel Order', (tester) async {
+    testWidgets('ACCEPTED GCash order (buyer has not paid) hides Cancel Order for seller', (tester) async {
       await tester.pumpWidget(_view(_order(status: 'ACCEPTED', paymentMethod: 'GCASH'), isSeller: true));
       await tester.pumpAndSettle();
 
-      expect(find.text('Cancel Order'), findsOneWidget);
-    });
-
-    testWidgets('AWAITING_PAYMENT order exposes Cancel Order', (tester) async {
-      await tester.pumpWidget(_view(_order(status: 'AWAITING_PAYMENT', paymentMethod: 'GCASH'), isSeller: true));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Cancel Order'), findsOneWidget);
+      expect(find.text('Cancel Order'), findsNothing);
     });
 
     testWidgets('ESCROWED order exposes Cancel & Request Refund, never plain Cancel', (tester) async {
@@ -172,7 +165,7 @@ void main() {
     });
 
     testWidgets('Tapping Cancel Order opens the confirmation dialog', (tester) async {
-      await tester.pumpWidget(_view(_order(status: 'ACCEPTED', paymentMethod: 'CASH_ON_PICKUP'), isSeller: true));
+      await tester.pumpWidget(_view(_order(status: 'NEEDS_REVIEW', paymentMethod: 'CASH_ON_PICKUP'), isSeller: true));
       await tester.pumpAndSettle();
 
       final cancelBtn = find.byKey(const Key('seller_cancel_action'));
