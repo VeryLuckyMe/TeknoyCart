@@ -830,7 +830,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
               const Text('Please tell us why you are cancelling:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value: selectedReason,
+                initialValue: selectedReason,
                 decoration: InputDecoration(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -910,7 +910,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
               const Text('Please select the reason for reporting a no-show:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value: selectedReason,
+                initialValue: selectedReason,
                 decoration: InputDecoration(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -998,7 +998,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                 const Text('Please select a reason for returning this item:', style: TextStyle(fontFamily: 'Inter', fontSize: 13)),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
-                  value: selectedReason,
+                  initialValue: selectedReason,
                   decoration: InputDecoration(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -1498,7 +1498,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                   const Text('2. Campus Time Window', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: selectedTime,
+                    initialValue: selectedTime,
                     decoration: InputDecoration(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -1520,7 +1520,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                   const Text('3. Campus Landmark', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: selectedLandmark,
+                    initialValue: selectedLandmark,
                     decoration: InputDecoration(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -2294,20 +2294,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         buttons.add(_actionBtn('Issue GCash Refund', Colors.green, Icons.currency_exchange_rounded, _showConfirmRefundDialog));
       }
 
-      // Seller cancellation for in-flight orders. PLACED and NEEDS_REVIEW have
-      // their own dedicated actions above. ACCEPTED and AWAITING_PAYMENT are
-      // committed agreements where unilateral seller cancellation is disallowed.
-      final showSellerCancel = _status == 'ESCROWED' ||
-          _status == 'PAYMENT_SUBMITTED' ||
-          (_status == 'MEETUP_SCHEDULED' && !_isGCash);
-      if (showSellerCancel) {
-        if (buttons.isNotEmpty) buttons.add(const SizedBox(height: 10));
-        buttons.add(_sellerCancelBtn(
-          (_status == 'ESCROWED' || _status == 'PAYMENT_SUBMITTED')
-              ? 'Cancel & Request Refund'
-              : 'Cancel Order',
-        ));
-      }
+      // Sellers have no unilateral cancellation action for in-flight orders.
+      // Paid escrow problems route through the dedicated refund/return flows
+      // above, which keep the buyer's money and stock accounted for.
     } else {
       // Buyer actions
       if (_isGCash && (_status == 'ACCEPTED' || _status == 'APPROVED')) {

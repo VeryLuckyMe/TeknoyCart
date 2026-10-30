@@ -545,7 +545,7 @@ class _ProductReviewsSectionState extends ConsumerState<ProductReviewsSection> {
                         decoration: BoxDecoration(
                           color: isDark ? TeknoyTheme.darkFill : TeknoyTheme.lightSurfaceMuted,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border(
+                          border: const Border(
                             left: BorderSide(color: TeknoyTheme.citMaroon, width: 3),
                           ),
                         ),

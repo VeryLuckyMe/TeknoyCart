@@ -659,7 +659,7 @@ class _BuyerReviewsSheetState extends ConsumerState<BuyerReviewsSheet> {
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF25252E) : TeknoyTheme.lightSurfaceMuted,
                 borderRadius: BorderRadius.circular(12),
-                border: Border(
+                border: const Border(
                   left: BorderSide(
                     color: TeknoyTheme.citMaroon,
                     width: 3.5,

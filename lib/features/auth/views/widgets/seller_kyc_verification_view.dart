@@ -1374,8 +1374,8 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                 InkWell(
                   onTap: () => _showHonorCodeBottomSheet(context, isDark),
                   borderRadius: BorderRadius.circular(6),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
                     child: Text(
                       'Read Complete Vendor Terms & Guidelines',
                       style: TextStyle(

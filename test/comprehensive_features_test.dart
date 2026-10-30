@@ -226,7 +226,7 @@ void main() {
       state = 'offered';
       expect(state, 'offered');
 
-      final agreedPrice = initialOffer;
+      const agreedPrice = initialOffer;
       state = 'agreed';
       expect(state, 'agreed');
       expect(agreedPrice, 450.00);

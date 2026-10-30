@@ -151,7 +151,7 @@ class _ReviewSubmissionSheetState extends ConsumerState<ReviewSubmissionSheet> {
               .uploadBinary(
                 fileName,
                 bytes,
-                fileOptions: FileOptions(contentType: 'image/jpeg', upsert: true),
+                fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
               );
           finalImageUrl = SupabaseConfig.client.storage
               .from('product-images')
@@ -632,7 +632,7 @@ class _ReviewSubmissionSheetState extends ConsumerState<ReviewSubmissionSheet> {
                   ),
                   Switch(
                     value: _isAnonymous,
-                    activeColor: TeknoyTheme.citMaroon,
+                    activeThumbColor: TeknoyTheme.citMaroon,
                     onChanged: (val) => setState(() => _isAnonymous = val),
                   ),
                 ],

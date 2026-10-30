@@ -84,9 +84,9 @@ class ChatInputBar extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: isUploadingImage
-                      ? Row(
+                      ? const Row(
                           children: [
-                            const SizedBox(
+                            SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
@@ -94,8 +94,8 @@ class ChatInputBar extends StatelessWidget {
                                 color: TeknoyTheme.citMaroon,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            const Text(
+                            SizedBox(width: 8),
+                            Text(
                               'Uploading image...',
                               style: TextStyle(
                                 fontFamily: 'Inter',

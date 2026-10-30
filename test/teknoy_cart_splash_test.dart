@@ -26,7 +26,7 @@ void main() {
 
   group('TeknoyCartLogoPainter Unit Tests', () {
     test('paints cleanly without throwing at various animation values', () {
-      final painter = TeknoyCartLogoPainter(
+      const painter = TeknoyCartLogoPainter(
         cartSlideX: 0.0,
         cartTilt: 0.05,
         cartBounceY: 0.2,
@@ -54,7 +54,7 @@ void main() {
     });
 
     test('shouldRepaint returns true when properties change', () {
-      final painter1 = TeknoyCartLogoPainter(
+      const painter1 = TeknoyCartLogoPainter(
         cartSlideX: -1.0,
         cartTilt: 0.0,
         cartBounceY: 0.0,
@@ -72,7 +72,7 @@ void main() {
         isDark: false,
       );
 
-      final painter2 = TeknoyCartLogoPainter(
+      const painter2 = TeknoyCartLogoPainter(
         cartSlideX: 0.0,
         cartTilt: 0.0,
         cartBounceY: 0.0,

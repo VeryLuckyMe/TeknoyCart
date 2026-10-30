@@ -359,9 +359,9 @@ final List<Product> _fallbackProducts = [
     sellerId: 'demo-1',
     sellerStoreName: 'CEA Drawing Board Shop',
     createdAt: DateTime.now().subtract(const Duration(days: 1)),
-    categoryAttributes: [
-      const ProductAttribute(name: 'Brand', value: 'Staedtler'),
-      const ProductAttribute(name: 'Type', value: 'Drawing Board'),
+    categoryAttributes: const [
+      ProductAttribute(name: 'Brand', value: 'Staedtler'),
+      ProductAttribute(name: 'Type', value: 'Drawing Board'),
     ],
   ),
   Product(
@@ -377,10 +377,10 @@ final List<Product> _fallbackProducts = [
     sellerId: 'demo-2',
     sellerStoreName: 'Wildcat Threads',
     createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-    categoryAttributes: [
-      const ProductAttribute(name: 'Size', value: 'M'),
-      const ProductAttribute(name: 'Uniform Type', value: 'PE Uniform'),
-      const ProductAttribute(name: 'Gender', value: 'Unisex'),
+    categoryAttributes: const [
+      ProductAttribute(name: 'Size', value: 'M'),
+      ProductAttribute(name: 'Uniform Type', value: 'PE Uniform'),
+      ProductAttribute(name: 'Gender', value: 'Unisex'),
     ],
   ),
   Product(
@@ -396,10 +396,10 @@ final List<Product> _fallbackProducts = [
     sellerId: 'demo-3',
     sellerStoreName: 'CS Book Depot',
     createdAt: DateTime.now().subtract(const Duration(days: 3)),
-    categoryAttributes: [
-      const ProductAttribute(name: 'Subject', value: 'Computer Science'),
-      const ProductAttribute(name: 'Author', value: 'Michael T. Goodrich'),
-      const ProductAttribute(name: 'Edition', value: '6th Edition'),
+    categoryAttributes: const [
+      ProductAttribute(name: 'Subject', value: 'Computer Science'),
+      ProductAttribute(name: 'Author', value: 'Michael T. Goodrich'),
+      ProductAttribute(name: 'Edition', value: '6th Edition'),
     ],
   ),
   Product(
@@ -415,10 +415,10 @@ final List<Product> _fallbackProducts = [
     sellerId: 'demo-1',
     sellerStoreName: 'CEA Drawing Board Shop',
     createdAt: DateTime.now().subtract(const Duration(days: 2)),
-    categoryAttributes: [
-      const ProductAttribute(name: 'Brand', value: 'Casio'),
-      const ProductAttribute(name: 'Model', value: 'fx-991ES Plus'),
-      const ProductAttribute(name: 'Warranty', value: 'No Warranty'),
+    categoryAttributes: const [
+      ProductAttribute(name: 'Brand', value: 'Casio'),
+      ProductAttribute(name: 'Model', value: 'fx-991ES Plus'),
+      ProductAttribute(name: 'Warranty', value: 'No Warranty'),
     ],
   ),
   Product(
@@ -434,11 +434,11 @@ final List<Product> _fallbackProducts = [
     sellerId: 'demo-4',
     sellerStoreName: 'Teknoy Sweet Bites',
     createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-    categoryAttributes: [
-      const ProductAttribute(name: 'Type', value: 'Baked Goods'),
-      const ProductAttribute(name: 'Flavor/Variant', value: 'Chocolate Chip'),
-      const ProductAttribute(name: 'Allergens', value: 'Contains dairy, wheat'),
-      const ProductAttribute(name: 'Serving Size', value: '6 pieces'),
+    categoryAttributes: const [
+      ProductAttribute(name: 'Type', value: 'Baked Goods'),
+      ProductAttribute(name: 'Flavor/Variant', value: 'Chocolate Chip'),
+      ProductAttribute(name: 'Allergens', value: 'Contains dairy, wheat'),
+      ProductAttribute(name: 'Serving Size', value: '6 pieces'),
     ],
   ),
   Product(
@@ -454,11 +454,11 @@ final List<Product> _fallbackProducts = [
     sellerId: 'demo-5',
     sellerStoreName: 'Wildcat Stationery Hub',
     createdAt: DateTime.now().subtract(const Duration(hours: 8)),
-    categoryAttributes: [
-      const ProductAttribute(name: 'Type', value: 'Stationery Set'),
-      const ProductAttribute(name: 'Brand', value: 'Pilot'),
-      const ProductAttribute(name: 'Size/Specification', value: '0.3mm Ultra Fine'),
-      const ProductAttribute(name: 'Pack Quantity', value: '3-pack'),
+    categoryAttributes: const [
+      ProductAttribute(name: 'Type', value: 'Stationery Set'),
+      ProductAttribute(name: 'Brand', value: 'Pilot'),
+      ProductAttribute(name: 'Size/Specification', value: '0.3mm Ultra Fine'),
+      ProductAttribute(name: 'Pack Quantity', value: '3-pack'),
     ],
   ),
   Product(
@@ -474,11 +474,11 @@ final List<Product> _fallbackProducts = [
     sellerId: 'demo-2',
     sellerStoreName: 'Wildcat Threads',
     createdAt: DateTime.now().subtract(const Duration(hours: 4)),
-    categoryAttributes: [
-      const ProductAttribute(name: 'Clothing Type', value: 'Jorts'),
-      const ProductAttribute(name: 'Size', value: 'L'),
-      const ProductAttribute(name: 'Color', value: 'Denim Blue'),
-      const ProductAttribute(name: 'Gender / Fit', value: 'Unisex'),
+    categoryAttributes: const [
+      ProductAttribute(name: 'Clothing Type', value: 'Jorts'),
+      ProductAttribute(name: 'Size', value: 'L'),
+      ProductAttribute(name: 'Color', value: 'Denim Blue'),
+      ProductAttribute(name: 'Gender / Fit', value: 'Unisex'),
     ],
   ),
 ];
