@@ -298,7 +298,7 @@ class ChatService {
         'send_automated_chat_reply',
         params: {
           'p_chat_id': chatId,
-          'p_content': '🤖 ' + content,
+          'p_content': '🤖 $content',
         },
       );
     } catch (e) {

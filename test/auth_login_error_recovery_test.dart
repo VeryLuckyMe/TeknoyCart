@@ -161,7 +161,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith(
-              (ref) => AsyncValue.error('Unexpected auth token failure', StackTrace.empty),
+              (ref) => const AsyncValue.error('Unexpected auth token failure', StackTrace.empty),
             ),
           ],
           child: const TeknoyCartApp(),

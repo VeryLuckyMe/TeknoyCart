@@ -11,6 +11,7 @@
 ///   5. RBAC         — Buyer vs Seller view gating per GCash status
 ///   6. Edge Cases   — null buyer, refund flow, cash vs gcash fallback
 /// ============================================================
+library;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

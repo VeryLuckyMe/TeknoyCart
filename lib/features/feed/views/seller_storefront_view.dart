@@ -287,11 +287,11 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Row(
+                            const Row(
                               children: [
                                 Icon(Icons.verified_rounded, color: TeknoyTheme.citGold, size: 14),
-                                const SizedBox(width: 4),
-                                const Text(
+                                SizedBox(width: 4),
+                                Text(
                                   'CIT-U Campus Vendor',
                                   style: TextStyle(
                                     fontFamily: 'Inter',
@@ -493,12 +493,12 @@ class _SellerStorefrontViewState extends ConsumerState<SellerStorefrontView> {
                     fontSize: 14,
                     color: isDark ? Colors.white : Colors.black87,
                   ),
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey, size: 20),
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search_rounded, color: Colors.grey, size: 20),
                     hintText: 'Search within storefront...',
-                    hintStyle: const TextStyle(color: Colors.grey, fontSize: 13, fontFamily: 'Inter'),
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 13, fontFamily: 'Inter'),
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    contentPadding: EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
               ),

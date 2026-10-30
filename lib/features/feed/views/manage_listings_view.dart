@@ -188,7 +188,7 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
                       const SizedBox(height: 16),
                       const Text(
                         'You have no listings yet.',
-                        style: const TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(fontFamily: 'Outfit', fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       const Text(

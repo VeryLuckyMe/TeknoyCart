@@ -319,7 +319,7 @@ void main() {
       addTearDown(() => tester.view.resetPhysicalSize());
 
       await tester.pumpWidget(
-        ProviderScope(
+        const ProviderScope(
           child: MaterialApp(
             home: Scaffold(
               body: ReviewSubmissionSheet(

@@ -1,8 +1,8 @@
-// Seller cancellation UI regression tests.
+// Order cancellation UI regression tests.
 //
-// Covers the missing seller actions for in-flight orders and the escrowed
-// refund wording. These tests render the real [OrderDetailView] with the same
-// Supabase test bootstrap used by the GCash quality suite.
+// Sellers no longer get a Cancel Order action for in-flight orders; buyers keep
+// their own cancellation path. These tests render the real [OrderDetailView]
+// with the same Supabase test bootstrap used by the GCash quality suite.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -114,26 +114,28 @@ void main() {
       expect(find.text('Cancel Order'), findsNothing);
     });
 
-    testWidgets('ESCROWED order exposes Cancel & Request Refund, never plain Cancel', (tester) async {
+    testWidgets('ESCROWED order hides seller cancellation, including refund requests', (tester) async {
       await tester.pumpWidget(_view(_order(status: 'ESCROWED', paymentMethod: 'GCASH'), isSeller: true));
       await tester.pumpAndSettle();
 
-      expect(find.text('Cancel & Request Refund'), findsOneWidget);
+      expect(find.text('Cancel & Request Refund'), findsNothing);
       expect(find.text('Cancel Order'), findsNothing);
     });
 
-    testWidgets('PAYMENT_SUBMITTED order exposes Cancel & Request Refund', (tester) async {
+    testWidgets('PAYMENT_SUBMITTED order hides seller cancellation', (tester) async {
       await tester.pumpWidget(_view(_order(status: 'PAYMENT_SUBMITTED', paymentMethod: 'GCASH'), isSeller: true));
       await tester.pumpAndSettle();
 
-      expect(find.text('Cancel & Request Refund'), findsOneWidget);
+      expect(find.text('Cancel & Request Refund'), findsNothing);
+      expect(find.text('Cancel Order'), findsNothing);
     });
 
-    testWidgets('MEETUP_SCHEDULED cash order exposes Cancel Order', (tester) async {
+    testWidgets('MEETUP_SCHEDULED cash order hides seller cancellation', (tester) async {
       await tester.pumpWidget(_view(_order(status: 'MEETUP_SCHEDULED', paymentMethod: 'CASH_ON_PICKUP'), isSeller: true));
       await tester.pumpAndSettle();
 
-      expect(find.text('Cancel Order'), findsOneWidget);
+      expect(find.text('Cancel Order'), findsNothing);
+      expect(find.text('Cancel & Request Refund'), findsNothing);
     });
 
     testWidgets('MEETUP_SCHEDULED GCash order hides cancellation (payment attached)', (tester) async {
@@ -176,21 +178,6 @@ void main() {
 
       expect(find.text('Cancel Order?'), findsOneWidget);
       expect(find.text('Yes, Cancel Order'), findsOneWidget);
-    });
-
-    testWidgets('Tapping Cancel & Request Refund explains the PayMongo refund routing', (tester) async {
-      await tester.pumpWidget(_view(_order(status: 'ESCROWED', paymentMethod: 'GCASH'), isSeller: true));
-      await tester.pumpAndSettle();
-
-      final cancelBtn = find.byKey(const Key('seller_cancel_action'));
-      await tester.ensureVisible(cancelBtn);
-      await tester.pumpAndSettle();
-      await tester.tap(cancelBtn);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Cancel & Request Refund?'), findsOneWidget);
-      expect(find.textContaining('flagged for a PayMongo refund'), findsOneWidget);
-      expect(find.text('Yes, Cancel & Refund'), findsOneWidget);
     });
   });
 

@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/services/auth_service.dart';
@@ -103,7 +102,7 @@ void main() {
     });
 
     test('should format raw digits into ##-####-### standard automatically', () {
-      final input = const TextEditingValue(text: '211029315');
+      const input = TextEditingValue(text: '211029315');
       final output = formatter.formatEditUpdate(TextEditingValue.empty, input);
       expect(output.text, '21-1029-315');
     });
@@ -139,13 +138,13 @@ void main() {
     });
 
     test('should strip non-digit characters gracefully', () {
-      final input = const TextEditingValue(text: '21-ABC-1234-XYZ-567');
+      const input = TextEditingValue(text: '21-ABC-1234-XYZ-567');
       final output = formatter.formatEditUpdate(TextEditingValue.empty, input);
       expect(output.text, '21-1234-567');
     });
 
     test('should cap student ID at 9 total digits', () {
-      final input = const TextEditingValue(text: '21123456789999');
+      const input = TextEditingValue(text: '21123456789999');
       final output = formatter.formatEditUpdate(TextEditingValue.empty, input);
       expect(output.text, '21-1234-567');
     });

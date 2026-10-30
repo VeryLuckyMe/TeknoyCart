@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -49,8 +48,8 @@ class SellerVerificationService {
     required XFile selfieFile,
   }) async {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final idCardStoragePath = 'kyc/$userId/id_${timestamp}.jpg';
-    final selfieStoragePath = 'kyc/$userId/selfie_${timestamp}.jpg';
+    final idCardStoragePath = 'kyc/$userId/id_$timestamp.jpg';
+    final selfieStoragePath = 'kyc/$userId/selfie_$timestamp.jpg';
 
     // 1. Upload ID card image
     final Uint8List idBytes = await idCardFile.readAsBytes();

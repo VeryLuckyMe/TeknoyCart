@@ -56,8 +56,8 @@ void main() {
     });
 
     test('Option A: Secondhand item with 0 available stock displays SOLD OUT', () {
-      final int stock = 1;
-      final int reserved = 1;
+      const int stock = 1;
+      const int reserved = 1;
       final int available = (stock - reserved).clamp(0, 999999);
       final bool isOutOfStock = available <= 0;
       final bool isPreorder = standardProduct.isPreorderEnabled;
@@ -87,8 +87,8 @@ void main() {
     });
 
     test('Option A: Batch merchandise with 0 available stock switches to PRE-ORDER OPEN', () {
-      final int stock = 0;
-      final int reserved = 0;
+      const int stock = 0;
+      const int reserved = 0;
       final int available = (stock - reserved).clamp(0, 999999);
       final bool isOutOfStock = available <= 0;
       final bool isPreorder = preorderProduct.isPreorderEnabled;

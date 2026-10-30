@@ -326,7 +326,7 @@ class AuthDropdownField<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return DropdownButtonFormField<T>(
-      value: value,
+      initialValue: value,
       items: items,
       onChanged: onChanged,
       validator: validator,

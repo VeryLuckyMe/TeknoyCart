@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/widgets/image_placeholder.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -978,14 +977,14 @@ class _SellTabState extends ConsumerState<SellTab> {
                         width: 1.2,
                       ),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.add_rounded, size: 14, color: TeknoyTheme.citMaroon),
-                        const SizedBox(width: 4),
+                        Icon(Icons.add_rounded, size: 14, color: TeknoyTheme.citMaroon),
+                        SizedBox(width: 4),
                         Text(
                           '+ Other',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
@@ -1811,7 +1810,7 @@ class _SellTabState extends ConsumerState<SellTab> {
     bool isDark,
   ) {
     final isSelected = _sellCondition == opt;
-    final primaryColor = TeknoyTheme.citMaroon;
+    const primaryColor = TeknoyTheme.citMaroon;
 
     return Material(
       color: Colors.transparent,
