@@ -390,7 +390,8 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
         final fullName = isOrg
             ? _storeNameController.text.trim()
             : '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}'.trim();
-        await ref.read(authNotifierProvider.notifier).register(
+        final signUpResult =
+            await ref.read(authNotifierProvider.notifier).register(
               email: _emailController.text.trim(),
               username: fullName,
               password: _passwordController.text,
@@ -413,6 +414,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
             builder: (ctx) => EmailVerificationDialog(
               email: _emailController.text.trim(),
               fullName: fullName,
+              initialDeliveryError: signUpResult.verificationEmailError,
             ),
           );
           _switchTab(true); // go to login after dialog is dismissed

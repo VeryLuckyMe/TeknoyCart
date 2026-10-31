@@ -107,7 +107,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
   }
 
   /// Register user with error handling and loading indicators.
-  Future<void> register({
+  Future<SignUpResult> register({
     required String email,
     required String username,
     required String password,
@@ -120,7 +120,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
   }) async {
     state = const AsyncLoading<Profile?>().copyWithPrevious(state);
     try {
-      await _authService.signUp(
+      final result = await _authService.signUp(
         email: email,
         username: username,
         password: password,
@@ -132,6 +132,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
         orgContact: orgContact,
       );
       state = const AsyncValue.data(null);
+      return result;
     } catch (e) {
       // Keep auth session state as unauthenticated (null) so root app remains on AuthGateView
       state = const AsyncValue.data(null);
