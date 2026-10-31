@@ -270,7 +270,7 @@ class AuthService {
   }
 
   // ── Sign Up ──
-  Future<Profile> signUp({
+  Future<SignUpResult> signUp({
     required String email,
     required String username,
     required String password,
@@ -328,16 +328,29 @@ class AuthService {
     // Set registration mode to true to suppress auth streams
     isRegistering = true;
     try {
-      final response = await _client.auth.signUp(
-        email: email.trim(),
-        password: password,
-        data: {
-          'username': username.trim(),
-          'role': role,
-          'student_id': isOrgSeller ? null : studentId.trim(),
-          'department': department,
-        },
-      );
+      AuthResponse response;
+      try {
+        response = await _client.auth.signUp(
+          email: email.trim(),
+          password: password,
+          data: {
+            'username': username.trim(),
+            'role': role,
+            'student_id': isOrgSeller ? null : studentId.trim(),
+            'department': department,
+          },
+        );
+      } on AuthException catch (e) {
+        final message = e.message.toLowerCase();
+        if (message.contains('already registered') ||
+            message.contains('already exists')) {
+          throw const FormatException(
+            'This email already has an account. Sign in and resend the '
+            'verification email, or register with a different email.',
+          );
+        }
+        rethrow;
+      }
 
       final user = response.user;
       if (user == null) {
@@ -381,14 +394,28 @@ class AuthService {
         );
       }
 
-      await sendVerificationEmail(email, username);
+      // The account already exists at this point. A verification-email outage
+      // must not turn a successful registration into a dead end, so report the
+      // delivery failure to the caller instead of throwing it.
+      var verificationEmailSent = true;
+      String? verificationEmailError;
+      try {
+        await sendVerificationEmail(email, username);
+      } on VerificationEmailException catch (e) {
+        verificationEmailSent = false;
+        verificationEmailError = e.message;
+      }
 
       // Instantly sign out to clear the session locally, since we're still in registration mode
       await _client.auth.signOut();
 
-      return _userToProfile(user);
+      return SignUpResult(
+        profile: _userToProfile(user),
+        verificationEmailSent: verificationEmailSent,
+        verificationEmailError: verificationEmailError,
+      );
     } catch (_) {
-      // A failed profile/email step must not leave the temporary signup session active.
+      // A failed profile step must not leave the temporary signup session active.
       try {
         await _client.auth.signOut();
       } catch (_) {}
@@ -413,23 +440,87 @@ class AuthService {
 
   Future<void> sendVerificationEmail(String email, String fullName) async {
     final url = Uri.parse('${ApiConfig.authUrl}/send-verification');
-    final httpResponse = await http
-        .post(
-          url,
-          headers: {'Content-Type': 'application/json'},
-          body:
-              jsonEncode({'email': email.trim(), 'fullName': fullName.trim()}),
-        )
-        .timeout(const Duration(seconds: 15));
-    if (httpResponse.statusCode != 200) {
-      throw Exception(
-          'Verification email could not be sent (HTTP ${httpResponse.statusCode}). Please try again later.');
+    http.Response httpResponse;
+    try {
+      httpResponse = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(
+                {'email': email.trim(), 'fullName': fullName.trim()}),
+          )
+          .timeout(const Duration(seconds: 15));
+    } on TimeoutException {
+      throw const VerificationEmailException(
+        'The verification service took too long to respond. Please check your connection and try again.',
+      );
+    } catch (_) {
+      throw const VerificationEmailException(
+        'Unable to reach the verification service. Please check your internet connection and try again.',
+      );
     }
+
+    if (httpResponse.statusCode == 200) return;
+
+    throw VerificationEmailException(
+      _verificationEmailErrorMessage(httpResponse),
+    );
+  }
+
+  String _verificationEmailErrorMessage(http.Response response) {
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final message = decoded['message'];
+        if (message is String && message.trim().isNotEmpty) {
+          return message.trim();
+        }
+      }
+    } catch (_) {
+      // Non-JSON body — fall through to the status-based message.
+    }
+
+    final plainText = response.body.trim();
+    if (plainText.startsWith('Error:')) {
+      return plainText.substring('Error:'.length).trim();
+    }
+
+    if (response.statusCode == 429) {
+      return 'Please wait a minute before requesting another verification email.';
+    }
+    if (response.statusCode >= 500) {
+      return 'The verification service is temporarily unavailable. Please try again in a few minutes.';
+    }
+    return 'The verification email could not be sent. Please try again later.';
   }
 
   void dispose() {
     // Supabase client manages its own lifecycle
   }
+}
+
+/// Raised when the backend verification-email endpoint cannot be reached or
+/// rejects the request. [message] is user-safe and surfaced by the dialog.
+class VerificationEmailException implements Exception {
+  final String message;
+  const VerificationEmailException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+/// Outcome of a successful sign-up. The account is always created; the
+/// delivery flag only reports whether the verification link was dispatched.
+class SignUpResult {
+  final Profile profile;
+  final bool verificationEmailSent;
+  final String? verificationEmailError;
+
+  const SignUpResult({
+    required this.profile,
+    this.verificationEmailSent = true,
+    this.verificationEmailError,
+  });
 }
 
 /// Custom Exception thrown when a user attempts to log in but their email is unverified.

@@ -9,7 +9,17 @@ import '../../services/auth_service.dart';
 class EmailVerificationDialog extends StatefulWidget {
   final String email;
   final String? fullName;
-  const EmailVerificationDialog({super.key, required this.email, this.fullName});
+
+  /// When set, the initial verification email was never delivered. The dialog
+  /// shows the reason and allows an immediate retry instead of a fake timer.
+  final String? initialDeliveryError;
+
+  const EmailVerificationDialog({
+    super.key,
+    required this.email,
+    this.fullName,
+    this.initialDeliveryError,
+  });
 
   @override
   State<EmailVerificationDialog> createState() => _EmailVerificationDialogState();
@@ -23,14 +33,21 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
   bool _expired = false;
   bool _resending = false;
   bool _resent = false;
+  bool _deliveryFailed = false;
   Timer? _timer;
   Timer? _cooldownTimer;
 
   @override
   void initState() {
     super.initState();
-    _startTimer();
-    _startResendCooldown();
+    _deliveryFailed = widget.initialDeliveryError != null;
+    if (_deliveryFailed) {
+      // The initial email was never sent, so a countdown would be misleading.
+      _resendSecondsLeft = 0;
+    } else {
+      _startTimer();
+      _startResendCooldown();
+    }
   }
 
   void _startResendCooldown() {
@@ -75,6 +92,7 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
         setState(() {
           _resending = false;
           _resent = true;
+          _deliveryFailed = false;
           _expired = false;
           _secondsLeft = _totalSeconds;
           _resendSecondsLeft = _resendCooldownSeconds;
@@ -121,6 +139,9 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = _deliveryFailed
+        ? const Color(0xFFE65100)
+        : (_expired ? const Color(0xFFC62828) : TeknoyTheme.successDark);
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -135,9 +156,7 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: (_expired
-                    ? const Color(0xFFC62828)
-                    : TeknoyTheme.successDark).withValues(alpha: 0.12),
+                color: accent.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -145,20 +164,22 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
                     ? Icons.timer_off_rounded
                     : Icons.mark_email_unread_rounded,
                 size: 42,
-                color: _expired ? const Color(0xFFC62828) : TeknoyTheme.successDark,
+                color: accent,
               ),
             ),
             const SizedBox(height: 20),
 
             // Title
             Text(
-              _expired ? 'Link Expired' : 'Verify Your Email',
+              _deliveryFailed
+                  ? 'Email Not Sent'
+                  : (_expired ? 'Link Expired' : 'Verify Your Email'),
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: _expired
-                    ? const Color(0xFFC62828)
+                color: _deliveryFailed || _expired
+                    ? accent
                     : (isDark ? Colors.white : Colors.black87),
               ),
               textAlign: TextAlign.center,
@@ -167,9 +188,11 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
 
             // Subtitle
             Text(
-              _expired
-                  ? 'The verification link has expired. Tap below to resend a new one.'
-                  : 'A verification link has been sent to:',
+              _deliveryFailed
+                  ? 'Your account was created, but the verification link could not be sent to:'
+                  : _expired
+                      ? 'The verification link has expired. Tap below to resend a new one.'
+                      : 'A verification link has been sent to:',
               style: TextStyle(
                 fontFamily: 'Inter',
                 fontSize: 13,
@@ -199,10 +222,41 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
                 textAlign: TextAlign.center,
               ),
             ),
+            // Delivery failure reason
+            if (_deliveryFailed) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: accent.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.wifi_off_rounded, size: 16, color: accent),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.initialDeliveryError ??
+                            'The verification email could not be sent.',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 12,
+                          height: 1.4,
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
 
             // Countdown or expired indicator
-            if (!_expired) ...[
+            if (!_expired && !_deliveryFailed) ...[
               // Circular progress + time
               Stack(
                 alignment: Alignment.center,
