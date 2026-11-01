@@ -151,6 +151,21 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
     }
   }
 
+  /// Permanently deletes the user's account and resets state.
+  Future<void> deleteAccount() async {
+    state = const AsyncValue.loading();
+    try {
+      _verifChannel?.unsubscribe();
+      _verifChannel = null;
+      PresenceService.instance.stopHeartbeat();
+      await _authService.deleteAccount();
+      state = const AsyncValue.data(null);
+    } catch (e, stackTrace) {
+      state = AsyncValue.error(e, stackTrace);
+      rethrow;
+    }
+  }
+
   @override
   void dispose() {
     _verifChannel?.unsubscribe();

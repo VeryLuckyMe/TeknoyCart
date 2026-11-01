@@ -415,7 +415,11 @@ class AuthService {
         verificationEmailError: verificationEmailError,
       );
     } catch (_) {
-      // A failed profile step must not leave the temporary signup session active.
+      // If a profile setup step fails during registration, roll back the incomplete
+      // account so the user is not stuck with an orphaned account or locked student ID.
+      try {
+        await _client.rpc('delete_user_account');
+      } catch (_) {}
       try {
         await _client.auth.signOut();
       } catch (_) {}
@@ -432,6 +436,25 @@ class AuthService {
     } catch (_) {}
     await SecureTokenService.clearTokens();
     await _client.auth.signOut();
+  }
+
+  // ── Delete Account Permanently ──
+  Future<void> deleteAccount() async {
+    // 1. Invoke RPC to delete user records and Supabase Auth identity
+    await _client.rpc('delete_user_account');
+
+    // 2. Clear local push notification registration
+    try {
+      await FcmService.instance.unregisterToken();
+    } catch (_) {}
+
+    // 3. Clear local secure tokens
+    await SecureTokenService.clearTokens();
+
+    // 4. Safely terminate local session (swallow session-not-found errors since auth user was already deleted on server)
+    try {
+      await _client.auth.signOut();
+    } catch (_) {}
   }
 
   Future<void> resendVerificationEmail(String email, String fullName) async {
