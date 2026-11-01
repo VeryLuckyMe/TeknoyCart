@@ -538,8 +538,9 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                           final messenger = ScaffoldMessenger.of(context);
                           Navigator.pop(context);
                           try {
-                            await SupabaseConfig.client.rpc('delete_user_account');
-                            await ref.read(authNotifierProvider.notifier).logout();
+                            await ref
+                                .read(authNotifierProvider.notifier)
+                                .deleteAccount();
                             messenger.showSnackBar(
                               const SnackBar(
                                 content: Text('Account successfully deleted.'),
@@ -547,9 +548,19 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                               ),
                             );
                           } catch (e) {
+                            final errorStr = e.toString();
+                            final String message;
+                            if (errorStr.contains('CANNOT_DELETE_ACTIVE_ORDERS')) {
+                              message =
+                                  'Cannot delete account while you have active transactions or pending handoffs. Please complete or cancel pending orders first.';
+                            } else if (errorStr.contains('User not authenticated')) {
+                              message = 'Session expired. Please log in again.';
+                            } else {
+                              message = 'Failed to delete account: $e';
+                            }
                             messenger.showSnackBar(
                               SnackBar(
-                                content: Text('Failed to delete account: $e'),
+                                content: Text(message),
                                 backgroundColor: TeknoyTheme.error,
                               ),
                             );

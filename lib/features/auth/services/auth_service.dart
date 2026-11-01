@@ -434,6 +434,25 @@ class AuthService {
     await _client.auth.signOut();
   }
 
+  // ── Delete Account Permanently ──
+  Future<void> deleteAccount() async {
+    // 1. Invoke RPC to delete user records and Supabase Auth identity
+    await _client.rpc('delete_user_account');
+
+    // 2. Clear local push notification registration
+    try {
+      await FcmService.instance.unregisterToken();
+    } catch (_) {}
+
+    // 3. Clear local secure tokens
+    await SecureTokenService.clearTokens();
+
+    // 4. Safely terminate local session (swallow session-not-found errors since auth user was already deleted on server)
+    try {
+      await _client.auth.signOut();
+    } catch (_) {}
+  }
+
   Future<void> resendVerificationEmail(String email, String fullName) async {
     await sendVerificationEmail(email, fullName);
   }
