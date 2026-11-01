@@ -145,12 +145,12 @@ void main() {
       expect(find.text('Become a Campus Vendor'), findsOneWidget);
       expect(find.text('100% Student-Only Community'), findsOneWidget);
       expect(find.text('Zero Commission Fees'), findsOneWidget);
-      expect(find.text('Start Seller Application'), findsOneWidget);
+      expect(find.text('Start Identity Verification'), findsOneWidget);
 
-      // Drag up to reveal button and tap 'Start Seller Application' to advance to Step 1
+      // Drag up to reveal button and tap 'Start Identity Verification' to advance to Step 1
       await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -300));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Start Seller Application'));
+      await tester.tap(find.text('Start Identity Verification'));
       await tester.pumpAndSettle();
 
       // Verify Step 1: ID Card Upload
@@ -201,8 +201,8 @@ void main() {
 
       expect(find.text('Resubmission Required'), findsOneWidget);
       expect(find.text('ID card was too blurry to read the student ID number.'), findsOneWidget);
-      // Still shows Start Seller Application so user can resubmit
-      expect(find.text('Start Seller Application'), findsOneWidget);
+      // Still shows Start Identity Verification so user can resubmit
+      expect(find.text('Start Identity Verification'), findsOneWidget);
     });
 
     testWidgets('Renders Step 3 with document review and honor code agreement', (tester) async {

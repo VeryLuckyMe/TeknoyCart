@@ -845,7 +845,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
-                'Turn your textbooks, uniforms, tech gear, and school supplies into cash right here on campus.',
+                'Turn your textbooks, uniforms, tech gear, and school supplies into cash right here on campus. Before your first listing goes live, complete a quick 2-minute identity check using your CIT-U Student ID.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Inter',
@@ -899,9 +899,64 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
             cardBorder: cardBorder,
           ),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
 
-          // Big "Apply to Become a Seller" CTA Button
+          // 'What to Expect' process strip
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? TeknoyTheme.citMaroon.withValues(alpha: 0.08)
+                  : TeknoyTheme.citMaroon.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.2 : 0.12),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'What to expect (2 minutes)',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: TeknoyTheme.citMaroon,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _buildProcessStep(
+                  step: '1',
+                  label: 'Photo your CIT-U Student ID card',
+                  isDark: isDark,
+                ),
+                const SizedBox(height: 6),
+                _buildProcessStep(
+                  step: '2',
+                  label: 'Take a quick selfie holding your ID',
+                  isDark: isDark,
+                ),
+                const SizedBox(height: 6),
+                _buildProcessStep(
+                  step: '3',
+                  label: 'Submit — admin reviews within 24 hrs',
+                  isDark: isDark,
+                ),
+                const SizedBox(height: 6),
+                _buildProcessStep(
+                  step: '4',
+                  label: 'Approved — start listing instantly',
+                  isDark: isDark,
+                  isLast: true,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Identity Verification CTA Button
           SizedBox(
             width: double.infinity,
             height: 52,
@@ -917,7 +972,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Start Seller Application',
+                    'Start Identity Verification',
                     style: TextStyle(
                       fontFamily: 'Outfit',
                       fontSize: 16,
@@ -994,6 +1049,61 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
           ),
         ],
       ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PROCESS STEP ROW (used in intro 'What to expect' strip)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildProcessStep({
+    required String step,
+    required String label,
+    required bool isDark,
+    bool isLast = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: TeknoyTheme.citMaroon.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+            border: Border.all(color: TeknoyTheme.citMaroon.withValues(alpha: 0.3)),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            step,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: TeknoyTheme.citMaroon,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 12,
+              fontWeight: isLast ? FontWeight.w600 : FontWeight.normal,
+              color: isLast
+                  ? TeknoyTheme.citMaroon
+                  : (isDark ? Colors.white70 : Colors.black87),
+              height: 1.3,
+            ),
+          ),
+        ),
+        if (isLast)
+          const Padding(
+            padding: EdgeInsets.only(left: 6),
+            child: Icon(Icons.check_circle_outline_rounded, size: 16, color: TeknoyTheme.citMaroon),
+          ),
+      ],
     );
   }
 
