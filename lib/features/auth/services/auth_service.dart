@@ -415,7 +415,11 @@ class AuthService {
         verificationEmailError: verificationEmailError,
       );
     } catch (_) {
-      // A failed profile step must not leave the temporary signup session active.
+      // If a profile setup step fails during registration, roll back the incomplete
+      // account so the user is not stuck with an orphaned account or locked student ID.
+      try {
+        await _client.rpc('delete_user_account');
+      } catch (_) {}
       try {
         await _client.auth.signOut();
       } catch (_) {}
