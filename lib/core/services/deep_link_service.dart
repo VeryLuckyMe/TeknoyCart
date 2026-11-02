@@ -7,7 +7,7 @@ import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 import 'package:teknoycart/features/feed/views/wishlist_view.dart';
 import 'package:teknoycart/features/splash/splash_view.dart';
-import 'package:teknoycart/main.dart' show appNavigatorKey;
+import 'package:teknoycart/core/navigation/app_navigator_key.dart';
 
 sealed class DeepLinkDestination {
   const DeepLinkDestination();

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/notification_item.dart';
 import '../services/notification_service.dart';
@@ -32,7 +33,9 @@ class UnreadCountNotifier extends StateNotifier<int> {
       if (mounted) {
         state = count;
       }
-    } catch (_) {}
+    } catch (error, stackTrace) {
+      debugPrint('NOTIFICATION_COUNT_FETCH_ERROR: $error\n$stackTrace');
+    }
   }
 
   void increment() => state = state + 1;

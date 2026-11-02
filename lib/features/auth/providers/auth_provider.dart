@@ -170,6 +170,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
   void dispose() {
     _verifChannel?.unsubscribe();
     _authSubscription?.cancel();
+    PresenceService.instance.stopHeartbeat();
     super.dispose();
   }
 }

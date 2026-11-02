@@ -33,8 +33,9 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
       } else if (saved == 'system') {
         state = ThemeMode.system;
       }
-    } catch (_) {
-      // Graceful fallback to light theme
+    } catch (error, stackTrace) {
+      // Graceful fallback to the current theme mode when storage is unavailable.
+      debugPrint('THEME_LOAD_ERROR: $error\n$stackTrace');
     }
   }
 
@@ -47,7 +48,9 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
               ? 'light'
               : 'system';
       await _storage.write(key: _storageKey, value: value);
-    } catch (_) {}
+    } catch (error, stackTrace) {
+      debugPrint('THEME_SAVE_ERROR: $error\n$stackTrace');
+    }
   }
 
   void toggleTheme() {
