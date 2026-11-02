@@ -1,6 +1,5 @@
-import 'dart:io';
+import 'support/test_harness.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/models/product.dart';
@@ -10,9 +9,6 @@ import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/views/cart_view.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
-import 'package:teknoycart/core/supabase_client.dart';
-import 'mock_http_client.dart';
-
 class _FakeCartStorage implements CartStorageService {
   @override
   Future<String?> read(String key) async => null;
@@ -24,16 +20,7 @@ class _FakeCartStorage implements CartStorageService {
 
 void main() {
   setUpAll(() async {
-    HttpOverrides.global = MockHttpOverrides();
-    TestWidgetsFlutterBinding.ensureInitialized();
-    const MethodChannel('plugins.flutter.io/shared_preferences')
-        .setMockMethodCallHandler((MethodCall methodCall) async {
-      if (methodCall.method == 'getAll') {
-        return <String, dynamic>{};
-      }
-      return null;
-    });
-    await SupabaseConfig.initialize();
+    await TestHarness.setUpAllEnvironment();
   });
 
   group('CartView Empty Cart State & Navigation Tests', () {

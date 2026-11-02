@@ -169,7 +169,7 @@ class Product {
 
   /// Factory constructor to create a Product from a Supabase/PostgreSQL JSON object.
   factory Product.fromJson(Map<String, dynamic> json) {
-    // Parse category_attributes from JSONB
+    // Parse category_attributes from JSONB (supports List and Map representations)
     List<ProductAttribute> attrs = [];
     if (json['category_attributes'] != null) {
       final rawAttrs = json['category_attributes'];
@@ -180,11 +180,19 @@ class Product {
             .where((a) => a.name.isNotEmpty && a.value.isNotEmpty)
             .toList();
         final seen = <String>{};
-        attrs = [];
         for (final a in parsed) {
           final key = a.name.trim().toLowerCase();
           if (seen.add(key)) {
             attrs.add(a);
+          }
+        }
+      } else if (rawAttrs is Map) {
+        final seen = <String>{};
+        for (final entry in rawAttrs.entries) {
+          final name = entry.key.toString().trim();
+          final value = entry.value.toString().trim();
+          if (name.isNotEmpty && value.isNotEmpty && seen.add(name.toLowerCase())) {
+            attrs.add(ProductAttribute(name: name, value: value));
           }
         }
       }

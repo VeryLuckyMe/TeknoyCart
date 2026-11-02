@@ -6,6 +6,7 @@ import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:teknoycart/features/checkout/models/checkout_item.dart';
 import 'package:teknoycart/features/checkout/models/cart_item.dart';
+import 'package:teknoycart/features/checkout/models/cart_summary.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 
 class CartView extends ConsumerStatefulWidget {
@@ -370,13 +371,9 @@ class _CartViewState extends ConsumerState<CartView> {
     final cardBorder = isDark ? cardBorderDark : const Color(0xFFE8E8F0);
     final emptyTextColor = isDark ? Colors.white60 : Colors.black54;
 
-    // Calculate total price of selected items
-    double selectedTotal = 0.0;
-    for (final item in cartItems) {
-      if (_selectedItemKeys.contains(item.cartKey)) {
-        selectedTotal += item.product.price * item.quantity;
-      }
-    }
+    // Calculate total price of selected items using CartSummary value object
+    final cartSummary = CartSummary.fromCart(cartItems, _selectedItemKeys);
+    final selectedTotal = cartSummary.selectedTotal;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -742,7 +739,7 @@ class _CartViewState extends ConsumerState<CartView> {
               ...selectedBySeller.entries.map((entry) {
                 final storeItems = entry.value;
                 final storeName = _storeName(storeItems.first);
-                final storeTotal = storeItems.fold<double>(0.0, (sum, i) => sum + (i.product.price * i.quantity));
+                final storeTotal = CartSummary.storeSubtotal(storeItems);
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -1147,7 +1144,7 @@ class _CartViewState extends ConsumerState<CartView> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '₱${(item.product.price * item.quantity).toStringAsFixed(2)}',
+                  '₱${CartSummary.lineTotal(item).toStringAsFixed(2)}',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 12,

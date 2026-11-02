@@ -1,27 +1,14 @@
-import 'dart:io';
+import 'support/test_harness.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/splash/splash_view.dart';
 import 'package:teknoycart/features/splash/teknoy_cart_logo_painter.dart';
-import 'mock_http_client.dart';
-
 void main() {
   setUpAll(() async {
-    HttpOverrides.global = MockHttpOverrides();
-    TestWidgetsFlutterBinding.ensureInitialized();
-    const MethodChannel('plugins.flutter.io/shared_preferences')
-        .setMockMethodCallHandler((MethodCall methodCall) async {
-      if (methodCall.method == 'getAll') {
-        return <String, dynamic>{};
-      }
-      return null;
-    });
-    await SupabaseConfig.initialize();
+    await TestHarness.setUpAllEnvironment();
   });
 
   group('TeknoyCartLogoPainter Unit Tests', () {

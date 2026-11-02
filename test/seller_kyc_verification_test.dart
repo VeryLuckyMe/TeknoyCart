@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:teknoycart/features/auth/models/seller_verification.dart';
 import 'package:teknoycart/features/auth/services/seller_verification_service.dart';
-import 'package:teknoycart/features/auth/views/widgets/seller_kyc_verification_view.dart';
+import 'package:teknoycart/features/auth/views/seller_kyc_verification_view.dart';
 
 class MockSellerVerificationService implements SellerVerificationService {
   SellerVerification? mockVerification;

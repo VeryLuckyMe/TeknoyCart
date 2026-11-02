@@ -246,9 +246,9 @@ class OrderUiHelper {
   }
 
   /// Strips ugly internal tags like '[PRE-ORDER]' from location strings.
-  static String cleanLocation(String? loc) {
-    if (loc == null || loc.trim().isEmpty) return '—';
-    return loc.replaceAll('[PRE-ORDER]', '').trim();
+  static String cleanLocation(String? location) {
+    if (location == null || location.trim().isEmpty) return '—';
+    return location.replaceAll('[PRE-ORDER]', '').trim();
   }
 
   /// UI/UX Pro Max Status Badge Widget with micro-indicator dot or icon.

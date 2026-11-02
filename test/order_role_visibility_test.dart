@@ -1,28 +1,15 @@
-import 'dart:io';
+import 'support/test_harness.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/checkout/views/order_history_view.dart';
 import 'package:teknoycart/core/widgets/navigation_drawer.dart';
 import 'package:teknoycart/features/feed/views/manage_listings_view.dart';
-import 'mock_http_client.dart';
-
 void main() {
   setUpAll(() async {
-    HttpOverrides.global = MockHttpOverrides();
-    TestWidgetsFlutterBinding.ensureInitialized();
-    const MethodChannel('plugins.flutter.io/shared_preferences')
-        .setMockMethodCallHandler((MethodCall methodCall) async {
-      if (methodCall.method == 'getAll') {
-        return <String, dynamic>{};
-      }
-      return null;
-    });
-    await SupabaseConfig.initialize();
+    await TestHarness.setUpAllEnvironment();
   });
 
   group('Role-Based Order Visibility Audit & Regression Tests', () {

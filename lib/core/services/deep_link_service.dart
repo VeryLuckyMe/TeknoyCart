@@ -289,7 +289,9 @@ final deepLinkServiceProvider = Provider<DeepLinkService>((ref) {
   final service = DeepLinkService(
     navigatorKey: appNavigatorKey,
     source: source,
-    isNavigationReady: () => ref.read(isSplashCompletedProvider),
+    isNavigationReady: () =>
+        ref.read(isSplashCompletedProvider) &&
+        !ref.read(authStateProvider).isLoading,
     isAuthenticated: () => ref.read(authStateProvider).valueOrNull != null,
   );
   ref.onDispose(service.dispose);

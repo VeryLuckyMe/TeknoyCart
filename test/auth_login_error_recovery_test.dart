@@ -46,15 +46,15 @@ void main() {
   setUpAll(() async {
     HttpOverrides.global = MockHttpOverrides();
     TestWidgetsFlutterBinding.ensureInitialized();
-    const MethodChannel('plugins.flutter.io/shared_preferences')
-        .setMockMethodCallHandler((MethodCall methodCall) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/shared_preferences'),(MethodCall methodCall) async {
       if (methodCall.method == 'getAll') {
         return <String, dynamic>{};
       }
       return null;
     });
-    const MethodChannel('plugins.it_nomads.com/flutter_secure_storage')
-        .setMockMethodCallHandler((MethodCall methodCall) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),(MethodCall methodCall) async {
       final key = methodCall.arguments?['key'] as String?;
       if (methodCall.method == 'read') {
         return secureStorageMemory[key];

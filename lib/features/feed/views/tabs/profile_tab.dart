@@ -622,7 +622,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                     color: TeknoyTheme.citGold.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.security_rounded, color: Color(0xFFB45309), size: 22),
+                  child: const Icon(Icons.security_rounded, color: TeknoyTheme.warningDark, size: 22),
                 ),
                 const SizedBox(width: 12),
                 const Expanded(
@@ -1156,7 +1156,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     required bool isDark,
   }) {
     final cardBg = isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF26262E) : const Color(0xFFE2E2E8);
+    final cardBorder = isDark ? TeknoyTheme.darkCardBorder : TeknoyTheme.lightCardBorder;
 
     return Container(
       width: double.infinity,
@@ -1655,7 +1655,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                     fontFamily: 'Outfit',
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFB45309),
+                    color: TeknoyTheme.warningDark,
                   ),
                 ),
               ],
@@ -1678,7 +1678,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                   widget.onNavigateTab?.call(2); // Jump to Sell tab where KYC status is rendered
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFB45309),
+                  foregroundColor: TeknoyTheme.warningDark,
                   side: const BorderSide(color: TeknoyTheme.warningDark),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1770,7 +1770,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     required bool isDark,
   }) {
     final cardBg = isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF26262E) : const Color(0xFFE2E2E8);
+    final cardBorder = isDark ? TeknoyTheme.darkCardBorder : TeknoyTheme.lightCardBorder;
 
     return Container(
       width: double.infinity,
@@ -1921,7 +1921,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     required bool isDark,
   }) {
     final cardBg = isDark ? TeknoyTheme.darkSurfaceAlt : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF26262E) : const Color(0xFFE2E2E8);
+    final cardBorder = isDark ? TeknoyTheme.darkCardBorder : TeknoyTheme.lightCardBorder;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1988,7 +1988,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }) {
     final defaultIconColor = iconColor ?? TeknoyTheme.citMaroon;
     final defaultBgColor = iconBgColor ?? defaultIconColor.withValues(alpha: isDark ? 0.14 : 0.09);
-    final cardBorder = isDark ? const Color(0xFF26262E) : const Color(0xFFE2E2E8);
+    final cardBorder = isDark ? TeknoyTheme.darkCardBorder : TeknoyTheme.lightCardBorder;
 
     return Column(
       children: [
