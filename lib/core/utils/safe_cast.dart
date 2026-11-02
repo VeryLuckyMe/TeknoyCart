@@ -35,3 +35,4 @@ class SafeCast {
     return value.map((item) => item?.toString() ?? '').where((s) => s.isNotEmpty).toList();
   }
 }
+
