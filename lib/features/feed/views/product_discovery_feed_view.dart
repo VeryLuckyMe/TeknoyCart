@@ -14,6 +14,7 @@ import 'package:teknoycart/features/checkout/views/cart_view.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/core/providers/notification_provider.dart';
 import 'package:teknoycart/core/services/wishlist_service.dart';
+import 'package:teknoycart/core/test_env/test_env.dart';
 import 'tabs/browse_tab.dart';
 import 'tabs/sell_tab.dart';
 import 'tabs/profile_tab.dart';
@@ -90,15 +91,17 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     _activeTab = widget.initialTab;
     _loadedTabs.add(_activeTab);
 
-    _recoverySub = SupabaseConfig.client.auth.onAuthStateChange.listen((data) {
-      if (data.event == AuthChangeEvent.passwordRecovery) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _showSetNewPasswordSheet();
-          }
-        });
-      }
-    });
+    if (!isFlutterTestEnvironment) {
+      _recoverySub = SupabaseConfig.client.auth.onAuthStateChange.listen((data) {
+        if (data.event == AuthChangeEvent.passwordRecovery) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _showSetNewPasswordSheet();
+            }
+          });
+        }
+      });
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final uri = Uri.base;

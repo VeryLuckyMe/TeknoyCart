@@ -732,7 +732,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                                       Navigator.of(sheetContext).pop();
                                     }
 
-                                    if (!mounted) return;
+                                    if (!context.mounted) return;
 
                                     // Push ChatView on parent view's context
                                     Navigator.of(context).push(
@@ -750,7 +750,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                                         isSubmitting = false;
                                       });
                                     }
-                                    if (mounted) {
+                                    if (context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
                                           content: Text('Failed to open chat: $e'),
@@ -922,7 +922,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         productPrice: product.price,
       );
 
-      if (!mounted) return;
+      if (!context.mounted) return;
       setState(() => _isInitializingChat = false);
 
       Navigator.push(
@@ -935,7 +935,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         ),
       );
     } catch (e) {
-      if (mounted) {
+      if (context.mounted) {
         setState(() => _isInitializingChat = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to open chat: $e')),
@@ -1068,7 +1068,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                           ),
                           onPressed: () async {
                             final isFav = await ref.read(wishlistProvider.notifier).toggle(product.id);
-                            if (mounted) {
+                            if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(isFav ? 'Saved to favorites' : 'Removed from favorites'),
