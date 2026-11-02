@@ -10,6 +10,8 @@ import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/models/checkout_item.dart';
+import 'package:teknoycart/features/checkout/models/cart_summary.dart';
+import 'package:teknoycart/features/checkout/models/order.dart';
 import 'package:teknoycart/features/checkout/models/campus_landmark.dart';
 import 'package:teknoycart/features/checkout/views/widgets/checkout_section_header.dart';
 import 'package:teknoycart/features/checkout/views/widgets/checkout_success_dialog.dart';
@@ -82,13 +84,13 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   bool get _isAnyItemReservation =>
       _itemReservationMap.values.any((isReserved) => isReserved);
 
-  double get _totalPrice {
-    return _checkoutItems.fold<double>(0.0, (sum, item) =>
-        sum + ((_unitPrice(item)) * item.quantity));
-  }
+  late final CheckoutPricing _pricing = CheckoutPricing(
+    agreedPrice: widget.agreedPrice,
+    variantAdditionalPrices: _variantAdditionalPrices,
+  );
 
-  double _unitPrice(CheckoutItem item) =>
-      item.price + (widget.agreedPrice == null ? (_variantAdditionalPrices[item.product.id] ?? 0) : 0);
+  double get _totalPrice => _pricing.totalPrice(_checkoutItems);
+
 
   final List<CampusLandmark> _landmarks = const [
     CampusLandmark(
@@ -317,13 +319,13 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       }
 
       // One RPC makes every line and inventory hold in the cart one transaction.
-      final dynamic rpcResult = await client.rpc('place_orders_atomic', params: {
+      final dynamic rawRpcResult = await client.rpc('place_orders_atomic', params: {
         'p_lines': orderLines,
         'p_payment_method': dbPaymentMethod,
       });
-      if (rpcResult is! Map || rpcResult['success'] != true || rpcResult['orders'] is! List) {
-        final error = rpcResult is Map ? rpcResult['error']?.toString() : null;
-        final message = switch (error) {
+      final rpcResult = AtomicOrderResult.fromDynamic(rawRpcResult);
+      if (!rpcResult.success) {
+        final message = switch (rpcResult.error) {
           'INSUFFICIENT_STOCK' => 'Some items are no longer available. Refresh your cart and try again.',
           'PREORDER_NOT_ALLOWED' => 'Pre-orders are not enabled for one of these listings.',
           'INVALID_LISTING' => 'A listing or seller is no longer available.',
@@ -335,7 +337,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         throw Exception(message);
       }
 
-      final createdOrders = (rpcResult['orders'] as List).cast<Map>();
+      final createdOrders = rpcResult.orders;
       for (var i = 0; i < _checkoutItems.length; i++) {
         final item = _checkoutItems[i];
         final itemVariantId = resolvedVariantIds[i];
@@ -503,9 +505,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   }
 
   Widget _buildTawadDealHeroBanner(bool isDark) {
-    final double asking = widget.product?.price ?? (_checkoutItems.isNotEmpty ? _checkoutItems.first.product.price : 0.0);
+    final double asking = _pricing.askingPrice(_checkoutItems, productPrice: widget.product?.price);
     final double agreed = widget.agreedPrice ?? 0.0;
-    final double discount = (asking > agreed && asking > 0) ? (asking - agreed) : 0.0;
+    final double discount = _pricing.discount(_checkoutItems, productPrice: widget.product?.price);
 
     return Container(
       padding: const EdgeInsets.all(16),

@@ -1,3 +1,4 @@
+import 'package:teknoycart/core/utils/safe_cast.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/config/api_config.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/models/product.dart';
+import 'package:teknoycart/features/feed/repositories/product_repository.dart';
 
 // ── Static filter providers ──
 final categoriesProvider = Provider<List<String>>((ref) => [
@@ -88,30 +90,8 @@ final categoryNameToIdProvider = Provider<Map<String, int>>((ref) => _categoryNa
 final categoryAttributeTemplatesProvider =
     FutureProvider<Map<String, List<CategoryAttributeTemplate>>>((ref) async {
   try {
-    final response = await SupabaseConfig.client
-        .from('categories')
-        .select('category_id, category_name, attribute_templates');
-    final rows = response as List<dynamic>;
-
-    final Map<String, List<CategoryAttributeTemplate>> result = {};
-    for (final row in rows) {
-      final categoryName = row['category_name'] as String? ?? row['name'] as String? ?? '';
-      final rawTemplates = row['attribute_templates'];
-      if (categoryName.isNotEmpty && rawTemplates != null) {
-        List<dynamic> templateList;
-        if (rawTemplates is String) {
-          templateList = jsonDecode(rawTemplates) as List<dynamic>;
-        } else if (rawTemplates is List) {
-          templateList = rawTemplates;
-        } else {
-          continue;
-        }
-        result[categoryName] = templateList
-            .whereType<Map<String, dynamic>>()
-            .map((t) => CategoryAttributeTemplate.fromJson(t))
-            .toList();
-      }
-    }
+    final repo = ref.read(productRepositoryProvider);
+    final result = await repo.fetchCategoryAttributeTemplates();
     if (result.isEmpty) {
       return _fallbackTemplates;
     }
@@ -569,7 +549,7 @@ class ProductListNotifier
             .order('created_at', ascending: false);
       }
 
-      final rows = response as List<dynamic>;
+      final rows = SafeCast.toListOfMaps(response);
 
       if (rows.isEmpty) {
         // Legitimate empty database — return empty list so clean empty state displays (Ponytail Audit M2)
@@ -999,7 +979,7 @@ final matchingStoresProvider = FutureProvider.family<List<StoreResult>, String>(
             is_seller_verified
           )
         ''');
-    final rows = response as List<dynamic>;
+    final rows = SafeCast.toListOfMaps(response);
     final List<StoreResult> results = [];
 
     for (final r in rows) {

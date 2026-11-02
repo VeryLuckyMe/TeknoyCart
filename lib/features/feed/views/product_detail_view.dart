@@ -15,6 +15,10 @@ import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
 import 'package:teknoycart/features/feed/views/widgets/product_reviews_section.dart';
 import 'package:teknoycart/features/feed/providers/review_provider.dart';
 import 'package:teknoycart/core/services/wishlist_service.dart';
+import 'package:teknoycart/features/feed/views/widgets/product_image_lightbox.dart';
+import 'package:teknoycart/features/feed/views/widgets/product_campus_meetup_card.dart';
+import 'package:teknoycart/features/feed/views/widgets/product_seller_card.dart';
+import 'package:teknoycart/features/feed/views/widgets/product_purchase_bar.dart';
 
 /// Immersive TeknoyCart Wildcat Product Details Page (PDP).
 /// Features high-resolution media gallery, student trust badges, verified seller
@@ -86,7 +90,9 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
           });
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('PRODUCT_DETAIL_FETCH_IMAGES_FAILED: $e');
+    }
   }
 
   String _getEffectiveVariantName() {
@@ -988,7 +994,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
       context,
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (ctx) => _ProductImageLightbox(
+        builder: (ctx) => ProductImageLightbox(
           images: images,
           initialIndex: initialIndex,
           productTitle: product.title,
@@ -1456,11 +1462,25 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                     const SizedBox(height: 10),
 
                     // Campus Fulfillment & Meetup Zones (Answers PDP Question 6)
-                    _buildCampusMeetupCard(isDark),
+                    ProductCampusMeetupCard(isDark: isDark),
                     const SizedBox(height: 10),
 
                     // Seller Store Profile Card
-                    _buildSellerProfileCard(isDark),
+                    ProductSellerCard(
+                      isDark: isDark,
+                      storeName: product.sellerStoreName ?? 'CIT-U Student Seller',
+                      onVisitShop: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SellerStorefrontView(
+                              sellerId: product.sellerId,
+                              sellerName: product.sellerStoreName ?? 'CIT-U Student Seller',
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                     const SizedBox(height: 10),
 
                     // Ratings & Reviews Section
@@ -1494,7 +1514,18 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
             left: 0,
             right: 0,
             bottom: 0,
-            child: _buildStickyActionBar(isDark),
+            child: ProductPurchaseBar(
+              isDark: isDark,
+              cartCount: ref.watch(cartProvider).length,
+              isInitializingChat: _isInitializingChat,
+              availableStock: _availableStock,
+              isPreorderEnabled: product.isPreorderEnabled,
+              isLoadingInventory: _isLoadingInventory,
+              onChatPressed: () => _openStandardChat(context),
+              onAddToCartPressed: _addToCart,
+              onMakeOfferPressed: () => _showMakeAnOfferDialog(context),
+              onBuyNowPressed: _buyNow,
+            ),
           ),
         ],
       ),
@@ -1770,587 +1801,6 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                 ],
               );
             }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSellerProfileCard(bool isDark) {
-    final storeName = product.sellerStoreName ?? 'CIT-U Student Seller';
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: TeknoyTheme.citMaroon,
-            child: Text(
-              storeName.isNotEmpty ? storeName[0].toUpperCase() : 'W',
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        storeName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: TeknoyTheme.citGold.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.check_circle_rounded, size: 10, color: Color(0xFF8B6B00)),
-                          SizedBox(width: 2),
-                          Text(
-                            'CIT-U',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF8B6B00),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                const Text(
-                  'Campus Student Seller',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 11,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          OutlinedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SellerStorefrontView(
-                    sellerId: product.sellerId,
-                    sellerName: storeName,
-                  ),
-                ),
-              );
-            },
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: TeknoyTheme.citMaroon, width: 1.2),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            child: const Text(
-              'Visit Shop',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: TeknoyTheme.citMaroon,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCampusMeetupCard(bool isDark) {
-    return Container(
-      margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: isDark ? TeknoyTheme.darkSurface : Colors.white,
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
-          ),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: TeknoyTheme.citMaroon.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.place_rounded,
-                  size: 18,
-                  color: TeknoyTheme.citMaroon,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'Campus Fulfillment & Meetup',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1B1B22) : const Color(0xFFF9F9FB),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: isDark ? const Color(0xFF252530) : const Color(0xFFE5E5EB),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.school_outlined, size: 16, color: TeknoyTheme.citMaroon),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Designated CIT-U Meetup Zones',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Main Campus Grounds • Library Lobby • Wildcat Canteen • Academic Complex',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 11.5,
-                              color: isDark ? Colors.white60 : Colors.black54,
-                              height: 1.35,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                const Divider(height: 1),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    const Icon(Icons.verified_outlined, size: 15, color: TeknoyTheme.success),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '₱0.00 Campus Delivery Fee • Inspect item before confirming OTP release.',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                          color: isDark ? Colors.white70 : const Color(0xFF2C2C2C),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStickyActionBar(bool isDark) {
-    final cartCount = ref.watch(cartProvider).length;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isSmallScreen = constraints.maxWidth < 360;
-
-        return Container(
-          padding: EdgeInsets.fromLTRB(
-            isSmallScreen ? 10 : 16,
-            10,
-            isSmallScreen ? 10 : 16,
-            MediaQuery.of(context).padding.bottom + 8,
-          ),
-          decoration: BoxDecoration(
-            color: isDark ? TeknoyTheme.darkSurface : Colors.white,
-            border: Border(
-              top: BorderSide(
-                color: isDark ? TeknoyTheme.darkBorder : TeknoyTheme.lightBorder,
-              ),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
-                blurRadius: 10,
-                offset: const Offset(0, -3),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              // Chat Quick Action (48dp target)
-              InkWell(
-                onTap: _isInitializingChat ? null : () => _openStandardChat(context),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF202028) : const Color(0xFFF5F5F9),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isDark ? const Color(0xFF2E2E38) : const Color(0xFFE4E4EB),
-                    ),
-                  ),
-                  child: Center(
-                    child: _isInitializingChat
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: TeknoyTheme.citMaroon,
-                            ),
-                          )
-                        : Semantics(
-                            label: 'Message seller',
-                            button: true,
-                            child: Icon(
-                              Icons.chat_bubble_outline_rounded,
-                              color: isDark ? Colors.white70 : TeknoyTheme.citMaroon,
-                              size: 20,
-                            ),
-                          ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // Cart Quick Action with Badge (48dp target)
-              InkWell(
-                onTap: _addToCart,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF202028) : const Color(0xFFF5F5F9),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isDark ? const Color(0xFF2E2E38) : const Color(0xFFE4E4EB),
-                    ),
-                  ),
-                  child: Center(
-                    child: Badge(
-                      isLabelVisible: cartCount > 0,
-                      label: Text(
-                        '$cartCount',
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-                      ),
-                      backgroundColor: TeknoyTheme.citMaroon,
-                      child: Icon(
-                        Icons.shopping_bag_outlined,
-                        color: isDark ? Colors.white70 : TeknoyTheme.citMaroon,
-                        size: 21,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-
-              // Make an Offer (Tawad) Action Button
-              Expanded(
-                flex: 1,
-                child: SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: (!_isLoadingInventory &&
-                            (_availableStock > 0 || product.isPreorderEnabled))
-                        ? () => _showMakeAnOfferDialog(context)
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: TeknoyTheme.citGold,
-                      foregroundColor: const Color(0xFF4A3800),
-                      disabledBackgroundColor:
-                          isDark ? Colors.white12 : Colors.grey.shade300,
-                      disabledForegroundColor:
-                          isDark ? Colors.white38 : Colors.grey.shade600,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.handshake_outlined, size: 16),
-                        SizedBox(width: 5),
-                        Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              'Make Offer',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // Buy Now / Pre-Order Action Button
-              Expanded(
-                flex: 1,
-                child: SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: (_availableStock > 0 || product.isPreorderEnabled) ? _buyNow : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _availableStock > 0
-                          ? TeknoyTheme.citMaroon
-                          : (product.isPreorderEnabled
-                              ? TeknoyTheme.warningDark
-                              : (isDark ? Colors.white12 : Colors.grey.shade300)),
-                      disabledBackgroundColor: isDark ? Colors.white12 : Colors.grey.shade300,
-                      foregroundColor: (_availableStock > 0 || product.isPreorderEnabled)
-                          ? Colors.white
-                          : (isDark ? Colors.white38 : Colors.grey.shade600),
-                      disabledForegroundColor: isDark ? Colors.white38 : Colors.grey.shade600,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        _availableStock > 0
-                            ? 'Buy Now'
-                            : (product.isPreorderEnabled ? 'Pre-Order Now' : 'Out of Stock'),
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ProductImageLightbox extends StatefulWidget {
-  final List<String> images;
-  final int initialIndex;
-  final String productTitle;
-
-  const _ProductImageLightbox({
-    required this.images,
-    required this.initialIndex,
-    required this.productTitle,
-  });
-
-  @override
-  State<_ProductImageLightbox> createState() => _ProductImageLightboxState();
-}
-
-class _ProductImageLightboxState extends State<_ProductImageLightbox> {
-  late final PageController _pageController;
-  late int _currentIndex;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // Interactive zoomable image viewer
-          PageView.builder(
-            controller: _pageController,
-            itemCount: widget.images.length,
-            onPageChanged: (index) {
-              setState(() => _currentIndex = index);
-            },
-            itemBuilder: (context, index) {
-              return InteractiveViewer(
-                minScale: 1.0,
-                maxScale: 4.0,
-                child: Center(
-                  child: Image.network(
-                    widget.images[index],
-                    semanticLabel: 'Photo ${index + 1} of ${widget.images.length}',
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Center(
-                      child: Icon(Icons.image_not_supported_rounded, color: Colors.white54, size: 64),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-          // Top Bar with Close Button, Title, and Counter
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 8, 16, 16),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.black87, Colors.transparent],
-                ),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: Colors.white24,
-                    radius: 20,
-                    child: IconButton(
-                      tooltip: 'Close',
-                      icon: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      widget.productTitle,
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${_currentIndex + 1} / ${widget.images.length}',
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Bottom hint
-          Positioned(
-            bottom: MediaQuery.of(context).padding.bottom + 16,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.pinch_rounded, size: 14, color: Colors.white70),
-                    SizedBox(width: 6),
-                    Text(
-                      'Pinch to zoom / double tap',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        color: Colors.white70,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ),
         ],
       ),

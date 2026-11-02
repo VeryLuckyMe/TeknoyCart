@@ -98,3 +98,39 @@ class Order {
       status.hashCode ^
       createdAt.hashCode;
 }
+
+
+/// Represents the strongly-typed response from the `place_orders_atomic` RPC.
+@immutable
+class AtomicOrderResult {
+  final bool success;
+  final String? error;
+  final List<Map<String, dynamic>> orders;
+
+  const AtomicOrderResult({
+    required this.success,
+    this.error,
+    this.orders = const [],
+  });
+
+  factory AtomicOrderResult.fromDynamic(dynamic data) {
+    if (data is! Map) {
+      return const AtomicOrderResult(
+        success: false,
+        error: 'MALFORMED_RESPONSE',
+      );
+    }
+    final success = data['success'] == true;
+    final error = data['error']?.toString();
+    final rawOrders = data['orders'];
+    final orders = rawOrders is List
+        ? rawOrders.whereType<Map<String, dynamic>>().toList()
+        : <Map<String, dynamic>>[];
+
+    return AtomicOrderResult(
+      success: success,
+      error: error,
+      orders: orders,
+    );
+  }
+}

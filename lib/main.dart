@@ -89,8 +89,13 @@ class TeknoyCartApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authStateProvider);
     final deepLinkService = ref.watch(deepLinkServiceProvider);
-    deepLinkService.initialize();
+
+    // Gate initialization until user profile verification has settled
+    if (!authState.isLoading) {
+      deepLinkService.initialize();
+    }
 
     ref.listen<bool>(isSplashCompletedProvider, (previous, next) {
       if (next) {
@@ -103,6 +108,10 @@ class TeknoyCartApp extends ConsumerWidget {
     // Listen for auth state transitions after the cold-start splash has completed
     ref.listen<AsyncValue<Profile?>>(authStateProvider, (previous, next) {
       if (!ref.read(isSplashCompletedProvider)) return;
+
+      if (!next.isLoading) {
+        deepLinkService.initialize();
+      }
 
       final prevUser = previous?.valueOrNull;
       final nextUser = next.valueOrNull;
@@ -122,6 +131,10 @@ class TeknoyCartApp extends ConsumerWidget {
           MaterialPageRoute(builder: (_) => const AuthGateView()),
           (route) => false,
         );
+      } else if (!next.isLoading) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          deepLinkService.flushPending();
+        });
       }
     });
 

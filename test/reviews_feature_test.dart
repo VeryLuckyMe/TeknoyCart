@@ -22,8 +22,8 @@ void main() {
     mockHttp = MockHttpOverrides();
     HttpOverrides.global = mockHttp;
     TestWidgetsFlutterBinding.ensureInitialized();
-    const MethodChannel('plugins.flutter.io/shared_preferences')
-        .setMockMethodCallHandler((MethodCall methodCall) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/shared_preferences'),(MethodCall methodCall) async {
       if (methodCall.method == 'getAll') {
         return <String, dynamic>{};
       }

@@ -20,6 +20,28 @@ class RoleCard extends StatelessWidget {
     required this.onSelected,
   });
 
+  Color _cardBg(bool isSelected, bool isDark) {
+    if (isSelected) {
+      return TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.25 : 0.08);
+    }
+    return isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF6F6F8);
+  }
+
+  Color _borderColor(bool isSelected, bool isDark) {
+    if (isSelected) return TeknoyTheme.citMaroon;
+    return isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE5E5EA);
+  }
+
+  Color _primaryTextColor(bool isSelected, bool isDark) {
+    if (isSelected) return TeknoyTheme.citMaroon;
+    return isDark ? Colors.white : Colors.black87;
+  }
+
+  Color _iconColor(bool isSelected, bool isDark) {
+    if (isSelected) return TeknoyTheme.citMaroon;
+    return isDark ? Colors.white60 : Colors.black54;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isSelected = selectedRole == role;
@@ -31,14 +53,10 @@ class RoleCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isSelected
-              ? TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.25 : 0.08)
-              : (isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF6F6F8)),
+          color: _cardBg(isSelected, isDark),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected
-                ? TeknoyTheme.citMaroon
-                : (isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE5E5EA)),
+            color: _borderColor(isSelected, isDark),
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -47,7 +65,7 @@ class RoleCard extends StatelessWidget {
             Icon(
               icon,
               size: 26,
-              color: isSelected ? TeknoyTheme.citMaroon : (isDark ? Colors.white60 : Colors.black54),
+              color: _iconColor(isSelected, isDark),
             ),
             const SizedBox(height: 8),
             Text(
@@ -56,9 +74,7 @@ class RoleCard extends StatelessWidget {
                 fontFamily: 'Outfit',
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
-                color: isSelected
-                    ? TeknoyTheme.citMaroon
-                    : (isDark ? Colors.white : Colors.black87),
+                color: _primaryTextColor(isSelected, isDark),
               ),
             ),
             const SizedBox(height: 2),
@@ -96,6 +112,28 @@ class SellerTypeCard extends StatelessWidget {
     required this.onSelected,
   });
 
+  Color _cardBg(bool isSelected, bool isDark, Color activeColor) {
+    if (isSelected) {
+      return activeColor.withValues(alpha: isDark ? 0.25 : 0.08);
+    }
+    return isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF6F6F8);
+  }
+
+  Color _borderColor(bool isSelected, bool isDark, Color activeColor) {
+    if (isSelected) return activeColor;
+    return isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE5E5EA);
+  }
+
+  Color _primaryTextColor(bool isSelected, bool isDark, Color activeColor) {
+    if (isSelected) return activeColor;
+    return isDark ? Colors.white : Colors.black87;
+  }
+
+  Color _iconColor(bool isSelected, bool isDark, Color activeColor) {
+    if (isSelected) return activeColor;
+    return isDark ? Colors.white60 : Colors.black54;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isSelected = selectedSellerType == type;
@@ -108,14 +146,10 @@ class SellerTypeCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected
-              ? activeColor.withValues(alpha: isDark ? 0.25 : 0.08)
-              : (isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF6F6F8)),
+          color: _cardBg(isSelected, isDark, activeColor),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected
-                ? activeColor
-                : (isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE5E5EA)),
+            color: _borderColor(isSelected, isDark, activeColor),
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -124,7 +158,7 @@ class SellerTypeCard extends StatelessWidget {
             Icon(
               icon,
               size: 22,
-              color: isSelected ? activeColor : (isDark ? Colors.white60 : Colors.black54),
+              color: _iconColor(isSelected, isDark, activeColor),
             ),
             const SizedBox(height: 6),
             Text(
@@ -133,7 +167,7 @@ class SellerTypeCard extends StatelessWidget {
                 fontFamily: 'Outfit',
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
-                color: isSelected ? activeColor : (isDark ? Colors.white : Colors.black87),
+                color: _primaryTextColor(isSelected, isDark, activeColor),
               ),
             ),
             const SizedBox(height: 2),

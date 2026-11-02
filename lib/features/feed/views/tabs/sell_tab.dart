@@ -9,7 +9,7 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
-import 'package:teknoycart/features/auth/views/widgets/seller_kyc_verification_view.dart';
+import 'package:teknoycart/features/auth/views/seller_kyc_verification_view.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/manage_listings_view.dart';
 
@@ -507,17 +507,14 @@ class _SellTabState extends ConsumerState<SellTab> {
         int filledSecondaryCount = 0;
         for (final t in effectiveSecondary) {
           if (t.isMultiSelect) {
-            if ((_attributeMultiSelectValues[t.name]?.isNotEmpty ?? false)) {
-              filledSecondaryCount++;
-            }
+            final vals = _attributeMultiSelectValues[t.name];
+            if (vals != null && vals.isNotEmpty) filledSecondaryCount++;
           } else if (t.type == 'select') {
-            if ((_attributeSelectValues[t.name]?.isNotEmpty ?? false)) {
-              filledSecondaryCount++;
-            }
+            final val = _attributeSelectValues[t.name];
+            if (val != null && val.isNotEmpty) filledSecondaryCount++;
           } else {
-            if ((_attributeTextControllers[t.name]?.text.trim().isNotEmpty ?? false)) {
-              filledSecondaryCount++;
-            }
+            final text = _attributeTextControllers[t.name]?.text.trim();
+            if (text != null && text.isNotEmpty) filledSecondaryCount++;
           }
         }
 
@@ -2383,7 +2380,7 @@ class _SellTabState extends ConsumerState<SellTab> {
               opacity: animation,
               child: SizeTransition(sizeFactor: animation, child: child),
             ),
-            child: (_quickTitleStarters[_sellCategory] ?? []).isNotEmpty
+            child: (_quickTitleStarters[_sellCategory]?.isNotEmpty ?? false)
                 ? Padding(
                     key: ValueKey<String>('title_starters_$_sellCategory'),
                     padding: const EdgeInsets.only(top: 8.0),
@@ -2402,7 +2399,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          ...(_quickTitleStarters[_sellCategory] ?? []).map((starter) {
+                          ...(_quickTitleStarters[_sellCategory] ?? const []).map((starter) {
                             final isCurrent = _sellTitleController.text.trim() == starter;
                             return Padding(
                               padding: const EdgeInsets.only(right: 6.0),
@@ -2499,7 +2496,7 @@ class _SellTabState extends ConsumerState<SellTab> {
               opacity: animation,
               child: SizeTransition(sizeFactor: animation, child: child),
             ),
-            child: (_quickDescStarters[_sellCategory] ?? []).isNotEmpty
+            child: (_quickDescStarters[_sellCategory]?.isNotEmpty ?? false)
                 ? Padding(
                     key: ValueKey<String>('desc_starters_$_sellCategory'),
                     padding: const EdgeInsets.only(top: 8.0),
@@ -2518,7 +2515,7 @@ class _SellTabState extends ConsumerState<SellTab> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          ...(_quickDescStarters[_sellCategory] ?? []).map((note) {
+                          ...(_quickDescStarters[_sellCategory] ?? const []).map((note) {
                             return Padding(
                               padding: const EdgeInsets.only(right: 6.0),
                               child: InkWell(

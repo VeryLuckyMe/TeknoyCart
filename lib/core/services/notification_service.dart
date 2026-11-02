@@ -1,3 +1,4 @@
+import 'package:teknoycart/core/utils/safe_cast.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -22,8 +23,8 @@ class NotificationService {
         .order('created_at', ascending: false)
         .limit(limit);
 
-    return (response as List<dynamic>)
-        .map((item) => NotificationItem.fromJson(item as Map<String, dynamic>))
+    return SafeCast.toListOfMaps(response)
+        .map((item) => NotificationItem.fromJson(item))
         .toList();
   }
 
