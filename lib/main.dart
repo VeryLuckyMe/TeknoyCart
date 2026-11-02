@@ -8,6 +8,7 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/providers/theme_provider.dart';
 import 'package:teknoycart/core/widgets/responsive_frame.dart';
 import 'package:teknoycart/core/navigation/app_navigator_key.dart';
+export 'package:teknoycart/core/navigation/app_navigator_key.dart' show appNavigatorKey;
 import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/views/auth_gate_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
@@ -71,6 +72,7 @@ void main() async {
     );
   }
 }
+
 
 // Custom scroll behavior to enable drag-to-scroll using mouse and trackpad on web/desktop
 class AppScrollBehavior extends MaterialScrollBehavior {
