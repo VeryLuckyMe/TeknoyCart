@@ -74,6 +74,13 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
     ),
   ];
 
+  /// Track product IDs explicitly deleted during this session so their reviews stay removed.
+  final Set<String> _deletedProductIds = {};
+
+  /// Track review IDs loaded from Supabase so if a review is later deleted on the server,
+  /// subsequent refreshes drop it instead of preserving it as a local/optimistic item.
+  final Set<String> _syncedDbReviewIds = {};
+
   Future<void> _loadFromSupabase() async {
     try {
       final response = await SupabaseConfig.client
@@ -82,24 +89,48 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
           .order('created_at', ascending: false);
 
       final rows = response as List<dynamic>;
-      if (rows.isNotEmpty) {
-        final dbReviews = rows
-            .map((r) => Review.fromJson(r as Map<String, dynamic>))
-            .toList();
+      List<Review> dbReviews = rows
+          .whereType<Map<String, dynamic>>()
+          .where((r) => r.containsKey('review_id') || r.containsKey('product_id'))
+          .map((r) => Review.fromJson(r))
+          .toList();
 
-        // Merge with current state (preserving any newly submitted reviews or seed reviews)
-        final Set<String> existingIds = dbReviews.map((r) => r.id).toSet();
-        final Set<String> existingOrderBuyer = dbReviews
-            .where((r) => r.orderId != null)
-            .map((r) => '${r.orderId}_${r.buyerId}')
-            .toSet();
-
-        final preserved = state.where((r) =>
-            !existingIds.contains(r.id) &&
-            !existingOrderBuyer.contains('${r.orderId}_${r.buyerId}')).toList();
-
-        state = [...dbReviews, ...preserved];
+      // Filter out orphaned reviews whose product has been deleted from public.products.
+      // Runs even when liveProductIds is empty (e.g. when the last product in the DB is deleted).
+      if (dbReviews.isNotEmpty) {
+        try {
+          final prodRows = await SupabaseConfig.client
+              .from('products')
+              .select('product_id');
+          final liveProductIds = (prodRows as List<dynamic>)
+              .map((p) => (p as Map<String, dynamic>)['product_id']?.toString() ?? '')
+              .where((id) => id.isNotEmpty)
+              .toSet();
+          dbReviews = dbReviews
+              .where((r) =>
+                  liveProductIds.contains(r.productId) &&
+                  !_deletedProductIds.contains(r.productId))
+              .toList();
+        } catch (_) {
+          dbReviews = dbReviews
+              .where((r) => !_deletedProductIds.contains(r.productId))
+              .toList();
+        }
       }
+
+      final Set<String> currentDbIds = dbReviews.map((r) => r.id).toSet();
+      final preservedLocal = state
+          .where((r) =>
+              !currentDbIds.contains(r.id) &&
+              !_syncedDbReviewIds.contains(r.id) &&
+              !_deletedProductIds.contains(r.productId))
+          .toList();
+
+      _syncedDbReviewIds
+        ..clear()
+        ..addAll(currentDbIds);
+
+      state = [...dbReviews, ...preservedLocal];
     } catch (_) {
       // Offline or table not yet created: keep whatever state holds (empty unless demo mode).
     }
@@ -271,6 +302,13 @@ class ReviewsNotifier extends StateNotifier<List<Review>> {
       state = previousState;
       rethrow;
     }
+  }
+
+  /// Removes all in-memory reviews belonging to a deleted product
+  void removeReviewsForProduct(String productId) {
+    if (productId.isEmpty) return;
+    _deletedProductIds.add(productId);
+    state = state.where((r) => r.productId != productId).toList();
   }
 }
 

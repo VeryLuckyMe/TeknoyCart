@@ -6,6 +6,7 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/utils/order_ui_helper.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/feed/providers/product_provider.dart';
+import 'package:teknoycart/features/feed/providers/review_provider.dart';
 import 'package:teknoycart/features/feed/views/edit_product_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 import 'package:teknoycart/features/reports/views/financial_reports_view.dart';
@@ -119,10 +120,16 @@ class _ManageListingsViewState extends ConsumerState<ManageListingsView> {
     if (!confirm) return;
 
     try {
-      await SupabaseConfig.client
+      final deletedRows = await SupabaseConfig.client
           .from('products')
           .delete()
-          .eq('product_id', productId);
+          .eq('product_id', productId)
+          .select('product_id');
+      final deletedList = deletedRows as List<dynamic>;
+      if (deletedList.isEmpty) {
+        throw Exception('Product could not be deleted (not found or permission denied).');
+      }
+      ref.read(reviewsNotifierProvider.notifier).removeReviewsForProduct(productId);
       _fetchListings();
       ref.read(productsListNotifierProvider.notifier).refresh();
       if (mounted) {

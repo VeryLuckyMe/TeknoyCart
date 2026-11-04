@@ -51,15 +51,20 @@ class AuthService {
       id: user.id,
       username: user.userMetadata?['username'] as String? ??
           (user.email?.split('@').first ?? 'student'),
-      email: user.email ?? '',
+      email: (user.email != null && user.email!.trim().isNotEmpty)
+          ? user.email!.trim()
+          : ((user.userMetadata?['email'] as String?)?.trim() ?? ''),
       role: (user.userMetadata?['role'] as String?) ?? 'BUYER',
       isSellerVerified:
           (user.userMetadata?['is_seller_verified'] as bool?) ?? false,
       avatarUrl: user.userMetadata?['avatar_url'] as String?,
       department: user.userMetadata?['department'] as String?,
-      contact: user.userMetadata?['contact'] as String?,
+      contact: (user.userMetadata?['contact'] as String?) ??
+          (user.userMetadata?['org_contact'] as String?),
       studentId: user.userMetadata?['student_id'] as String?,
       gcashNumber: user.userMetadata?['gcash_number'] as String?,
+      sellerType: user.userMetadata?['seller_type'] as String?,
+      storeName: user.userMetadata?['store_name'] as String?,
       createdAt: DateTime.tryParse(user.createdAt) ?? DateTime.now(),
     );
   }
@@ -73,7 +78,7 @@ class AuthService {
       final res = await _client
           .from('my_profile')
           .select(
-              'full_name, role, is_seller_verified, student_id, contact, gcash_number')
+              'full_name, email, role, is_seller_verified, student_id, contact, gcash_number, seller_type')
           .maybeSingle();
       if (res != null) {
         final meta = _client.auth.currentUser?.userMetadata;
@@ -81,6 +86,32 @@ class AuthService {
         final avatar = (meta?['avatar_url'] as String?) ??
             (meta?['avatarUrl'] as String?) ??
             profile.avatarUrl;
+        final dbEmail = (res['email'] as String?)?.trim();
+        final resolvedEmail = (dbEmail != null && dbEmail.isNotEmpty)
+            ? dbEmail
+            : profile.email;
+        String? resolvedSellerType =
+            (res['seller_type'] as String?) ??
+            (meta?['seller_type'] as String?) ??
+            profile.sellerType;
+        String? resolvedStoreName =
+            (meta?['store_name'] as String?) ?? profile.storeName;
+
+        if (resolvedStoreName == null && profile.role.toUpperCase() == 'SELLER') {
+          try {
+            final storeRow = await _client
+                .from('store_profiles')
+                .select('store_name')
+                .eq('seller_id', profile.id)
+                .maybeSingle();
+            if (storeRow != null) {
+              final sName = storeRow['store_name'] as String?;
+              if (sName != null && sName.trim().isNotEmpty) {
+                resolvedStoreName = sName.trim();
+              }
+            }
+          } catch (_) {}
+        }
 
         bool isVerified =
             (res['is_seller_verified'] as bool?) ?? profile.isSellerVerified;
@@ -91,26 +122,32 @@ class AuthService {
           try {
             final verif = await _client
                 .from('seller_verifications')
-                .select('status')
+                .select('status, seller_type')
                 .eq('user_id', profile.id)
                 .order('created_at', ascending: false)
                 .limit(1)
                 .maybeSingle();
-            if (verif != null && verif['status'] == 'APPROVED') {
-              isVerified = true;
-              userRole = 'SELLER';
+            if (verif != null) {
+              resolvedSellerType ??= verif['seller_type'] as String?;
+              if (verif['status'] == 'APPROVED') {
+                isVerified = true;
+                userRole = 'SELLER';
+              }
             }
           } catch (_) {}
         }
 
         return profile.copyWith(
           username: res['full_name'] as String? ?? profile.username,
+          email: resolvedEmail,
           role: userRole,
           isSellerVerified: isVerified,
           department: dept,
           studentId: res['student_id'] as String? ?? profile.studentId,
           contact: res['contact'] as String? ?? profile.contact,
           gcashNumber: res['gcash_number'] as String? ?? profile.gcashNumber,
+          sellerType: resolvedSellerType,
+          storeName: resolvedStoreName,
           avatarUrl: avatar,
         );
       }
@@ -346,6 +383,11 @@ class AuthService {
             'role': role,
             'student_id': isOrgSeller ? null : studentId.trim(),
             'department': department,
+            if (sellerType != null) 'seller_type': sellerType,
+            if (storeName != null && storeName.trim().isNotEmpty)
+              'store_name': storeName.trim(),
+            if (orgContact != null && orgContact.trim().isNotEmpty)
+              'org_contact': orgContact.trim(),
           },
         );
       } on AuthException catch (e) {

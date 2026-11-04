@@ -12,6 +12,8 @@ class Profile {
   final String? contact;
   final String? studentId;
   final String? gcashNumber;
+  final String? sellerType; // 'STUDENT' or 'ORG'
+  final String? storeName;
   final DateTime createdAt;
 
   const Profile({
@@ -25,12 +27,21 @@ class Profile {
     this.contact,
     this.studentId,
     this.gcashNumber,
+    this.sellerType,
+    this.storeName,
     required this.createdAt,
   });
 
   bool get isSeller => role.toUpperCase() == 'SELLER' && isSellerVerified;
   bool get isPendingSeller => role.toUpperCase() == 'SELLER' && !isSellerVerified;
   bool get isBuyer => !isSeller;
+  bool get hasEmail => email.trim().contains('@');
+  bool get isCituEmail => email.trim().toLowerCase().endsWith('@cit.edu');
+
+  /// Non-CIT-U emails (e.g. @gmail.com used for Department/Org or personal store accounts)
+  /// must complete and pass Seller KYC before accessing the marketplace.
+  /// Only locks when a non-empty email is present and is not @cit.edu.
+  bool get requiresKycLock => isPendingSeller && hasEmail && !isCituEmail;
 
   /// Factory constructor to create a Profile from a Supabase/PostgreSQL JSON object.
   factory Profile.fromJson(Map<String, dynamic> json) {
@@ -45,6 +56,8 @@ class Profile {
       contact: json['contact'] as String?,
       studentId: json['student_id'] as String?,
       gcashNumber: json['gcash_number'] as String?,
+      sellerType: json['seller_type'] as String?,
+      storeName: json['store_name'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
@@ -62,6 +75,8 @@ class Profile {
       'contact': contact,
       'student_id': studentId,
       'gcash_number': gcashNumber,
+      'seller_type': sellerType,
+      'store_name': storeName,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -78,6 +93,8 @@ class Profile {
     String? contact,
     String? studentId,
     String? gcashNumber,
+    String? sellerType,
+    String? storeName,
     DateTime? createdAt,
   }) {
     return Profile(
@@ -91,6 +108,8 @@ class Profile {
       contact: contact ?? this.contact,
       studentId: studentId ?? this.studentId,
       gcashNumber: gcashNumber ?? this.gcashNumber,
+      sellerType: sellerType ?? this.sellerType,
+      storeName: storeName ?? this.storeName,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -110,6 +129,8 @@ class Profile {
           contact == other.contact &&
           studentId == other.studentId &&
           gcashNumber == other.gcashNumber &&
+          sellerType == other.sellerType &&
+          storeName == other.storeName &&
           createdAt == other.createdAt;
 
   @override
@@ -124,5 +145,7 @@ class Profile {
       contact.hashCode ^
       studentId.hashCode ^
       gcashNumber.hashCode ^
+      sellerType.hashCode ^
+      storeName.hashCode ^
       createdAt.hashCode;
 }

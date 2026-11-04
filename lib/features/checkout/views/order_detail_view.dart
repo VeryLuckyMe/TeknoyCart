@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/widgets/image_placeholder.dart';
 import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/core/test_env/test_env.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -40,8 +41,29 @@ class OrderDetailView extends ConsumerStatefulWidget {
 class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsBindingObserver {
   late Map<String, dynamic> _order;
   bool _isActing = false;
+  bool _sellerNameResolved = false;
+  bool _buyerNameResolved = false;
   RealtimeChannel? _realtimeChannel;
   Timer? _pollTimer;
+
+  /// Authoritative role resolution: once `seller_id` / `buyer_id` are loaded on
+  /// `_order`, compare against the signed-in user ID so opening an order from
+  /// Notifications (which only passes `order_id`) never misidentifies the role.
+  bool get _effectiveIsSeller {
+    final currentUserId = ref.read(authStateProvider).valueOrNull?.id ??
+        (isFlutterTestEnvironment ? null : SupabaseConfig.client.auth.currentUser?.id);
+    final sellerId = _order['seller_id'] as String?;
+    final buyerId = _order['buyer_id'] as String?;
+    if (currentUserId != null && currentUserId.isNotEmpty) {
+      if (sellerId != null && sellerId.isNotEmpty && sellerId == currentUserId) {
+        return true;
+      }
+      if (buyerId != null && buyerId.isNotEmpty && buyerId == currentUserId) {
+        return false;
+      }
+    }
+    return widget.isSeller;
+  }
 
   @override
   void initState() {
@@ -62,6 +84,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
   }
 
   void _subscribeToOrderUpdates() {
+    if (isFlutterTestEnvironment) return;
     final orderId = _order['order_id'] as String?;
     if (orderId == null) return;
     _realtimeChannel = SupabaseConfig.client
@@ -273,15 +296,33 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
 
       final merged = {..._order, ...Map<String, dynamic>.from(res)};
 
-      if (merged['seller_name'] == null && merged['seller_id'] != null) {
+      final existingSellerName = (merged['seller_name'] as String?)?.trim();
+      if (!_sellerNameResolved &&
+          (existingSellerName == null || existingSellerName.isEmpty || existingSellerName == 'Seller') &&
+          merged['seller_id'] != null) {
         try {
           final sid = merged['seller_id'] as String;
-          final sellerRow = await SupabaseConfig.client
-              .from('sellers')
-              .select('store_name')
-              .eq('seller_id', sid)
-              .maybeSingle();
-          final storeName = sellerRow?['store_name'] as String?;
+          String? storeName;
+          try {
+            final storeProfRow = await SupabaseConfig.client
+                .from('store_profiles')
+                .select('store_name')
+                .eq('seller_id', sid)
+                .maybeSingle();
+            storeName = (storeProfRow?['store_name'] as String?)?.trim();
+          } catch (_) {}
+
+          if (storeName == null || storeName.isEmpty) {
+            try {
+              final sellerRow = await SupabaseConfig.client
+                  .from('sellers')
+                  .select('store_name')
+                  .eq('seller_id', sid)
+                  .maybeSingle();
+              storeName = (sellerRow?['store_name'] as String?)?.trim();
+            } catch (_) {}
+          }
+
           if (storeName != null && storeName.isNotEmpty) {
             merged['seller_name'] = storeName;
           } else {
@@ -290,11 +331,36 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                 .select('full_name')
                 .eq('user_id', sid)
                 .maybeSingle();
-            if (profRow?['full_name'] != null) {
-              merged['seller_name'] = profRow!['full_name'];
+            final fullName = (profRow?['full_name'] as String?)?.trim();
+            if (fullName != null && fullName.isNotEmpty) {
+              merged['seller_name'] = fullName;
             }
           }
+          _sellerNameResolved = true;
         } catch (_) {}
+      } else if (existingSellerName != null && existingSellerName.isNotEmpty && existingSellerName != 'Seller') {
+        _sellerNameResolved = true;
+      }
+
+      final existingBuyerName = (merged['buyer_name'] as String?)?.trim();
+      if (!_buyerNameResolved &&
+          (existingBuyerName == null || existingBuyerName.isEmpty || existingBuyerName == 'Buyer') &&
+          merged['buyer_id'] != null) {
+        try {
+          final bid = merged['buyer_id'] as String;
+          final buyerProfRow = await SupabaseConfig.client
+              .from('public_profiles')
+              .select('full_name')
+              .eq('user_id', bid)
+              .maybeSingle();
+          final buyerFullName = (buyerProfRow?['full_name'] as String?)?.trim();
+          if (buyerFullName != null && buyerFullName.isNotEmpty) {
+            merged['buyer_name'] = buyerFullName;
+          }
+          _buyerNameResolved = true;
+        } catch (_) {}
+      } else if (existingBuyerName != null && existingBuyerName.isNotEmpty && existingBuyerName != 'Buyer') {
+        _buyerNameResolved = true;
       }
 
       // OTP columns are buyer-only and live behind a dedicated view. A seller
@@ -520,7 +586,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         // cancel this order" for a buyer, so calling it first guaranteed a
         // failed round trip (and surfaced an error before the backend call).
         // Buyers go straight to the backend, which authorises owner-or-seller.
-        if (widget.isSeller) {
+        if (_effectiveIsSeller) {
           try {
             final rpcRes = await SupabaseConfig.client.rpc(
               'cancel_order_as_seller',
@@ -680,7 +746,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                   label: 'Reschedule',
                   textColor: TeknoyTheme.citGold,
                   onPressed: () {
-                    if (widget.isSeller) {
+                    if (_effectiveIsSeller) {
                       _showNotifyItemReadyDialog(isPreorder: _isPreorder);
                     } else {
                       _handleSpringAction('schedule', {}, 'Fresh handoff code and QR generated!');
@@ -746,7 +812,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        widget.isSeller
+                        _effectiveIsSeller
                             ? 'Tap "Reschedule Meetup" to select a time slot and generate a fresh code for the buyer.'
                             : 'Tap "Generate Fresh Code" to renew your handoff QR and code immediately.',
                         style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: isDark ? Colors.white70 : Colors.black87),
@@ -762,7 +828,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Dismiss', style: TextStyle(fontFamily: 'Inter', color: Colors.grey)),
             ),
-            if (widget.isSeller)
+            if (_effectiveIsSeller)
               ElevatedButton.icon(
                 onPressed: () {
                   Navigator.pop(ctx);
@@ -1831,11 +1897,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         : null;
     final productName = product?['name'] ?? 'Unknown Product';
 
-    final otherPartyName = widget.isSeller
+    final isSellerRole = _effectiveIsSeller;
+    final otherPartyName = isSellerRole
         ? (_order['buyer_name'] as String? ?? 'Buyer')
         : (_order['seller_name'] as String? ?? 'Seller');
-    final otherPartyLabel = widget.isSeller ? 'Buyer' : 'Seller';
-    final otherPartyContact = widget.isSeller
+    final otherPartyLabel = isSellerRole ? 'Buyer' : 'Seller';
+    final otherPartyContact = isSellerRole
         ? (_order['buyer_contact'] as String?)
         : (_order['seller_contact'] as String?);
 
@@ -2063,7 +2130,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     return OrderStatusStepper(
       isPreorder: _isPreorder,
       status: _status,
-      isSeller: widget.isSeller,
+      isSeller: _effectiveIsSeller,
       isDark: isDark,
     );
   }
@@ -2073,7 +2140,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     final actorId = ref.read(authStateProvider).valueOrNull?.id;
     if (actorId == null) return const SizedBox();
 
-    if (widget.isSeller) {
+    if (_effectiveIsSeller) {
       if (_status == 'PLACED') {
         buttons.add(_actionBtn('Decline Order', Colors.red, Icons.close_rounded, 
             () => _handleSpringAction('cancel', {'reason': 'Seller declined'}, 'Order declined.')));
@@ -2832,7 +2899,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
       final variantValue = variant?['variant_value'] as String?;
 
       if (existingReview == null) {
-        if (!widget.isSeller) {
+        if (!_effectiveIsSeller) {
           buttons.add(
             Container(
               width: double.infinity,
@@ -2874,7 +2941,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
           );
         }
       } else {
-        final isBuyerReview = !widget.isSeller;
+        final isBuyerReview = !_effectiveIsSeller;
         buttons.add(
           Container(
             padding: const EdgeInsets.all(14),
@@ -2954,7 +3021,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         );
       }
 
-      if (!widget.isSeller) {
+      if (!_effectiveIsSeller) {
         buttons.add(const SizedBox(height: 10));
         buttons.add(_actionBtn('Request Return / Refund', Colors.orange, Icons.assignment_return_rounded, _showReturnRequestDialog));
       }

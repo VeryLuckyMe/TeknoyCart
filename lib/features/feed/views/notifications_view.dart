@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teknoycart/core/theme.dart';
+import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/providers/notification_provider.dart';
+import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
 import 'package:teknoycart/core/models/notification_item.dart';
 
@@ -499,14 +501,36 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
               if (!mounted) return;
 
               if (item.referenceType == 'ORDER' && item.referenceId != null && item.referenceId!.isNotEmpty) {
+                final authProfile = ref.read(authStateProvider).valueOrNull;
+                final currentUserId = authProfile?.id ??
+                    SupabaseConfig.client.auth.currentUser?.id;
+                Map<String, dynamic> initialOrder = {'order_id': item.referenceId!};
+                bool initialIsSeller = authProfile?.isSeller ?? false;
+
+                try {
+                  final ordRow = await SupabaseConfig.client
+                      .from('orders')
+                      .select('order_id, buyer_id, seller_id, status, total_amount, payment_method, pickup_location, pickup_day, pickup_time, created_at')
+                      .eq('order_id', item.referenceId!)
+                      .maybeSingle();
+                  if (ordRow != null) {
+                    initialOrder = Map<String, dynamic>.from(ordRow);
+                    final sellerId = initialOrder['seller_id'] as String?;
+                    final buyerId = initialOrder['buyer_id'] as String?;
+                    if (currentUserId != null && sellerId == currentUserId) {
+                      initialIsSeller = true;
+                    } else if (currentUserId != null && buyerId == currentUserId) {
+                      initialIsSeller = false;
+                    }
+                  }
+                } catch (_) {}
+
+                if (!mounted) return;
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => OrderDetailView(
-                      order: {'order_id': item.referenceId!},
-                      isSeller: item.type == 'REVIEW' ||
-                          item.title.contains('Payment') ||
-                          item.title.contains('Sale') ||
-                          item.title.contains('New Order'),
+                      order: initialOrder,
+                      isSeller: initialIsSeller,
                     ),
                   ),
                 );

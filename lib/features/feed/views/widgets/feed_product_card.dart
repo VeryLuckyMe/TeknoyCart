@@ -376,65 +376,86 @@ class _FeedProductCardState extends ConsumerState<FeedProductCard>
                       const SizedBox(height: 2),
                     ],
 
-                    // 4. Quick attribute chips (Single horizontal scroll row to prevent vertical wrap overflow)
-                    if (product.categoryAttributes.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 2.0),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          child: Row(
-                            children: product.categoryAttributes
-                                .take(2)
-                                .map((attr) => Padding(
-                                      padding: const EdgeInsets.only(right: 4.0),
-                                      child: Material(
-                                        color: Colors.transparent,
-                                        child: InkWell(
-                                          borderRadius: BorderRadius.circular(5),
-                                          onTap: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => SearchResultsView(
-                                                  initialQuery: attr.value,
+                    // 4. Quick attribute chips & product details (Wrapped cleanly to fill bottom card space without right-edge clipping)
+                    Expanded(
+                      child: ClipRect(
+                        child: Align(
+                          alignment: Alignment.topLeft,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (product.categoryAttributes.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 3.0),
+                                  child: Wrap(
+                                    spacing: 4.0,
+                                    runSpacing: 3.5,
+                                    children: product.categoryAttributes
+                                        .take(3)
+                                        .map((attr) => Material(
+                                              color: Colors.transparent,
+                                              child: InkWell(
+                                                borderRadius: BorderRadius.circular(5),
+                                                onTap: () {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (_) => SearchResultsView(
+                                                        initialQuery: attr.value,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                  decoration: BoxDecoration(
+                                                    color: isDark
+                                                        ? Colors.white.withValues(alpha: 0.06)
+                                                        : const Color(0xFFF0EDF5),
+                                                    borderRadius: BorderRadius.circular(5),
+                                                    border: Border.all(
+                                                      color: isDark
+                                                          ? Colors.white.withValues(alpha: 0.08)
+                                                          : const Color(0xFFDDD8E6),
+                                                      width: 0.5,
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    '${attr.name}: ${attr.value}',
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontFamily: 'Inter',
+                                                      fontSize: 10.5,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: isDark ? Colors.white54 : const Color(0xFF5A4978),
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
-                                            );
-                                          },
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                            decoration: BoxDecoration(
-                                              color: isDark
-                                                  ? Colors.white.withValues(alpha: 0.06)
-                                                  : const Color(0xFFF0EDF5),
-                                              borderRadius: BorderRadius.circular(5),
-                                              border: Border.all(
-                                                color: isDark
-                                                    ? Colors.white.withValues(alpha: 0.08)
-                                                    : const Color(0xFFDDD8E6),
-                                                width: 0.5,
-                                              ),
-                                            ),
-                                            child: Text(
-                                              '${attr.name}: ${attr.value}',
-                                              style: TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
-                                                color: isDark ? Colors.white54 : const Color(0xFF5A4978),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ))
-                                .toList(),
+                                            ))
+                                        .toList(),
+                                  ),
+                                ),
+                              if (product.description.trim().isNotEmpty &&
+                                  product.categoryAttributes.length <= 1)
+                                Text(
+                                  product.description.trim(),
+                                  maxLines: product.categoryAttributes.isEmpty ? 2 : 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 10.5,
+                                    height: 1.25,
+                                    color: isDark ? Colors.white38 : const Color(0xFF6E6A75),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ),
-
-                    const Spacer(),
+                    ),
 
                     // 5. Rating & Category Footer
                     Row(

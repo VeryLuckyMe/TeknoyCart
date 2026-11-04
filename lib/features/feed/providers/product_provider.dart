@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/config/api_config.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/models/product.dart';
+import 'package:teknoycart/features/feed/providers/review_provider.dart';
 import 'package:teknoycart/features/feed/repositories/product_repository.dart';
 
 // ── Static filter providers ──
@@ -500,6 +501,8 @@ class ProductListNotifier
               created_at,
               users (
                 full_name,
+                role,
+                is_seller_verified,
                 store_profiles (
                   store_name
                 )
@@ -549,7 +552,17 @@ class ProductListNotifier
             .order('created_at', ascending: false);
       }
 
-      final rows = SafeCast.toListOfMaps(response);
+      final rawRows = SafeCast.toListOfMaps(response);
+
+      // Exclude listings whose seller has been un-verified/suspended (when users embed is present)
+      final rows = rawRows.where((row) {
+        final usersMap = row['users'] as Map<String, dynamic>?;
+        if (usersMap != null && usersMap.containsKey('is_seller_verified')) {
+          final isVerified = usersMap['is_seller_verified'] as bool? ?? true;
+          if (!isVerified) return false;
+        }
+        return true;
+      }).toList();
 
       if (rows.isEmpty) {
         // Legitimate empty database — return empty list so clean empty state displays (Ponytail Audit M2)
@@ -969,38 +982,82 @@ final matchingStoresProvider = FutureProvider.family<List<StoreResult>, String>(
   if (query.trim().isEmpty) return [];
   final searchTerm = query.trim().toLowerCase();
   try {
-    final response = await SupabaseConfig.client
-        .from('store_profiles')
-        .select('''
-          seller_id,
-          store_name,
-          users (
-            full_name,
-            is_seller_verified
-          )
-        ''');
-    final rows = SafeCast.toListOfMaps(response);
+    List<Map<String, dynamic>> rows = [];
+    try {
+      final response = await SupabaseConfig.client
+          .from('store_profiles')
+          .select('''
+            seller_id,
+            store_name,
+            users!inner (
+              full_name,
+              is_seller_verified
+            )
+          ''')
+          .eq('users.is_seller_verified', true);
+      rows = SafeCast.toListOfMaps(response);
+    } catch (_) {
+      // Fallback if the store_profiles -> users FK or column grant is unavailable:
+      // query store_profiles and public_profiles separately and join in Dart.
+      final storeRes = await SupabaseConfig.client
+          .from('store_profiles')
+          .select('seller_id, store_name');
+      final storeList = SafeCast.toListOfMaps(storeRes);
+      final sellerIds = storeList
+          .map((s) => s['seller_id'] as String? ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+      Map<String, Map<String, dynamic>> profileById = {};
+      if (sellerIds.isNotEmpty) {
+        try {
+          final profRes = await SupabaseConfig.client
+              .from('public_profiles')
+              .select('user_id, full_name, is_seller_verified')
+              .inFilter('user_id', sellerIds);
+          for (final p in SafeCast.toListOfMaps(profRes)) {
+            final uid = p['user_id'] as String?;
+            if (uid != null) profileById[uid] = p;
+          }
+        } catch (_) {}
+      }
+      rows = storeList.map((s) {
+        final sid = s['seller_id'] as String? ?? '';
+        return {
+          ...s,
+          if (profileById.containsKey(sid)) 'users': profileById[sid],
+        };
+      }).toList();
+    }
+
     final List<StoreResult> results = [];
 
     for (final r in rows) {
+      final sellerId = r['seller_id'] as String? ?? '';
       final storeName = r['store_name'] as String? ?? '';
       final usersMap = r['users'] as Map<String, dynamic>?;
       final ownerName = usersMap?['full_name'] as String? ?? 'Campus Vendor';
       // Match the strict seller definition: SELLER + is_seller_verified.
       final isVerified = usersMap?['is_seller_verified'] as bool? ?? false;
+      if (!isVerified) continue;
 
       if (storeName.toLowerCase().contains(searchTerm) || ownerName.toLowerCase().contains(searchTerm)) {
+        final ratingSummary = ref.read(sellerRatingSummaryProvider(sellerId));
+        final computedTrustScore = ratingSummary.total > 0
+            ? (ratingSummary.average * 20).round().clamp(0, 100)
+            : 95;
         results.add(StoreResult(
-          sellerId: r['seller_id'] as String? ?? '',
+          sellerId: sellerId,
           storeName: storeName.isEmpty ? '$ownerName Store' : storeName,
           ownerName: ownerName,
           isVerified: isVerified,
-          trustScore: 98,
+          trustScore: computedTrustScore,
         ));
       }
     }
     return results;
   } catch (e) {
+    debugPrint('MATCHING_STORES_ERROR: $e');
     return [];
   }
 });

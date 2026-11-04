@@ -15,6 +15,9 @@ import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/core/providers/notification_provider.dart';
 import 'package:teknoycart/core/services/wishlist_service.dart';
 import 'package:teknoycart/core/test_env/test_env.dart';
+import 'package:teknoycart/features/auth/models/profile.dart';
+import 'package:teknoycart/features/auth/providers/auth_provider.dart';
+import 'package:teknoycart/features/auth/views/seller_kyc_verification_view.dart';
 import 'tabs/browse_tab.dart';
 import 'tabs/sell_tab.dart';
 import 'tabs/profile_tab.dart';
@@ -44,6 +47,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   StreamSubscription<AuthState>? _recoverySub;
   late final Set<int> _loadedTabs = {_activeTab};
   final Map<int, Widget> _cachedTabs = {};
+  bool _didAutoRoutePendingSeller = false;
 
   void _onTabSelected(int index) {
     HapticFeedback.selectionClick();
@@ -406,10 +410,158 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
     );
   }
 
+  Widget _buildNonCituKycGate(BuildContext context, Profile authState, bool isDark) {
+    final storeLabel = (authState.storeName != null && authState.storeName!.trim().isNotEmpty)
+        ? authState.storeName!.trim()
+        : authState.username;
+    return Scaffold(
+      backgroundColor: isDark ? TeknoyTheme.darkBg : TeknoyTheme.lightBgAlt,
+      appBar: AppBar(
+        toolbarHeight: 54.0,
+        backgroundColor: isDark ? TeknoyTheme.darkSurface : Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: TeknoyTheme.citMaroon.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.verified_user_rounded,
+                color: TeknoyTheme.citMaroon,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Mandatory Seller Verification',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15.5,
+                      color: TeknoyTheme.citMaroon,
+                    ),
+                  ),
+                  Text(
+                    '$storeLabel · ${authState.email}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              await ref.read(authNotifierProvider.notifier).logout();
+            },
+            icon: const Icon(Icons.logout_rounded, size: 16, color: TeknoyTheme.citMaroon),
+            label: const Text(
+              'Sign Out',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: TeknoyTheme.citMaroon,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.14 : 0.18),
+              border: Border(
+                bottom: BorderSide(
+                  color: TeknoyTheme.citGold.withValues(alpha: 0.35),
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.shield_outlined,
+                  size: 18,
+                  color: TeknoyTheme.citMaroon,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'External store email detected (${authState.email}). To protect CIT-U students, please upload your CIT-U ID & Selfie (or Org Permit) and wait for Admin approval before entering TeknoyCart.',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 11.5,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white.withValues(alpha: 0.9) : const Color(0xFF3A1D22),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: SellerKYCVerificationView(
+              userId: authState.id,
+              initialSellerType: authState.sellerType ?? 'STUDENT',
+              onVerificationSubmitted: () => setState(() {}),
+              onRefreshStatus: () async {
+                await ref.read(authNotifierProvider.notifier).refreshProfile();
+                if (mounted) setState(() {});
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final unreadChatCount = ref.watch(unreadChatCountProvider);
+    final authProfile = ref.watch(authStateProvider).valueOrNull;
+
+    // Security Gate: Non-@cit.edu Seller accounts (e.g. @gmail.com for Department/Org or personal store)
+    // must complete and pass Seller KYC before accessing the marketplace feed/chat/orders.
+    if (authProfile != null && authProfile.requiresKycLock) {
+      return _buildNonCituKycGate(context, authProfile, isDark);
+    }
+
+    // UX Auto-Route: If a @cit.edu student signed up with role == 'SELLER' and is still unverified,
+    // automatically open the Sell tab (Step 2: ID & Selfie upload) once on initial load so they
+    // immediately see the KYC verification flow instead of thinking registration is already complete.
+    if (authProfile != null &&
+        authProfile.isPendingSeller &&
+        !_didAutoRoutePendingSeller &&
+        widget.initialTab == 0) {
+      _didAutoRoutePendingSeller = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _activeTab == 0) {
+          _onTabSelected(2);
+        }
+      });
+    }
 
     return Scaffold(
       extendBodyBehindAppBar: true,

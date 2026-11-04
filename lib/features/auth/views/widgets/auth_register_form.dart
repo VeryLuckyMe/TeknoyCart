@@ -565,6 +565,43 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
 
         // Step 2: Account Credentials
         if (widget.registerStep == 2) ...[
+          if (widget.selectedRole == 'SELLER') ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.12 : 0.14),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: TeknoyTheme.citGold.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.verified_user_outlined,
+                    size: 16,
+                    color: TeknoyTheme.citMaroon,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.selectedSellerType == 'ORG'
+                          ? 'Department / Org accounts may use a Gmail or contact email. After email verification, you will upload your Org Permit & Lead Officer ID for Admin approval.'
+                          : 'Personal stores may use @cit.edu or @gmail.com. After signing in, you must upload your CIT-U ID & Selfie for Admin approval before selling.',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 11,
+                        height: 1.35,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           AuthInputField(
             controller: widget.emailController,
             label: widget.selectedRole == 'SELLER'

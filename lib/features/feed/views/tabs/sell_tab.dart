@@ -2195,7 +2195,7 @@ class _SellTabState extends ConsumerState<SellTab> {
     if (!authState.isSeller) {
       return SellerKYCVerificationView(
         userId: authState.id,
-        initialSellerType: 'STUDENT',
+        initialSellerType: authState.sellerType ?? 'STUDENT',
         onVerificationSubmitted: () => setState(() {}),
         onRefreshStatus: () async {
           await ref.read(authNotifierProvider.notifier).refreshProfile();

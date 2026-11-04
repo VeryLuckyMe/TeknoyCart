@@ -176,16 +176,33 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         } catch (_) {}
       }
 
-      // Collect seller IDs to check store names
+      // Collect seller IDs to check store names (prefer store_profiles, fallback to sellers)
       final Map<String, String> storeMap = {};
       if (sellerIds.isNotEmpty) {
+        try {
+          final storeProfRes = await SupabaseConfig.client
+              .from('store_profiles')
+              .select('seller_id, store_name')
+              .filter('seller_id', 'in', sellerIds);
+          for (final sp in (storeProfRes as List)) {
+            final name = (sp['store_name'] as String?)?.trim() ?? '';
+            if (name.isNotEmpty) {
+              storeMap[sp['seller_id']] = name;
+            }
+          }
+        } catch (_) {}
+
         try {
           final sellersRes = await SupabaseConfig.client
               .from('sellers')
               .select('seller_id, store_name')
               .filter('seller_id', 'in', sellerIds);
           for (final s in (sellersRes as List)) {
-            storeMap[s['seller_id']] = s['store_name'] ?? '';
+            final sid = s['seller_id'] as String?;
+            final name = (s['store_name'] as String?)?.trim() ?? '';
+            if (sid != null && name.isNotEmpty && !storeMap.containsKey(sid)) {
+              storeMap[sid] = name;
+            }
           }
         } catch (_) {}
       }
