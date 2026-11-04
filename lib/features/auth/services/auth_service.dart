@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:teknoycart/core/services/secure_token_service.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
+import 'package:teknoycart/features/auth/utils/student_id.dart';
 import 'package:teknoycart/core/config/api_config.dart';
 import 'package:teknoycart/core/services/fcm_service.dart';
 import 'package:http/http.dart' as http;
@@ -307,14 +308,21 @@ class AuthService {
     // Only validate Student ID for BUYER and STUDENT sellers
     if (!isOrgSeller) {
       final studentIdTrimmed = studentId.trim();
-      final studentIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
-      if (!studentIdRegex.hasMatch(studentIdTrimmed)) {
+      // CIT-U IDs are not uniform: college IDs look like `21-1029-315` while
+      // faculty / other grade levels use shapes such as `2004-3732`. Dashes are
+      // therefore optional; only the digit count is enforced.
+      if (!StudentIdRules.isValid(studentIdTrimmed)) {
         throw const FormatException(
-            'Student ID must follow the format ##-####-###.');
+          'Please enter a valid ID number (6-12 digits, e.g. 21-1029-315).',
+        );
       }
 
       // The base users table no longer exposes student_id to anon. Ask the
       // SECURITY DEFINER RPC for a boolean without leaking another student's row.
+      // The server-side function must compare digits only (see
+      // `student_id_format_relax.sql`) so `20043732` and `2004-3732` collide;
+      // sending the value as typed keeps behaviour unchanged until that
+      // migration is applied.
       final available = await _client.rpc(
         'is_student_id_available',
         params: {'p_student_id': studentIdTrimmed},

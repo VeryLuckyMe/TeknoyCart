@@ -9,6 +9,8 @@ import '../../../core/theme.dart';
 import '../../../core/services/secure_token_service.dart';
 import '../providers/auth_provider.dart';
 import '../services/auth_service.dart';
+import '../utils/auth_redirect.dart';
+import '../utils/student_id.dart';
 import 'widgets/email_verification_dialog.dart';
 import 'widgets/auth_password_sheets.dart';
 import 'widgets/auth_login_form.dart';
@@ -137,12 +139,21 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
 
     // Check if web URL contains recovery fragment/query
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final uri = Uri.base;
+
+      // Supabase reports an unusable reset link by redirecting back with
+      // ?error=access_denied&error_code=otp_expired. Without this the user lands
+      // on a blank page and assumes the whole flow is broken.
+      final failure = AuthRedirectFailure.parse(uri);
+      if (failure != null) {
+        _showErrorSnackBar(failure.message);
+        return;
+      }
+
       if (uri.fragment.contains('type=recovery') || uri.queryParameters['type'] == 'recovery') {
-        if (mounted) {
-          AuthService.passwordRecoveryPending = true;
-          _consumePasswordRecovery();
-        }
+        AuthService.passwordRecoveryPending = true;
+        _consumePasswordRecovery();
       }
     });
   }
@@ -214,9 +225,12 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
           _showErrorSnackBar('Please enter your Student ID');
           return false;
         }
-        final studentIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
-        if (!studentIdRegex.hasMatch(idTrimmed)) {
-          _showErrorSnackBar('Student ID must follow ##-####-### format (e.g. 21-1234-567)');
+        // IDs are not uniform (college `21-1029-315`, faculty `2004-3732`), so
+        // only the digit count is enforced; dashes are optional.
+        if (!StudentIdRules.isValid(idTrimmed)) {
+          _showErrorSnackBar(
+            'Please enter a valid ID number (6-12 digits, e.g. 21-1029-315).',
+          );
           return false;
         }
         if (_departmentController.text.trim().isEmpty) {
@@ -378,7 +392,12 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
       }
     } else {
       if (!_validateStep(0) || !_validateStep(1)) return;
-      if (!_formKey.currentState!.validate()) return;
+      if (!_formKey.currentState!.validate()) {
+        // Close the keyboard so the error messages (and the field they belong
+        // to) are actually visible instead of hidden behind the IME.
+        FocusManager.instance.primaryFocus?.unfocus();
+        return;
+      }
 
       if (_passwordController.text != _confirmPasswordController.text) {
         _showErrorSnackBar('Passwords do not match. Please re-enter your password.');
@@ -658,14 +677,18 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                       ),
 
                     // Sign up / Sign in link below card
-                    const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    const SizedBox(height: 12),
+                    // A bare GestureDetector on a Text is not recognisable as a
+                    // link (no ripple, no pointer cursor, ~25 px tap target).
+                    // TextButton also gives button semantics for screen readers.
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
                           _isLoginTab
-                              ? "Don't have an account? "
-                              : 'Already have an account? ',
+                              ? "Don't have an account?"
+                              : 'Already have an account?',
                           style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 14,
@@ -673,20 +696,23 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
                             color: isDark ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
                           ),
                         ),
-                        GestureDetector(
-                          onTap: () => _switchTab(!_isLoginTab),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                            child: Text(
-                              _isLoginTab ? 'Sign up' : 'Sign in',
-                              style: const TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: TeknoyTheme.citMaroon,
-                              ),
+                        TextButton(
+                          onPressed: () => _switchTab(!_isLoginTab),
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(48, 48),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            tapTargetSize: MaterialTapTargetSize.padded,
+                            foregroundColor: TeknoyTheme.citMaroon,
+                            textStyle: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              decoration: TextDecoration.underline,
+                              decorationColor: TeknoyTheme.citMaroon,
+                              decorationThickness: 1.4,
                             ),
                           ),
+                          child: Text(_isLoginTab ? 'Sign up' : 'Sign in'),
                         ),
                       ],
                     ),

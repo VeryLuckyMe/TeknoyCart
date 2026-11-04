@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/theme.dart';
+import '../../utils/student_id.dart';
 
 class RoleCard extends StatelessWidget {
   final String role;
@@ -202,6 +203,15 @@ class AuthInputField extends StatelessWidget {
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onFieldSubmitted;
 
+  /// Extra room kept below the caret when the field scrolls itself into view.
+  ///
+  /// The default (`EdgeInsets.all(20)`) is too small for this form: on a
+  /// keyboard-resized 390x844 viewport the Confirm Password field ended 34 px
+  /// under the keyboard once an error line appeared above it, so the field
+  /// looked impossible to type into. The bottom inset here covers the field
+  /// padding, the live password hint row and a validation error line.
+  final EdgeInsets scrollPadding;
+
   const AuthInputField({
     super.key,
     required this.controller,
@@ -217,6 +227,7 @@ class AuthInputField extends StatelessWidget {
     this.autofillHints,
     this.textInputAction,
     this.onFieldSubmitted,
+    this.scrollPadding = const EdgeInsets.only(top: 24, bottom: 120),
   });
 
   @override
@@ -233,6 +244,7 @@ class AuthInputField extends StatelessWidget {
       validator: validator,
       inputFormatters: inputFormatters,
       onChanged: onChanged,
+      scrollPadding: scrollPadding,
       style: TextStyle(
         fontFamily: 'Inter',
         fontSize: 14,
@@ -279,37 +291,39 @@ class AuthInputField extends StatelessWidget {
   }
 }
 
-/// Formatter that automatically places dashes for CIT-U Student IDs (##-####-###)
+/// Sanitises CIT-U identification numbers **without** inventing separators.
+///
+/// College IDs look like `21-1029-315` while faculty / other grade levels use
+/// shapes such as `2004-3732`, so an auto-inserted dash mangles those numbers
+/// (and the old implementation also force-moved the caret to the end, which
+/// corrupted digits on backspace).
+///
+/// The rules live in [StudentIdRules]; this class only maps them onto the
+/// editing value while preserving the caret.
 class StudentIdInputFormatter extends TextInputFormatter {
+  const StudentIdInputFormatter();
+
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    // If user is deleting and just deleted a dash, delete the preceding digit as well
-    String text = newValue.text;
-    if (oldValue.text.length > newValue.text.length &&
-        oldValue.selection.isCollapsed &&
-        oldValue.selection.baseOffset > 0 &&
-        oldValue.text[oldValue.selection.baseOffset - 1] == '-') {
-      final deletePos = oldValue.selection.baseOffset - 2;
-      if (deletePos >= 0 && deletePos < text.length) {
-        text = text.substring(0, deletePos) + text.substring(deletePos + 1);
-      }
-    }
+    if (newValue.text.isEmpty) return newValue;
 
-    final digitsOnly = text.replaceAll(RegExp(r'\D'), '');
-    final buffer = StringBuffer();
-    for (int i = 0; i < digitsOnly.length && i < 9; i++) {
-      if (i == 2 || i == 6) {
-        buffer.write('-');
-      }
-      buffer.write(digitsOnly[i]);
-    }
-    final formatted = buffer.toString();
+    final cleaned = StudentIdRules.sanitize(newValue.text);
+    if (cleaned == newValue.text) return newValue; // nothing to fix — keep the caret
+
+    // Map the old caret onto the cleaned string: the kept characters of the
+    // text that preceded the caret define the new offset.
+    final caret = newValue.selection.isValid
+        ? newValue.selection.baseOffset.clamp(0, newValue.text.length)
+        : newValue.text.length;
+    final keptBeforeCaret =
+        StudentIdRules.sanitize(newValue.text.substring(0, caret)).length;
+
     return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
+      text: cleaned,
+      selection: TextSelection.collapsed(offset: keptBeforeCaret),
     );
   }
 }
