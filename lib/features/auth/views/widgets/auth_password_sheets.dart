@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme.dart';
 import '../../services/auth_service.dart';
+import '../../utils/auth_redirect.dart';
 
 class AuthPasswordSheets {
   /// Verifies a recovery input (either a redirected URL containing ?code=...,
@@ -251,9 +252,13 @@ class AuthPasswordSheets {
                                     await Supabase.instance.client.auth
                                         .resetPasswordForEmail(
                                       email,
-                                      redirectTo: kIsWeb
-                                          ? null
-                                          : 'teknoycart://login-callback',
+                                      // Web used to pass null here, which made
+                                      // Supabase fall back to the dashboard Site
+                                      // URL (http://localhost:3000) — the emailed
+                                      // link was dead. The resolver sends the
+                                      // deployed origin, or an explicit
+                                      // --dart-define=AUTH_REDIRECT_URL.
+                                      redirectTo: AuthRedirectConfig.resolve(),
                                     );
                                     if (modalCtx.mounted) {
                                       setModalState(() {
@@ -347,7 +352,9 @@ class AuthPasswordSheets {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'We sent reset instructions to ${forgotEmailCtrl.text.trim()}.\n\nPlease open your email on this phone and tap the reset link to proceed.',
+                                      kIsWeb
+                                          ? 'We sent reset instructions to ${forgotEmailCtrl.text.trim()}.\n\nOpen the link in this same browser — the reset is tied to the browser that requested it. If you opened the email on your phone, use the code below instead.'
+                                          : 'We sent reset instructions to ${forgotEmailCtrl.text.trim()}.\n\nPlease open your email on this phone and tap the reset link to proceed.',
                                       style: TextStyle(
                                         fontFamily: 'Inter',
                                         fontSize: 12.5,

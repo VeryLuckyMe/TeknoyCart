@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../../../../core/theme.dart';
+import '../../../../core/theme.dart';  
 import 'auth_form_fields.dart';
 import 'privacy_consent_sheet.dart';
 
@@ -414,13 +413,10 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
           ] else ...[
             AuthInputField(
               controller: widget.studentIdController,
-              label: 'Student ID (##-####-###)',
+              label: 'Student ID',
               icon: Icons.badge_outlined,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                StudentIdInputFormatter(),
-              ],
+              keyboardType: TextInputType.text,
+              inputFormatters: const [StudentIdInputFormatter()],
             ),
             const SizedBox(height: 16),
             AuthDropdownField<String>(
@@ -624,32 +620,50 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
             },
           ),
           const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              children: [
-                Icon(
-                  widget.passwordController.text.length >= 12
-                      ? Icons.check_circle_rounded
-                      : Icons.info_outline_rounded,
-                  size: 13,
-                  color: widget.passwordController.text.length >= 12
-                      ? Colors.green
-                      : (isDark ? Colors.white54 : Colors.black45),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Must be at least 12 characters',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 11,
-                    color: widget.passwordController.text.length >= 12
-                        ? Colors.green
-                        : (isDark ? Colors.white54 : Colors.black45),
+          // UI/UX: fixed-height, reactive requirement hint. It used to read the
+          // controller inside build() with no listener (so the tick never
+          // appeared while typing) and to change height, which pushed the
+          // Confirm Password field under the keyboard after a failed submit.
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: widget.passwordController,
+            builder: (context, value, _) {
+              final met = value.text.length >= 12;
+              final color = met
+                  ? Colors.green
+                  : (isDark ? Colors.white54 : Colors.black45);
+              return SizedBox(
+                height: 20,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        met
+                            ? Icons.check_circle_rounded
+                            : Icons.info_outline_rounded,
+                        size: 13,
+                        color: color,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          met
+                              ? 'At least 12 characters'
+                              : 'Must be at least 12 characters',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              );
+            },
           ),
           const SizedBox(height: 14),
           AuthInputField(
@@ -710,17 +724,23 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
                         color: isDark ? Colors.white70 : Colors.black87,
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () => showPrivacyConsentSheet(context),
-                      child: const Text(
-                        'Terms of Student Commerce & Privacy Notice',
-                        style: TextStyle(
+                    TextButton(
+                      onPressed: () => showPrivacyConsentSheet(context),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(48, 48),
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        tapTargetSize: MaterialTapTargetSize.padded,
+                        foregroundColor: TeknoyTheme.citMaroon,
+                        textStyle: const TextStyle(
                           fontFamily: 'Inter',
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: TeknoyTheme.citMaroon,
                           decoration: TextDecoration.underline,
+                          decorationColor: TeknoyTheme.citMaroon,
                         ),
+                      ),
+                      child: const Text(
+                        'Terms of Student Commerce & Privacy Notice',
                       ),
                     ),
                   ],

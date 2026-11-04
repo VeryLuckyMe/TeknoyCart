@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:teknoycart/features/auth/models/profile.dart';
 import 'package:teknoycart/features/auth/services/auth_service.dart';
 import 'package:teknoycart/features/auth/views/widgets/auth_form_fields.dart';
+import 'package:teknoycart/features/auth/utils/student_id.dart';
 
 /// Pure-logic unit tests for AuthService and Auth Form UX utilities.
 /// These test domain validation, student ID formatting, and form guard logic
@@ -94,68 +96,91 @@ void main() {
     });
   });
 
-  group('StudentIdInputFormatter & UX Validation Tests', () {
-    late StudentIdInputFormatter formatter;
+  group('Student ID input, validation and catalogue rules', () {
+    const formatter = StudentIdInputFormatter();
 
-    setUp(() {
-      formatter = StudentIdInputFormatter();
+    TextEditingValue typed(String text) => TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: text.length),
+        );
+
+    test('never inserts a dash the user did not type', () {
+      // Regression: the old formatter emitted `21-` after two digits, which
+      // mangled faculty / other grade level IDs such as `2004-3732`.
+      expect(formatter.formatEditUpdate(TextEditingValue.empty, typed('2')).text, '2');
+      expect(formatter.formatEditUpdate(typed('2'), typed('21')).text, '21');
+      expect(formatter.formatEditUpdate(typed('21'), typed('211')).text, '211');
+      expect(formatter.formatEditUpdate(typed('2004'), typed('2004-')).text, '2004-');
     });
 
-    test('should format raw digits into ##-####-### standard automatically', () {
-      const input = TextEditingValue(text: '211029315');
-      final output = formatter.formatEditUpdate(TextEditingValue.empty, input);
-      expect(output.text, '21-1029-315');
-    });
-
-    test('should format partial digits correctly as typed', () {
-      // 2 digits
-      var output = formatter.formatEditUpdate(
-        TextEditingValue.empty,
-        const TextEditingValue(text: '21'),
+    test('keeps user-typed dashes in place', () {
+      expect(
+        formatter.formatEditUpdate(TextEditingValue.empty, typed('21-1029-315')).text,
+        '21-1029-315',
       );
-      expect(output.text, '21');
-
-      // 3 digits -> inserts first dash
-      output = formatter.formatEditUpdate(
-        const TextEditingValue(text: '21'),
-        const TextEditingValue(text: '211'),
+      expect(
+        formatter.formatEditUpdate(TextEditingValue.empty, typed('2004-3732')).text,
+        '2004-3732',
       );
-      expect(output.text, '21-1');
-
-      // 6 digits -> "21-1234"
-      output = formatter.formatEditUpdate(
-        TextEditingValue.empty,
-        const TextEditingValue(text: '211234'),
-      );
-      expect(output.text, '21-1234');
-
-      // 7 digits -> "21-1234-5"
-      output = formatter.formatEditUpdate(
-        TextEditingValue.empty,
-        const TextEditingValue(text: '2112345'),
-      );
-      expect(output.text, '21-1234-5');
     });
 
-    test('should strip non-digit characters gracefully', () {
-      const input = TextEditingValue(text: '21-ABC-1234-XYZ-567');
-      final output = formatter.formatEditUpdate(TextEditingValue.empty, input);
-      expect(output.text, '21-1234-567');
+    test('strips invalid characters and duplicate dashes', () {
+      expect(
+        formatter.formatEditUpdate(TextEditingValue.empty, typed('21-ABC-1029-XYZ-315')).text,
+        '21-1029-315',
+      );
+      expect(
+        formatter.formatEditUpdate(TextEditingValue.empty, typed('--21--1029')).text,
+        '21-1029',
+      );
     });
 
-    test('should cap student ID at 9 total digits', () {
-      const input = TextEditingValue(text: '21123456789999');
-      final output = formatter.formatEditUpdate(TextEditingValue.empty, input);
-      expect(output.text, '21-1234-567');
+    test('caps the digit count at 12', () {
+      expect(
+        formatter.formatEditUpdate(TextEditingValue.empty, typed('2110293159999')).text,
+        '211029315999',
+      );
     });
 
-    test('CIT-U Student ID regex validates formatted IDs', () {
-      final regex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
-      expect(regex.hasMatch('21-1029-315'), isTrue);
-      expect(regex.hasMatch('19-4567-890'), isTrue);
-      expect(regex.hasMatch('211029315'), isFalse);
-      expect(regex.hasMatch('21-102-315'), isFalse);
-      expect(regex.hasMatch('21-1029-31'), isFalse);
+    test('preserves the caret instead of jumping to the end', () {
+      // Caret in the middle of `21-1029-315`, user types `9`.
+      final result = formatter.formatEditUpdate(
+        typed('21-1029-315'),
+        const TextEditingValue(
+          text: '21-91029-315',
+          selection: TextSelection.collapsed(offset: 4),
+        ),
+      );
+      expect(result.text, '21-91029-315');
+      expect(result.selection.baseOffset, 4);
+    });
+
+    test('backspace keeps every remaining digit (no corruption)', () {
+      // Deleting the `1` at index 2 used to shift the whole number around.
+      final result = formatter.formatEditUpdate(
+        typed('21-3456-789'),
+        const TextEditingValue(
+          text: '2-3456-789',
+          selection: TextSelection.collapsed(offset: 1),
+        ),
+      );
+      expect(result.text, '2-3456-789');
+      expect(result.selection.baseOffset, 1);
+    });
+
+    test('isValid accepts both collegiate and faculty ID shapes', () {
+      expect(StudentIdRules.isValid('21-1029-315'), isTrue);
+      expect(StudentIdRules.isValid('211029315'), isTrue);
+      expect(StudentIdRules.isValid('2004-3732'), isTrue);
+      expect(StudentIdRules.isValid('20043732'), isTrue);
+      expect(StudentIdRules.isValid('12345'), isFalse); // 5 digits
+      expect(StudentIdRules.isValid('invalid-id'), isFalse);
+      expect(StudentIdRules.isValid(''), isFalse);
+    });
+
+    test('digitsOf normalises for uniqueness comparisons', () {
+      expect(StudentIdRules.digitsOf('21-1029-315'), '211029315');
+      expect(StudentIdRules.digitsOf('2004-3732'), '20043732');
     });
 
     test('citDepartmentOptions contains all 8 CIT colleges and high school levels', () {
