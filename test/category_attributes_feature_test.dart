@@ -433,6 +433,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(verifiedSellerUser)),
+            inertUnreadChatCountOverride,
           ],
           child: const MaterialApp(
             home: ProductDiscoveryFeedView(initialTab: 2),
@@ -487,6 +488,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(verifiedSellerUser)),
+            inertUnreadChatCountOverride,
           ],
           child: const MaterialApp(
             home: ProductDiscoveryFeedView(initialTab: 2),

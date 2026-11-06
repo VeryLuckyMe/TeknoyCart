@@ -62,7 +62,16 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final subtitleColor = isDark ? Colors.white.withValues(alpha: 0.6) : const Color(0xFF8E8E93);
 
-    return Column(
+    // All fields of the sign-up form live in ONE AutofillGroup (the intended
+    // Flutter usage). Without it, every refocus opened an autofill-tagged IME
+    // connection with no group session — the prime suspect for the Android
+    // emulator wedge where the caret blinks and the keyboard is up, yet typed
+    // and deleted characters never reach the field. The group also makes the
+    // two password fields a single password-manager unit.
+    //
+    // cancel (not commit): an abandoned or failed sign-up must not trigger a
+    // "Save password?" prompt with incomplete data.
+    final formColumn = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Step Progress Indicator
@@ -842,5 +851,7 @@ class _AuthRegisterFormState extends State<AuthRegisterForm> {
         ],
       ],
     );
+
+    return AutofillGroup(onDisposeAction: AutofillContextAction.cancel, child: formColumn);
   }
 }

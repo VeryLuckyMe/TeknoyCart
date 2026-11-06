@@ -13,6 +13,7 @@ import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:flutter/services.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'mock_http_client.dart';
+import 'support/test_harness.dart';
 
 void main() {
   setUpAll(() async {
@@ -64,6 +65,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
+            inertUnreadChatCountOverride,
             productsListProvider.overrideWith((ref) => Future.value([testProduct])),
           ],
           child: const MaterialApp(
@@ -100,6 +102,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
+            inertUnreadChatCountOverride,
             productsListProvider.overrideWith((ref) => Future.value([testProduct])),
           ],
           child: const MaterialApp(
@@ -134,6 +137,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
+            inertUnreadChatCountOverride,
           ],
           child: MaterialApp(
             home: ProductDetailView(product: testProduct),
@@ -176,6 +180,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
+            inertUnreadChatCountOverride,
           ],
           child: MaterialApp(
             home: CheckoutView(

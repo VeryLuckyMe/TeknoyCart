@@ -62,6 +62,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
+            inertUnreadChatCountOverride,
             productsListProvider.overrideWith((ref) => Future.value([testProduct])),
             cartProvider.overrideWith((ref) => emptyCartNotifier),
           ],
@@ -106,6 +107,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
+            inertUnreadChatCountOverride,
             productsListProvider.overrideWith((ref) => Future.value([testProduct])),
             cartProvider.overrideWith((ref) => populatedCartNotifier),
           ],
@@ -154,6 +156,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
+            inertUnreadChatCountOverride,
             productsListProvider.overrideWith((ref) => Future.value([testProduct])),
             cartProvider.overrideWith((ref) => populatedCartNotifier),
           ],
@@ -214,6 +217,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
+            inertUnreadChatCountOverride,
             productsListProvider.overrideWith((ref) => Future.value([testProduct])),
             cartProvider.overrideWith((ref) => populatedCartNotifier),
           ],
@@ -287,6 +291,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
+            inertUnreadChatCountOverride,
             productsListProvider.overrideWith((ref) => Future.value([product1, product2])),
             cartProvider.overrideWith((ref) => populatedCartNotifier),
           ],

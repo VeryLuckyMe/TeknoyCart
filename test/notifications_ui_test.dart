@@ -11,6 +11,7 @@ import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/checkout/views/order_detail_view.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 import 'mock_http_client.dart';
+import 'support/test_harness.dart';
 
 class FakeNotificationNotifier extends NotificationNotifier {
   final List<NotificationItem> items;
@@ -97,6 +98,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(testUser)),
+            inertUnreadChatCountOverride,
             unreadNotificationCountProvider.overrideWithValue(0),
             notificationProvider.overrideWith(() => FakeNotificationNotifier(const [])),
           ],
@@ -132,6 +134,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(testUser)),
+            inertUnreadChatCountOverride,
             unreadNotificationCountProvider.overrideWithValue(2),
             notificationProvider.overrideWith(() => FakeNotificationNotifier(sampleNotifications)),
           ],
@@ -164,6 +167,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(testUser)),
+            inertUnreadChatCountOverride,
             unreadNotificationCountProvider.overrideWithValue(2),
             notificationProvider.overrideWith(() => FakeNotificationNotifier(sampleNotifications)),
           ],
@@ -197,6 +201,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(testUser)),
+            inertUnreadChatCountOverride,
             unreadNotificationCountProvider.overrideWithValue(0),
             notificationProvider.overrideWith(() => FakeNotificationNotifier(const [])),
           ],
@@ -228,6 +233,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(testUser)),
+            inertUnreadChatCountOverride,
             unreadNotificationCountProvider.overrideWithValue(2),
             notificationProvider.overrideWith(() => FakeNotificationNotifier(sampleNotifications)),
           ],
@@ -262,6 +268,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(testUser)),
+            inertUnreadChatCountOverride,
             unreadNotificationCountProvider.overrideWithValue(2),
             notificationProvider.overrideWith(() => FakeNotificationNotifier(sampleNotifications)),
           ],
@@ -315,6 +322,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(adminUser)),
+            inertUnreadChatCountOverride,
             unreadNotificationCountProvider.overrideWithValue(1),
             notificationProvider.overrideWith(() => FakeNotificationNotifier(adminNotifications)),
           ],
@@ -379,6 +387,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(sellerUser)),
+            inertUnreadChatCountOverride,
             unreadNotificationCountProvider.overrideWithValue(1),
             notificationProvider.overrideWith(() => FakeNotificationNotifier(reviewNotifications)),
           ],
