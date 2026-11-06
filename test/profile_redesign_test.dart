@@ -10,6 +10,7 @@ import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/feed/views/product_discovery_feed_view.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'mock_http_client.dart';
+import 'support/test_harness.dart';
 
 void main() {
   setUpAll(() async {
@@ -55,6 +56,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(testStudent)),
+            inertUnreadChatCountOverride,
             productsListProvider.overrideWith((ref) => Future.value(<Product>[])),
           ],
           child: const MaterialApp(
@@ -116,6 +118,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(testStudent)),
+            inertUnreadChatCountOverride,
             productsListProvider.overrideWith((ref) => Future.value(<Product>[])),
           ],
           child: const MaterialApp(
@@ -152,6 +155,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(testStudent)),
+            inertUnreadChatCountOverride,
             productsListProvider.overrideWith((ref) => Future.value(<Product>[])),
           ],
           child: const MaterialApp(
@@ -187,6 +191,7 @@ void main() {
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => AsyncValue.data(testStudent)),
+            inertUnreadChatCountOverride,
             productsListProvider.overrideWith((ref) => Future.value(<Product>[])),
           ],
           child: const MaterialApp(

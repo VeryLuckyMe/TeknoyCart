@@ -73,13 +73,10 @@ class AuthService {
   /// Prevents stale role/verification states when auth.users.raw_user_meta_data is out of sync.
   Future<Profile> getEnrichedProfile(Profile profile) async {
     try {
-      // Own PII is exposed only through the owner-run my_profile view. The
+      // Own PII is exposed only through the owner-run my_profile RPC. The
       // base users table grants only public columns to authenticated clients.
-      final res = await _client
-          .from('my_profile')
-          .select(
-              'full_name, email, role, is_seller_verified, student_id, contact, gcash_number, seller_type')
-          .maybeSingle();
+      final rows = await _client.rpc('my_profile');
+      final res = (rows is List && rows.isNotEmpty) ? rows.first : null;
       if (res != null) {
         final meta = _client.auth.currentUser?.userMetadata;
         final dept = (meta?['department'] as String?) ?? profile.department;

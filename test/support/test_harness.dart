@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import '../mock_http_client.dart';
 
 /// Centralized test harness for TeknoyCart widget and integration tests.
@@ -47,4 +48,21 @@ class TestHarness {
     return overrides;
   }
 }
+
+/// Overrides [unreadChatCountNotifierProvider] with an inert anonymous
+/// instance (real client, no user): no fetch, no channel, no timers.
+///
+/// Why: The production notifier subscribes a realtime channel for the signed
+/// in user. In widget tests pumping an authenticated app shell, teardown
+/// calls `_channel?.unsubscribe()` and realtime_client schedules its 50
+/// second "pending disconnect" FakeTimer inside the test's fake_async zone.
+/// Flutter test then fails the whole test with the invariant
+/// `!timersPending` ("A Timer is still pending even after the widget tree
+/// was disposed") even though no assertion failed. A null user keeps the
+/// same observable default (count 0, badge hidden) without timers or
+/// network, while no test here asserts unread-chat behavior.
+final inertUnreadChatCountOverride =
+    unreadChatCountNotifierProvider.overrideWith(
+  (ref) => UnreadChatCountNotifier(SupabaseConfig.client, null),
+);
 

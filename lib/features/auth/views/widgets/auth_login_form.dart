@@ -42,7 +42,13 @@ class _AuthLoginFormState extends State<AuthLoginForm> {
     final isLocked = widget.lockoutSecondsRemaining != null && widget.lockoutSecondsRemaining! > 0;
     final hasAttemptsWarning = !isLocked && widget.attemptsRemaining != null && widget.attemptsRemaining! < 5;
 
-    return Column(
+    // All fields of the sign-in form live in ONE AutofillGroup (the intended
+    // Flutter usage). Without it, every refocus opened an autofill-tagged IME
+    // connection with no group session — the prime suspect for the Android
+    // emulator wedge where the caret blinks and the keyboard is up, yet typed
+    // and deleted characters never reach the field. Default dispose action
+    // (commit) matches standard behaviour for credential forms.
+    final formColumn = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AuthInputField(
@@ -377,6 +383,8 @@ class _AuthLoginFormState extends State<AuthLoginForm> {
         ),
       ],
     );
+
+    return AutofillGroup(child: formColumn);
   }
 }
 

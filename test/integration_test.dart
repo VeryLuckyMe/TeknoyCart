@@ -20,6 +20,7 @@ import 'package:teknoycart/features/feed/providers/product_provider.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/chat/services/chat_service.dart';
 import 'mock_http_client.dart';
+import 'support/test_harness.dart';
 
 void main() {
   setUpAll(() async {
@@ -74,6 +75,7 @@ void main() {
               return service;
             }),
             authStateProvider.overrideWith((ref) => ref.watch(authNotifierProvider)),
+            inertUnreadChatCountOverride,
             chatMessagesStreamProvider.overrideWith((ref, roomId) {
               // Use a broadcast StreamController so we can merge: seed messages + sent messages + seller reply
               final controller = StreamController<List<Message>>.broadcast();

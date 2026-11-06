@@ -363,16 +363,18 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
         _buyerNameResolved = true;
       }
 
-      // OTP columns are buyer-only and live behind a dedicated view. A seller
-      // gets no row here, so the code never reaches the verifying party.
+      // OTP columns are buyer-only and live behind a dedicated SECURITY
+      // DEFINER RPC (the my_order_codes view was retired by
+      // patch_privileged_reads_by_rpc_2026_11_05.sql). A seller gets no row
+      // here, so the code never reaches the verifying party.
       try {
-        final codes = await SupabaseConfig.client
-            .from('my_order_codes')
-            .select('handoff_otp, otp_created_at, otp_failed_attempts, return_otp')
-            .eq('order_id', _order['order_id'])
-            .maybeSingle();
-        if (codes != null) {
-          merged.addAll(Map<String, dynamic>.from(codes));
+        final codeRows = await SupabaseConfig.client.rpc(
+          'my_order_codes',
+          params: {'p_order_id': _order['order_id']},
+        );
+        final List<dynamic> fetched = codeRows is List ? codeRows : const <dynamic>[];
+        if (fetched.isNotEmpty && fetched.first is Map) {
+          merged.addAll(Map<String, dynamic>.from(fetched.first));
         }
       } catch (_) {}
 

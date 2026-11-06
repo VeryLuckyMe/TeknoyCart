@@ -16,6 +16,7 @@ import 'package:teknoycart/features/feed/views/wishlist_view.dart';
 import 'package:teknoycart/features/splash/splash_view.dart';
 import 'package:teknoycart/main.dart';
 import 'mock_http_client.dart';
+import 'support/test_harness.dart';
 
 class _NoOpWishlistStorage implements WishlistStorageAdapter {
   @override
@@ -230,6 +231,7 @@ void main() {
             appLinkSourceProvider.overrideWithValue(fakeSource),
             isSplashCompletedProvider.overrideWith((ref) => true),
             authStateProvider.overrideWithValue(AsyncValue.data(testUser)),
+            inertUnreadChatCountOverride,
             productsListProvider.overrideWith((ref) => Future.value(<Product>[])),
             wishlistProvider.overrideWith(
               (ref) => WishlistNotifier(storage: _NoOpWishlistStorage(), autoLoad: false),
