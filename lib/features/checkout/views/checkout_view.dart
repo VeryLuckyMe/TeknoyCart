@@ -12,8 +12,10 @@ import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/models/checkout_item.dart';
 import 'package:teknoycart/features/checkout/models/cart_summary.dart';
 import 'package:teknoycart/features/checkout/services/checkout_submitter.dart';
+import 'package:teknoycart/features/checkout/services/checkout_error_mapper.dart';
 import 'package:teknoycart/core/utils/request_id.dart';
 import 'package:teknoycart/features/checkout/models/campus_landmark.dart';
+import 'package:teknoycart/features/checkout/models/variant_resolution.dart';
 import 'package:teknoycart/features/checkout/views/widgets/checkout_section_header.dart';
 import 'package:teknoycart/features/checkout/views/widgets/checkout_success_dialog.dart';
 
@@ -62,6 +64,25 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   // FIX #1: Track resolved variant IDs per product to avoid re-querying on submit.
   final Map<String, String> _resolvedVariantIds = {};
   final Map<String, double> _variantAdditionalPrices = {};
+  /// Why a line's variant could not be resolved (see resolveCheckoutVariant).
+  final Map<String, VariantResolutionFailure> _variantFailures = {};
+
+  Future<List<String>> _lookupVariantIds(
+    String productId, {
+    String? variantValue,
+    required int limit,
+  }) async {
+    var query = SupabaseConfig.client
+        .from('product_variants')
+        .select('variant_id')
+        .eq('product_id', productId);
+    if (variantValue != null) query = query.eq('variant_value', variantValue);
+    final rows = await query.limit(limit);
+    return (rows as List)
+        .map((r) => r['variant_id'] as String?)
+        .whereType<String>()
+        .toList();
+  }
   bool _isLoadingInventory = true;
 
   /// Idempotency key for this checkout screen (see CheckoutSubmitter).
@@ -164,41 +185,16 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       // FIX #7: Run all inventory checks in parallel with multi-stage auto-heal.
       final futures = _checkoutItems.map((item) async {
         try {
-          String? variantId = item.variantId;
-          if (variantId == null || variantId == '00000000-0000-0000-0000-000000000000') {
-            // Stage 1: Try matching variantName
-            if (item.variantName != null && item.variantName!.isNotEmpty) {
-              final variants = await client
-                  .from('product_variants')
-                  .select('variant_id')
-                  .eq('product_id', item.product.id)
-                  .eq('variant_value', item.variantName!)
-                  .limit(1);
-              if ((variants as List).isNotEmpty && variants[0]['variant_id'] != null) {
-                variantId = variants[0]['variant_id'] as String;
-              }
-            }
-
-            // Stage 2: Fallback to ANY available variant for this product
-            if (variantId == null || variantId == '00000000-0000-0000-0000-000000000000') {
-              final anyVariants = await client
-                  .from('product_variants')
-                  .select('variant_id')
-                  .eq('product_id', item.product.id)
-                  .limit(1);
-              if ((anyVariants as List).isNotEmpty && anyVariants[0]['variant_id'] != null) {
-                variantId = anyVariants[0]['variant_id'] as String;
-              }
-            }
-
-
-            // Stage 3: No variant exists in DB — listing is not properly set up.
-            // Do NOT auto-create inventory on behalf of the seller (Ponytail Audit C-4).
-            // Surface the error to the buyer instead of fabricating stock records.
-            if (variantId == null || variantId == '00000000-0000-0000-0000-000000000000') {
-              debugPrint('CHECKOUT: No variant found for product ${item.product.id}. Listing inventory is not configured.');
-              // variantId stays null — the inventory check below will treat it as out-of-stock.
-            }
+          final resolution = await resolveCheckoutVariant(
+            productId: item.product.id,
+            variantId: item.variantId,
+            variantName: item.variantName,
+            lookup: _lookupVariantIds,
+          );
+          final String? variantId = resolution.variantId;
+          if (!resolution.isResolved) {
+            _variantFailures[item.product.id] = resolution.failure!;
+            debugPrint('CHECKOUT: variant unresolved for ${item.product.id}: ${resolution.failure}');
           }
 
           if (variantId != null) {
@@ -273,53 +269,40 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         // ----------------------------------------------------------------
         // Stage 1: Resolve variant ID (multi-stage auto-heal, Ponytail C-4)
         // ----------------------------------------------------------------
-        String? itemVariantId = _resolvedVariantIds[item.product.id] ?? item.variantId;
-
-        if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
+        String? itemVariantId = _resolvedVariantIds[item.product.id];
+        VariantResolutionFailure? failure = _variantFailures[item.product.id];
+        if (itemVariantId == null) {
           try {
-            if (item.variantName != null && item.variantName!.isNotEmpty) {
-              final variants = await client
-                  .from('product_variants')
-                  .select('variant_id')
-                  .eq('product_id', item.product.id)
-                  .eq('variant_value', item.variantName!)
-                  .limit(1);
-              if ((variants as List).isNotEmpty && variants[0]['variant_id'] != null) {
-                itemVariantId = variants[0]['variant_id'] as String;
-              }
-            }
-
-            if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
-              final anyVariants = await client
-                  .from('product_variants')
-                  .select('variant_id')
-                  .eq('product_id', item.product.id)
-                  .limit(1);
-              if ((anyVariants as List).isNotEmpty && anyVariants[0]['variant_id'] != null) {
-                itemVariantId = anyVariants[0]['variant_id'] as String;
-              }
-            }
+            final resolution = await resolveCheckoutVariant(
+              productId: item.product.id,
+              variantId: item.variantId,
+              variantName: item.variantName,
+              lookup: _lookupVariantIds,
+            );
+            itemVariantId = resolution.variantId;
+            failure = resolution.failure;
           } catch (vErr) {
             debugPrint('CHECKOUT_VARIANT_RESOLVE_ERROR: $vErr');
           }
         }
 
-        if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
+        if (itemVariantId == null) {
           if (mounted) {
             setState(() => _isSubmitting = false);
+            final message = failure == VariantResolutionFailure.ambiguous
+                ? 'Choose a size or option for "${item.product.title}" on its product page before checking out.'
+                : '"${item.product.title}" is not yet set up for purchase — '
+                    'the seller has not configured its inventory. '
+                    'Try messaging the seller via chat.';
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(
-                  '"${item.product.title}" is not yet set up for purchase — '
-                  'the seller has not configured its inventory. '
-                  'Try messaging the seller via chat.',
-                ),
+                content: Text(message),
                 backgroundColor: TeknoyTheme.error,
                 duration: const Duration(seconds: 5),
               ),
             );
           }
-          return; // Hard abort — no items processed yet at this point in the loop
+          return; // Hard abort before any order is placed
         }
 
         // Always pass authoritative catalog unit price to satisfy place_orders_atomic integrity check
@@ -348,16 +331,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         clientRequestId: _clientRequestId,
       );
       if (!rpcResult.success) {
-        final message = switch (rpcResult.error) {
-          'INSUFFICIENT_STOCK' => 'Some items are no longer available. Refresh your cart and try again.',
-          'PREORDER_NOT_ALLOWED' => 'Pre-orders are not enabled for one of these listings.',
-          'INVALID_LISTING' => 'A listing or seller is no longer available.',
-          'PRODUCT_NOT_ACTIVE' => 'A listing is no longer active.',
-          'CANNOT_PURCHASE_OWN_PRODUCT' => 'You cannot purchase your own listing.',
-          'PRICE_MISMATCH' => 'The listing price changed or this negotiated price has not been confirmed in the system. Refresh the listing and try again.',
-          _ => 'Could not place this order. Please refresh and try again.',
-        };
-        throw Exception(message);
+        throw CheckoutRejected(rpcResult.error);
       }
 
       final createdOrders = rpcResult.orders;
@@ -413,7 +387,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         setState(() => _isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Checkout failed: $e'),
+            content: Text(checkoutErrorMessage(e)),
             backgroundColor: TeknoyTheme.error,
           ),
         );
