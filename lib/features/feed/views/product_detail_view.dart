@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/core/providers/seller_type_provider.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/utils/order_ui_helper.dart';
@@ -1525,6 +1526,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               onAddToCartPressed: _addToCart,
               onMakeOfferPressed: () => _showMakeAnOfferDialog(context),
               onBuyNowPressed: _buyNow,
+              showMakeOffer: ref.watch(sellerAcceptsOffersProvider(product.sellerId)),
             ),
           ),
         ],

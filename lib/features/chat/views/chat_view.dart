@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/core/providers/seller_type_provider.dart';
 import 'package:teknoycart/core/models/product.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/core/theme.dart';
@@ -470,7 +471,8 @@ class _ChatViewState extends ConsumerState<ChatView> {
             activeOfferPrice: activeOfferPrice,
             askingPrice: widget.product.price,
             isBuyer: ref.read(authStateProvider).valueOrNull?.id != widget.product.sellerId,
-            canOffer: !_isSoldOut,
+            canOffer: !_isSoldOut &&
+                ref.watch(sellerAcceptsOffersProvider(widget.product.sellerId)),
             onOfferPrice: _showOfferPriceDialog,
             onCheckout: () {
               final checkoutPrice = (activeOfferPrice > 0)
