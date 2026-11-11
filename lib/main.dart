@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +15,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent;
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/auth/services/auth_service.dart';
 import 'package:teknoycart/features/splash/splash_view.dart';
+import 'package:teknoycart/core/widgets/inactivity_wrapper.dart';
 
 void main() async {
   // Ensure Flutter engine is ready before calling any platform plugins
@@ -162,58 +162,6 @@ class TeknoyCartApp extends ConsumerWidget {
         );
       },
       home: const SplashView(),
-    );
-  }
-}
-
-class InactivityWrapper extends StatefulWidget {
-  final Widget child;
-  final VoidCallback onTimeout;
-
-  const InactivityWrapper({
-    super.key,
-    required this.child,
-    required this.onTimeout,
-  });
-
-  @override
-  State<InactivityWrapper> createState() => _InactivityWrapperState();
-}
-
-class _InactivityWrapperState extends State<InactivityWrapper> {
-  Timer? _timer;
-  DateTime _lastReset = DateTime.now();
-
-  /// Throttled reset: at most once per 30 seconds to avoid GC pressure
-  /// from hundreds of Timer cancels/creates during scroll gestures (HIGH-08)
-  static const _throttleDuration = Duration(seconds: 30);
-
-  void _resetTimer() {
-    final now = DateTime.now();
-    if (now.difference(_lastReset) < _throttleDuration) return;
-    _lastReset = now;
-    _timer?.cancel();
-    _timer = Timer(const Duration(minutes: 30), widget.onTimeout);
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer(const Duration(minutes: 30), widget.onTimeout);
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => _resetTimer(),
-      child: widget.child,
     );
   }
 }
