@@ -41,10 +41,11 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
     // Auto-sync state and manage heartbeat for all auth changes (including auto-login / session restore)
     _authSubscription = _authService.authStateChanges.listen((user) async {
       if (user != null) {
-        state = AsyncValue.data(user);
+        final seed = _preserveEnrichedSameUser(user, state.valueOrNull);
+        state = AsyncValue.data(seed);
         PresenceService.instance.startHeartbeat(user.id);
         _subscribeToVerificationChanges(user.id);
-        final enriched = await _authService.getEnrichedProfile(user);
+        final enriched = await _authService.getEnrichedProfile(seed);
         if (mounted) {
           state = AsyncValue.data(enriched);
         }
@@ -55,6 +56,29 @@ class AuthNotifier extends StateNotifier<AsyncValue<Profile?>> {
         PresenceService.instance.stopHeartbeat();
       }
     });
+  }
+
+  /// Preserves already-enriched database fields for the same user when an auth
+  /// stream event (e.g. token refresh) emits un-enriched auth metadata.
+  Profile _preserveEnrichedSameUser(Profile incoming, Profile? previous) {
+    if (previous == null || previous.id != incoming.id) return incoming;
+    return incoming.copyWith(
+      username: incoming.username.trim().isNotEmpty
+          ? incoming.username
+          : previous.username,
+      email: incoming.email.trim().isNotEmpty ? incoming.email : previous.email,
+      role: (previous.isSeller && !incoming.isSeller)
+          ? previous.role
+          : incoming.role,
+      isSellerVerified: incoming.isSellerVerified || previous.isSellerVerified,
+      department: incoming.department ?? previous.department,
+      studentId: incoming.studentId ?? previous.studentId,
+      contact: incoming.contact ?? previous.contact,
+      gcashNumber: incoming.gcashNumber ?? previous.gcashNumber,
+      sellerType: incoming.sellerType ?? previous.sellerType,
+      storeName: incoming.storeName ?? previous.storeName,
+      avatarUrl: incoming.avatarUrl ?? previous.avatarUrl,
+    );
   }
 
   void _subscribeToVerificationChanges(String userId) {

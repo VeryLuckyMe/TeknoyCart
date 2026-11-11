@@ -69,85 +69,152 @@ class AuthService {
     );
   }
 
+  static Map<String, dynamic>? _extractProfileRow(dynamic raw) {
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    if (raw is List && raw.isNotEmpty) {
+      final first = raw.first;
+      if (first is Map<String, dynamic>) return first;
+      if (first is Map) return Map<String, dynamic>.from(first);
+    }
+    return null;
+  }
+
+  static String? _asNonEmptyString(dynamic value) {
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isNotEmpty) return trimmed;
+    }
+    return null;
+  }
+
+  static bool? _asBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final lower = value.trim().toLowerCase();
+      if (lower == 'true') return true;
+      if (lower == 'false') return false;
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> _fetchAuthoritativeUserRow(String userId) async {
+    // 1. Try owner-run my_profile RPC (when deployed as an RPC function).
+    try {
+      final rpcResult = await _client.rpc('my_profile');
+      final rpcRow = _extractProfileRow(rpcResult);
+      if (rpcRow != null) return rpcRow;
+    } catch (e) {
+      debugPrint('AUTH_ENRICH_MY_PROFILE_RPC: $e');
+    }
+
+    // 2. Fallback to owner-run public.my_profile view (preserves own PII + RBAC).
+    try {
+      final viewRow = await _client
+          .from('my_profile')
+          .select(
+            'full_name, email, role, is_seller_verified, student_id, contact, gcash_number, seller_type',
+          )
+          .maybeSingle();
+      final extracted = _extractProfileRow(viewRow);
+      if (extracted != null) return extracted;
+    } catch (e) {
+      debugPrint('AUTH_ENRICH_MY_PROFILE_VIEW: $e');
+    }
+
+    // 3. Fallback to public.users safe columns when my_profile RPC/view fails or returns empty.
+    try {
+      final publicRow = await _client
+          .from('users')
+          .select('user_id, full_name, role, is_seller_verified')
+          .eq('user_id', userId)
+          .maybeSingle();
+      final extracted = _extractProfileRow(publicRow);
+      if (extracted != null) return extracted;
+    } catch (e) {
+      debugPrint('AUTH_ENRICH_USERS_FALLBACK: $e');
+    }
+
+    return null;
+  }
+
   /// Enriches a profile with authoritative RBAC and profile data directly from the public.users database table.
   /// Prevents stale role/verification states when auth.users.raw_user_meta_data is out of sync.
   Future<Profile> getEnrichedProfile(Profile profile) async {
     try {
-      // Own PII is exposed only through the owner-run my_profile RPC. The
-      // base users table grants only public columns to authenticated clients.
-      final rows = await _client.rpc('my_profile');
-      final res = (rows is List && rows.isNotEmpty) ? rows.first : null;
-      if (res != null) {
-        final meta = _client.auth.currentUser?.userMetadata;
-        final dept = (meta?['department'] as String?) ?? profile.department;
-        final avatar = (meta?['avatar_url'] as String?) ??
-            (meta?['avatarUrl'] as String?) ??
-            profile.avatarUrl;
-        final dbEmail = (res['email'] as String?)?.trim();
-        final resolvedEmail = (dbEmail != null && dbEmail.isNotEmpty)
-            ? dbEmail
-            : profile.email;
-        String? resolvedSellerType =
-            (res['seller_type'] as String?) ??
-            (meta?['seller_type'] as String?) ??
-            profile.sellerType;
-        String? resolvedStoreName =
-            (meta?['store_name'] as String?) ?? profile.storeName;
+      final res = await _fetchAuthoritativeUserRow(profile.id);
+      final meta = _client.auth.currentUser?.userMetadata;
 
-        if (resolvedStoreName == null && profile.role.toUpperCase() == 'SELLER') {
-          try {
-            final storeRow = await _client
-                .from('store_profiles')
-                .select('store_name')
-                .eq('seller_id', profile.id)
-                .maybeSingle();
-            if (storeRow != null) {
-              final sName = storeRow['store_name'] as String?;
-              if (sName != null && sName.trim().isNotEmpty) {
-                resolvedStoreName = sName.trim();
-              }
+      final dept = _asNonEmptyString(meta?['department']) ?? profile.department;
+      final avatar = _asNonEmptyString(meta?['avatar_url']) ??
+          _asNonEmptyString(meta?['avatarUrl']) ??
+          profile.avatarUrl;
+      final resolvedEmail =
+          _asNonEmptyString(res?['email']) ?? profile.email;
+      String? resolvedSellerType = _asNonEmptyString(res?['seller_type']) ??
+          _asNonEmptyString(meta?['seller_type']) ??
+          profile.sellerType;
+      String? resolvedStoreName =
+          _asNonEmptyString(meta?['store_name']) ?? profile.storeName;
+
+      bool isVerified =
+          _asBool(res?['is_seller_verified']) ?? profile.isSellerVerified;
+      String userRole = _asNonEmptyString(res?['role']) ?? profile.role;
+
+      // Always check latest seller_verifications when RBAC isn't already verified SELLER,
+      // even if my_profile RPC failed or returned empty.
+      if (!isVerified || userRole.toUpperCase() != 'SELLER') {
+        try {
+          final verif = await _client
+              .from('seller_verifications')
+              .select('status, seller_type')
+              .eq('user_id', profile.id)
+              .order('created_at', ascending: false)
+              .limit(1)
+              .maybeSingle();
+          if (verif != null) {
+            resolvedSellerType ??= _asNonEmptyString(verif['seller_type']);
+            final status =
+                (_asNonEmptyString(verif['status']) ?? '').toUpperCase();
+            if (status == 'APPROVED') {
+              isVerified = true;
+              userRole = 'SELLER';
             }
-          } catch (_) {}
+          }
+        } catch (e) {
+          debugPrint('AUTH_ENRICH_VERIF_FALLBACK: $e');
         }
-
-        bool isVerified =
-            (res['is_seller_verified'] as bool?) ?? profile.isSellerVerified;
-        String userRole = res['role'] as String? ?? profile.role;
-
-        // Check latest seller_verifications status to ensure instant sync upon admin approval
-        if (!isVerified || userRole.toUpperCase() != 'SELLER') {
-          try {
-            final verif = await _client
-                .from('seller_verifications')
-                .select('status, seller_type')
-                .eq('user_id', profile.id)
-                .order('created_at', ascending: false)
-                .limit(1)
-                .maybeSingle();
-            if (verif != null) {
-              resolvedSellerType ??= verif['seller_type'] as String?;
-              if (verif['status'] == 'APPROVED') {
-                isVerified = true;
-                userRole = 'SELLER';
-              }
-            }
-          } catch (_) {}
-        }
-
-        return profile.copyWith(
-          username: res['full_name'] as String? ?? profile.username,
-          email: resolvedEmail,
-          role: userRole,
-          isSellerVerified: isVerified,
-          department: dept,
-          studentId: res['student_id'] as String? ?? profile.studentId,
-          contact: res['contact'] as String? ?? profile.contact,
-          gcashNumber: res['gcash_number'] as String? ?? profile.gcashNumber,
-          sellerType: resolvedSellerType,
-          storeName: resolvedStoreName,
-          avatarUrl: avatar,
-        );
       }
+
+      if (resolvedStoreName == null && userRole.toUpperCase() == 'SELLER') {
+        try {
+          final storeRow = await _client
+              .from('store_profiles')
+              .select('store_name')
+              .eq('seller_id', profile.id)
+              .maybeSingle();
+          final sName = _asNonEmptyString(storeRow?['store_name']);
+          if (sName != null) {
+            resolvedStoreName = sName;
+          }
+        } catch (_) {}
+      }
+
+      return profile.copyWith(
+        username: _asNonEmptyString(res?['full_name']) ?? profile.username,
+        email: resolvedEmail,
+        role: userRole,
+        isSellerVerified: isVerified,
+        department: dept,
+        studentId: _asNonEmptyString(res?['student_id']) ?? profile.studentId,
+        contact: _asNonEmptyString(res?['contact']) ?? profile.contact,
+        gcashNumber:
+            _asNonEmptyString(res?['gcash_number']) ?? profile.gcashNumber,
+        sellerType: resolvedSellerType,
+        storeName: resolvedStoreName,
+        avatarUrl: avatar,
+      );
     } catch (e) {
       debugPrint('AUTH_ENRICH_PROFILE: $e');
     }

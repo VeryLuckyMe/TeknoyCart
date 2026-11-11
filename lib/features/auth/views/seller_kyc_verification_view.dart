@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/supabase_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:teknoycart/features/auth/models/seller_verification.dart';
+import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/auth/services/seller_verification_service.dart';
 
 /// Embedded or standalone view for submitting student and organization KYC seller verification.
@@ -15,7 +17,7 @@ class SellerKYCVerificationView extends ConsumerStatefulWidget {
   final String userId;
   final String initialSellerType; // 'STUDENT' or 'ORG'
   final VoidCallback? onVerificationSubmitted;
-  final VoidCallback? onRefreshStatus;
+  final FutureOr<void> Function()? onRefreshStatus;
   final bool embedded;
   final int initialStep;
 
@@ -81,7 +83,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
             ),
             callback: (payload) async {
               await _fetchVerificationHistory(forceRefresh: true);
-              widget.onRefreshStatus?.call();
+              await _syncSellerSession();
             },
           )
           .subscribe();
@@ -137,7 +139,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
         _isLoadingHistory = false;
       });
       if (cached != null && cached.isApproved) {
-        widget.onRefreshStatus?.call();
+        unawaited(_syncSellerSession());
       }
       return;
     }
@@ -169,7 +171,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
           _isRefreshing = false;
         });
         if (record != null && record.isApproved) {
-          widget.onRefreshStatus?.call();
+          await _syncSellerSession();
         }
       }
     } catch (_) {
@@ -178,6 +180,52 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
           _isLoadingHistory = false;
           _isRefreshing = false;
         });
+      }
+    }
+  }
+
+  Future<void> _syncSellerSession() async {
+    if (widget.onRefreshStatus != null) {
+      await widget.onRefreshStatus!.call();
+      return;
+    }
+    try {
+      await ref.read(authNotifierProvider.notifier).refreshProfile();
+    } catch (_) {}
+  }
+
+  Future<void> _handleOpenSellerHub() async {
+    if (_isRefreshing) return;
+    setState(() => _isRefreshing = true);
+    try {
+      await _syncSellerSession();
+      if (!mounted) return;
+
+      var isNowSeller = false;
+      try {
+        isNowSeller =
+            ref.read(authStateProvider).valueOrNull?.isSeller ?? false;
+      } catch (_) {}
+
+      if (!widget.embedded && isNowSeller && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop(true);
+        return;
+      }
+
+      if (!isNowSeller && widget.embedded) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Verification approved, but seller status is still syncing. Please try again in a moment.',
+              ),
+            ),
+          );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshing = false);
       }
     }
   }
@@ -507,17 +555,25 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
             ),
             const SizedBox(height: 28),
             ElevatedButton.icon(
-              onPressed: () {
-                widget.onRefreshStatus?.call();
-              },
-              icon: const Icon(Icons.storefront_rounded, size: 18),
-              label: const Text(
-                'Open Seller Hub',
-                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+              onPressed: _isRefreshing ? null : _handleOpenSellerHub,
+              icon: _isRefreshing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.storefront_rounded, size: 18),
+              label: Text(
+                _isRefreshing ? 'Opening Seller Hub...' : 'Open Seller Hub',
+                style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: TeknoyTheme.citMaroon,
                 foregroundColor: Colors.white,
+                minimumSize: const Size(48, 48),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
               ),
@@ -599,7 +655,7 @@ class _SellerKYCVerificationViewState extends ConsumerState<SellerKYCVerificatio
                   ? null
                   : () async {
                       await _fetchVerificationHistory(forceRefresh: true);
-                      widget.onRefreshStatus?.call();
+                      await _syncSellerSession();
                     },
               icon: _isRefreshing
                   ? const SizedBox(
