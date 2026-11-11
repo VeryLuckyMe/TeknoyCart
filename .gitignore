@@ -61,6 +61,8 @@ package-lock.json
 *.aab
 
 
-
 # desloppify local state
 .desloppify/
+
+.vercel
+TeknoyCart_Backend/
