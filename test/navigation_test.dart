@@ -168,7 +168,7 @@ void main() {
       expect(find.text('Send ₱255 Offer & Open Chat'), findsOneWidget);
     });
 
-    testWidgets('CheckoutView correctly populates negotiated product, displays Tawad banner, strike-through, and agreed price', (WidgetTester tester) async {
+    testWidgets('CheckoutView charges and shows the catalog price when arriving from a chat deal (no server-side offer yet)', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1080, 1920);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -197,21 +197,22 @@ void main() {
       // Verify Header
       expect(find.text('Confirm P2P Deal'), findsOneWidget);
 
-      // Verify Tawad Deal Hero Banner is present
-      expect(find.text('Campus Meetup Handshake Deal'), findsOneWidget);
-      expect(find.text('AGREED PRICE • SAVE ₱45.00'), findsOneWidget);
+      // place_orders_atomic charges the catalog price, so checkout must not
+      // advertise the chat-agreed ₱255 anywhere (displayed == charged).
+      expect(find.text('Campus Meetup Handshake Deal'), findsNothing);
+      expect(find.text('AGREED PRICE • SAVE ₱45.00'), findsNothing);
+      expect(find.text('TAWAD DEAL'), findsNothing);
+      expect(find.textContaining('Save ₱45.00'), findsNothing);
+      expect(find.text('₱255.00'), findsNothing);
 
-      // Verify Product Spotlight Card shows the negotiated item (NOT Cart Items (0)!)
+      // The buyer is told why the agreed price is not applied.
+      expect(find.byKey(const Key('negotiated_price_notice')), findsOneWidget);
+      expect(find.textContaining('listed price of ₱300.00'), findsOneWidget);
+
+      // Product Spotlight Card still shows the item at the catalog price.
       expect(find.text('Cart Items (0)'), findsNothing);
       expect(find.text('Drawing Board Kit'), findsOneWidget);
-      expect(find.text('TAWAD DEAL'), findsOneWidget);
-
-      // Verify Strikethrough asking price and agreed price
-      expect(find.text('₱300.00'), findsOneWidget);
-      expect(find.text('₱255.00'), findsWidgets);
-
-      // Verify Order summary total payable shows agreed price and savings
-      expect(find.textContaining('Save ₱45.00'), findsOneWidget);
+      expect(find.text('₱300.00'), findsWidgets);
     });
   });
 }

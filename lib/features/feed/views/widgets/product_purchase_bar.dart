@@ -13,6 +13,9 @@ class ProductPurchaseBar extends StatelessWidget {
   final VoidCallback? onMakeOfferPressed;
   final VoidCallback? onBuyNowPressed;
 
+  /// False for organisation/official stores, which sell at fixed prices.
+  final bool showMakeOffer;
+
   const ProductPurchaseBar({
     super.key,
     required this.isDark,
@@ -25,6 +28,7 @@ class ProductPurchaseBar extends StatelessWidget {
     required this.onAddToCartPressed,
     required this.onMakeOfferPressed,
     required this.onBuyNowPressed,
+    this.showMakeOffer = true,
   });
 
   String get _actionButtonText {
@@ -145,7 +149,8 @@ class ProductPurchaseBar extends StatelessWidget {
               ),
               const SizedBox(width: 10),
 
-              // Make an Offer (Tawad) Action Button
+              // Make an Offer (Tawad) Action Button — hidden for fixed-price org stores
+              if (showMakeOffer) ...[
               Expanded(
                 flex: 1,
                 child: SizedBox(
@@ -190,6 +195,7 @@ class ProductPurchaseBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
+              ],
 
               // Buy Now / Pre-Order Action Button
               Expanded(

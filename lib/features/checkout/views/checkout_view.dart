@@ -11,8 +11,11 @@ import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/checkout/models/checkout_item.dart';
 import 'package:teknoycart/features/checkout/models/cart_summary.dart';
-import 'package:teknoycart/features/checkout/models/order.dart';
+import 'package:teknoycart/features/checkout/services/checkout_submitter.dart';
+import 'package:teknoycart/features/checkout/services/checkout_error_mapper.dart';
+import 'package:teknoycart/core/utils/request_id.dart';
 import 'package:teknoycart/features/checkout/models/campus_landmark.dart';
+import 'package:teknoycart/features/checkout/models/variant_resolution.dart';
 import 'package:teknoycart/features/checkout/views/widgets/checkout_section_header.dart';
 import 'package:teknoycart/features/checkout/views/widgets/checkout_success_dialog.dart';
 
@@ -61,16 +64,53 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   // FIX #1: Track resolved variant IDs per product to avoid re-querying on submit.
   final Map<String, String> _resolvedVariantIds = {};
   final Map<String, double> _variantAdditionalPrices = {};
+  /// Why a line's variant could not be resolved (see resolveCheckoutVariant).
+  final Map<String, VariantResolutionFailure> _variantFailures = {};
+
+  Future<List<String>> _lookupVariantIds(
+    String productId, {
+    String? variantValue,
+    required int limit,
+  }) async {
+    var query = SupabaseConfig.client
+        .from('product_variants')
+        .select('variant_id')
+        .eq('product_id', productId);
+    if (variantValue != null) query = query.eq('variant_value', variantValue);
+    final rows = await query.limit(limit);
+    return (rows as List)
+        .map((r) => r['variant_id'] as String?)
+        .whereType<String>()
+        .toList();
+  }
   bool _isLoadingInventory = true;
 
+  /// Idempotency key for this checkout screen (see CheckoutSubmitter).
+  late final String _clientRequestId = generateRequestId();
+
   bool get _isSingleProductCheckout => widget.isDirectBuy || widget.product != null;
+
+  /// Negotiated prices are agreed in chat, but `place_orders_atomic` always
+  /// charges the catalog price (no server-side offer record exists yet).
+  /// Until server-side offers ship, checkout must show exactly what the
+  /// server will charge, so the chat-agreed price is ignored here.
+  static const bool honorsNegotiatedPrice = false;
+
+  double? get _agreedPrice => honorsNegotiatedPrice ? widget.agreedPrice : null;
+
+  /// True when the buyer arrived from a chat deal whose price we cannot honour yet.
+  bool get _hasUnhonouredNegotiatedPrice =>
+      !honorsNegotiatedPrice &&
+      widget.agreedPrice != null &&
+      widget.product != null &&
+      (widget.agreedPrice! - widget.product!.price).abs() >= 0.01;
 
   List<CheckoutItem> get _checkoutItems {
     if (_isSingleProductCheckout && widget.product != null) {
       return [
         CheckoutItem(
           product: widget.product!,
-          price: widget.agreedPrice ?? widget.product!.price,
+          price: _agreedPrice ?? widget.product!.price,
           quantity: widget.quantity,
           variantId: _resolvedVariantIds[widget.product!.id],
           variantName: widget.variantName,
@@ -85,7 +125,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       _itemReservationMap.values.any((isReserved) => isReserved);
 
   late final CheckoutPricing _pricing = CheckoutPricing(
-    agreedPrice: widget.agreedPrice,
+    agreedPrice: _agreedPrice,
     variantAdditionalPrices: _variantAdditionalPrices,
   );
 
@@ -145,41 +185,16 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       // FIX #7: Run all inventory checks in parallel with multi-stage auto-heal.
       final futures = _checkoutItems.map((item) async {
         try {
-          String? variantId = item.variantId;
-          if (variantId == null || variantId == '00000000-0000-0000-0000-000000000000') {
-            // Stage 1: Try matching variantName
-            if (item.variantName != null && item.variantName!.isNotEmpty) {
-              final variants = await client
-                  .from('product_variants')
-                  .select('variant_id')
-                  .eq('product_id', item.product.id)
-                  .eq('variant_value', item.variantName!)
-                  .limit(1);
-              if ((variants as List).isNotEmpty && variants[0]['variant_id'] != null) {
-                variantId = variants[0]['variant_id'] as String;
-              }
-            }
-
-            // Stage 2: Fallback to ANY available variant for this product
-            if (variantId == null || variantId == '00000000-0000-0000-0000-000000000000') {
-              final anyVariants = await client
-                  .from('product_variants')
-                  .select('variant_id')
-                  .eq('product_id', item.product.id)
-                  .limit(1);
-              if ((anyVariants as List).isNotEmpty && anyVariants[0]['variant_id'] != null) {
-                variantId = anyVariants[0]['variant_id'] as String;
-              }
-            }
-
-
-            // Stage 3: No variant exists in DB — listing is not properly set up.
-            // Do NOT auto-create inventory on behalf of the seller (Ponytail Audit C-4).
-            // Surface the error to the buyer instead of fabricating stock records.
-            if (variantId == null || variantId == '00000000-0000-0000-0000-000000000000') {
-              debugPrint('CHECKOUT: No variant found for product ${item.product.id}. Listing inventory is not configured.');
-              // variantId stays null — the inventory check below will treat it as out-of-stock.
-            }
+          final resolution = await resolveCheckoutVariant(
+            productId: item.product.id,
+            variantId: item.variantId,
+            variantName: item.variantName,
+            lookup: _lookupVariantIds,
+          );
+          final String? variantId = resolution.variantId;
+          if (!resolution.isResolved) {
+            _variantFailures[item.product.id] = resolution.failure!;
+            debugPrint('CHECKOUT: variant unresolved for ${item.product.id}: ${resolution.failure}');
           }
 
           if (variantId != null) {
@@ -254,53 +269,40 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         // ----------------------------------------------------------------
         // Stage 1: Resolve variant ID (multi-stage auto-heal, Ponytail C-4)
         // ----------------------------------------------------------------
-        String? itemVariantId = _resolvedVariantIds[item.product.id] ?? item.variantId;
-
-        if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
+        String? itemVariantId = _resolvedVariantIds[item.product.id];
+        VariantResolutionFailure? failure = _variantFailures[item.product.id];
+        if (itemVariantId == null) {
           try {
-            if (item.variantName != null && item.variantName!.isNotEmpty) {
-              final variants = await client
-                  .from('product_variants')
-                  .select('variant_id')
-                  .eq('product_id', item.product.id)
-                  .eq('variant_value', item.variantName!)
-                  .limit(1);
-              if ((variants as List).isNotEmpty && variants[0]['variant_id'] != null) {
-                itemVariantId = variants[0]['variant_id'] as String;
-              }
-            }
-
-            if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
-              final anyVariants = await client
-                  .from('product_variants')
-                  .select('variant_id')
-                  .eq('product_id', item.product.id)
-                  .limit(1);
-              if ((anyVariants as List).isNotEmpty && anyVariants[0]['variant_id'] != null) {
-                itemVariantId = anyVariants[0]['variant_id'] as String;
-              }
-            }
+            final resolution = await resolveCheckoutVariant(
+              productId: item.product.id,
+              variantId: item.variantId,
+              variantName: item.variantName,
+              lookup: _lookupVariantIds,
+            );
+            itemVariantId = resolution.variantId;
+            failure = resolution.failure;
           } catch (vErr) {
             debugPrint('CHECKOUT_VARIANT_RESOLVE_ERROR: $vErr');
           }
         }
 
-        if (itemVariantId == null || itemVariantId == '00000000-0000-0000-0000-000000000000') {
+        if (itemVariantId == null) {
           if (mounted) {
             setState(() => _isSubmitting = false);
+            final message = failure == VariantResolutionFailure.ambiguous
+                ? 'Choose a size or option for "${item.product.title}" on its product page before checking out.'
+                : '"${item.product.title}" is not yet set up for purchase — '
+                    'the seller has not configured its inventory. '
+                    'Try messaging the seller via chat.';
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(
-                  '"${item.product.title}" is not yet set up for purchase — '
-                  'the seller has not configured its inventory. '
-                  'Try messaging the seller via chat.',
-                ),
+                content: Text(message),
                 backgroundColor: TeknoyTheme.error,
                 duration: const Duration(seconds: 5),
               ),
             );
           }
-          return; // Hard abort — no items processed yet at this point in the loop
+          return; // Hard abort before any order is placed
         }
 
         // Always pass authoritative catalog unit price to satisfy place_orders_atomic integrity check
@@ -319,22 +321,17 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       }
 
       // One RPC makes every line and inventory hold in the cart one transaction.
-      final dynamic rawRpcResult = await client.rpc('place_orders_atomic', params: {
-        'p_lines': orderLines,
-        'p_payment_method': dbPaymentMethod,
-      });
-      final rpcResult = AtomicOrderResult.fromDynamic(rawRpcResult);
+      // Same request id on every attempt: retries after a timeout return the
+      // orders from the first attempt instead of duplicating them.
+      final rpcResult = await CheckoutSubmitter(
+        (fn, params) => client.rpc(fn, params: params),
+      ).submit(
+        lines: orderLines,
+        paymentMethod: dbPaymentMethod,
+        clientRequestId: _clientRequestId,
+      );
       if (!rpcResult.success) {
-        final message = switch (rpcResult.error) {
-          'INSUFFICIENT_STOCK' => 'Some items are no longer available. Refresh your cart and try again.',
-          'PREORDER_NOT_ALLOWED' => 'Pre-orders are not enabled for one of these listings.',
-          'INVALID_LISTING' => 'A listing or seller is no longer available.',
-          'PRODUCT_NOT_ACTIVE' => 'A listing is no longer active.',
-          'CANNOT_PURCHASE_OWN_PRODUCT' => 'You cannot purchase your own listing.',
-          'PRICE_MISMATCH' => 'The listing price changed or this negotiated price has not been confirmed in the system. Refresh the listing and try again.',
-          _ => 'Could not place this order. Please refresh and try again.',
-        };
-        throw Exception(message);
+        throw CheckoutRejected(rpcResult.error);
       }
 
       final createdOrders = rpcResult.orders;
@@ -354,7 +351,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
           final handshakeMessage = widget.isPreorder
               ? '📦 [PRE-ORDER PLACED]\nHello! I placed a pre-order for ${item.product.title} (Qty: ${item.quantity}).\nEstimated lead time: 3-7 business days.\nPreferred campus availability: $_selectedTimeSlot at $_selectedLocation.\nPlease message me here once the batch arrives on campus!'
-              : (widget.agreedPrice != null
+              : (_agreedPrice != null
                   ? '🤝 Handshake Deal Confirmed! Agreed Tawad Price: ₱${item.price.toStringAsFixed(2)}. Meetup requested for $_selectedDay ($_selectedTimeSlot) at $_selectedLocation.'
                   : '🤝 Handshake Deal Confirmed! Meetup requested for $_selectedDay ($_selectedTimeSlot) at $_selectedLocation.');
 
@@ -390,7 +387,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         setState(() => _isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Checkout failed: $e'),
+            content: Text(checkoutErrorMessage(e)),
             backgroundColor: TeknoyTheme.error,
           ),
         );
@@ -504,9 +501,42 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     );
   }
 
+  Widget _buildNegotiatedPriceNotice(bool isDark) {
+    final listPrice = widget.product!.price;
+    return Container(
+      key: const Key('negotiated_price_notice'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF2A1C0A) : const Color(0xFFFFF8E7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.6)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline_rounded, size: 20, color: TeknoyTheme.citGold),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'This order uses the listed price of ₱${listPrice.toStringAsFixed(2)}. '
+              'Prices agreed in chat are not applied at checkout yet — '
+              'ask the seller to update the listing price before you order.',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 12.5,
+                height: 1.4,
+                color: isDark ? Colors.white70 : Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTawadDealHeroBanner(bool isDark) {
     final double asking = _pricing.askingPrice(_checkoutItems, productPrice: widget.product?.price);
-    final double agreed = widget.agreedPrice ?? 0.0;
+    final double agreed = _agreedPrice ?? 0.0;
     final double discount = _pricing.discount(_checkoutItems, productPrice: widget.product?.price);
 
     return Container(
@@ -694,7 +724,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                               ),
                             ),
                           ),
-                          if (widget.agreedPrice != null) ...[
+                          if (_agreedPrice != null) ...[
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -728,7 +758,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                           const Spacer(),
                           // High-contrast WCAG AAA price display:
                           // citGold in dark mode (9.77:1), citMaroon in light mode (10.95:1)
-                          if (widget.agreedPrice != null && widget.agreedPrice! < _checkoutItems.first.product.price) ...[
+                          if (_agreedPrice != null && _agreedPrice! < _checkoutItems.first.product.price) ...[
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               mainAxisSize: MainAxisSize.min,
@@ -1533,16 +1563,16 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  widget.agreedPrice != null && _checkoutItems.isNotEmpty && widget.agreedPrice! < _checkoutItems.first.product.price
-                      ? '$totalUnits ${totalUnits == 1 ? 'item' : 'items'} • 🤝 Tawad Deal (Save ₱${(_checkoutItems.first.product.price - widget.agreedPrice!).toStringAsFixed(2)})'
+                  _agreedPrice != null && _checkoutItems.isNotEmpty && _agreedPrice! < _checkoutItems.first.product.price
+                      ? '$totalUnits ${totalUnits == 1 ? 'item' : 'items'} • 🤝 Tawad Deal (Save ₱${(_checkoutItems.first.product.price - _agreedPrice!).toStringAsFixed(2)})'
                       : '$totalUnits ${totalUnits == 1 ? 'item' : 'items'} total • ${widget.isPreorder ? 'Pay upon batch handoff' : 'Pay upon meetup handoff'}',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 11,
-                    color: widget.agreedPrice != null
+                    color: _agreedPrice != null
                         ? (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon)
                         : (isDark ? Colors.white54 : Colors.black54),
-                    fontWeight: widget.agreedPrice != null ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: _agreedPrice != null ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ],
@@ -1716,8 +1746,12 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 _buildPreorderHeroBanner(isDark),
                 const SizedBox(height: 18),
               ],
-              if (widget.agreedPrice != null) ...[
+              if (_agreedPrice != null) ...[
                 _buildTawadDealHeroBanner(isDark),
+                const SizedBox(height: 18),
+              ],
+              if (_hasUnhonouredNegotiatedPrice) ...[
+                _buildNegotiatedPriceNotice(isDark),
                 const SizedBox(height: 18),
               ],
               _buildProductSpotlightCard(isDark),
