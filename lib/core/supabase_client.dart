@@ -40,7 +40,7 @@ class SupabaseConfig {
 
     await Supabase.initialize(
       url: url,
-      publishableKey: anonKey,
+      anonKey: anonKey,
       authOptions: FlutterAuthClientOptions(
         authFlowType: AuthFlowType.pkce,
         autoRefreshToken: !isFlutterTestEnvironment,
