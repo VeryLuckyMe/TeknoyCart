@@ -513,8 +513,9 @@ class AuthService {
       // delivery failure to the caller instead of throwing it.
       var verificationEmailSent = true;
       String? verificationEmailError;
+      String? verificationPollKey;
       try {
-        await sendVerificationEmail(email, username);
+        verificationPollKey = await sendVerificationEmail(email, username);
       } on VerificationEmailException catch (e) {
         verificationEmailSent = false;
         verificationEmailError = e.message;
@@ -527,6 +528,7 @@ class AuthService {
         profile: _userToProfile(user),
         verificationEmailSent: verificationEmailSent,
         verificationEmailError: verificationEmailError,
+        verificationPollKey: verificationPollKey,
       );
     } catch (_) {
       // If a profile setup step fails during registration, roll back the incomplete
@@ -571,11 +573,13 @@ class AuthService {
     } catch (_) {}
   }
 
-  Future<void> resendVerificationEmail(String email, String fullName) async {
-    await sendVerificationEmail(email, fullName);
+  Future<String?> resendVerificationEmail(String email, String fullName) {
+    return sendVerificationEmail(email, fullName);
   }
 
-  Future<void> sendVerificationEmail(String email, String fullName) async {
+  /// Sends the verification email. Returns the backend's pollKey, which lets
+  /// the waiting screen ask whether the link was clicked (null if absent).
+  Future<String?> sendVerificationEmail(String email, String fullName) async {
     final url = Uri.parse('${ApiConfig.authUrl}/send-verification');
     http.Response httpResponse;
     try {
@@ -597,11 +601,35 @@ class AuthService {
       );
     }
 
-    if (httpResponse.statusCode == 200) return;
+    if (httpResponse.statusCode == 200) {
+      try {
+        final decoded = jsonDecode(httpResponse.body);
+        if (decoded is Map<String, dynamic> && decoded['pollKey'] is String) {
+          return decoded['pollKey'] as String;
+        }
+      } catch (_) {}
+      return null;
+    }
 
     throw VerificationEmailException(
       _verificationEmailErrorMessage(httpResponse),
     );
+  }
+
+  /// True once the emailed link was clicked, false while pending, null when
+  /// the status could not be read (offline, expired key). Never throws.
+  static Future<bool?> checkVerificationStatus(String pollKey) async {
+    try {
+      final url = Uri.parse('${ApiConfig.authUrl}/verification-status')
+          .replace(queryParameters: {'key': pollKey});
+      final res = await http.get(url).timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) return null;
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic> && decoded['verified'] is bool) {
+        return decoded['verified'] as bool;
+      }
+    } catch (_) {}
+    return null;
   }
 
   String _verificationEmailErrorMessage(http.Response response) {
@@ -652,11 +680,13 @@ class SignUpResult {
   final Profile profile;
   final bool verificationEmailSent;
   final String? verificationEmailError;
+  final String? verificationPollKey;
 
   const SignUpResult({
     required this.profile,
     this.verificationEmailSent = true,
     this.verificationEmailError,
+    this.verificationPollKey,
   });
 }
 

@@ -14,18 +14,35 @@ class EmailVerificationDialog extends StatefulWidget {
   /// shows the reason and allows an immediate retry instead of a fake timer.
   final String? initialDeliveryError;
 
+  /// From the send-verification response. When present, the dialog checks
+  /// every few seconds (and when the app is resumed) whether the link was
+  /// clicked, then closes itself with `true`.
+  final String? pollKey;
+
+  /// Called right before the dialog closes because verification was detected.
+  final VoidCallback? onVerified;
+
+  /// Test seam; defaults to [AuthService.checkVerificationStatus].
+  final Future<bool?> Function(String pollKey)? statusChecker;
+
+  static const Duration pollInterval = Duration(seconds: 4);
+
   const EmailVerificationDialog({
     super.key,
     required this.email,
     this.fullName,
     this.initialDeliveryError,
+    this.pollKey,
+    this.onVerified,
+    this.statusChecker,
   });
 
   @override
   State<EmailVerificationDialog> createState() => _EmailVerificationDialogState();
 }
 
-class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
+class _EmailVerificationDialogState extends State<EmailVerificationDialog>
+    with WidgetsBindingObserver {
   static const int _totalSeconds = 900; // Backend verification links expire after 15 minutes.
   static const int _resendCooldownSeconds = 60;
   int _secondsLeft = _totalSeconds;
@@ -36,10 +53,17 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
   bool _deliveryFailed = false;
   Timer? _timer;
   Timer? _cooldownTimer;
+  Timer? _pollTimer;
+  String? _pollKey;
+  bool _checking = false;
+  bool _done = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _pollKey = widget.pollKey;
+    _startPolling();
     _deliveryFailed = widget.initialDeliveryError != null;
     if (_deliveryFailed) {
       // The initial email was never sent, so a countdown would be misleading.
@@ -79,11 +103,40 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
     });
   }
 
+  void _startPolling() {
+    _pollTimer?.cancel();
+    if (_pollKey == null) return;
+    _pollTimer = Timer.periodic(
+        EmailVerificationDialog.pollInterval, (_) => _checkNow());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Coming back from the mail app is the most likely moment it just happened.
+    if (state == AppLifecycleState.resumed) _checkNow();
+  }
+
+  Future<void> _checkNow() async {
+    final key = _pollKey;
+    if (key == null || _checking || _done || !mounted) return;
+    _checking = true;
+    final checker = widget.statusChecker ?? AuthService.checkVerificationStatus;
+    final verified = await checker(key);
+    _checking = false;
+    if (verified != true || _done || !mounted) return;
+    _done = true;
+    _timer?.cancel();
+    _cooldownTimer?.cancel();
+    _pollTimer?.cancel();
+    widget.onVerified?.call();
+    Navigator.of(context).pop(true);
+  }
+
   Future<void> _resendEmail() async {
     setState(() { _resending = true; _resent = false; });
     try {
       final authService = AuthService();
-      await authService.resendVerificationEmail(
+      final newKey = await authService.resendVerificationEmail(
         widget.email,
         widget.fullName ?? 'Student',
       );
@@ -97,8 +150,10 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
           _secondsLeft = _totalSeconds;
           _resendSecondsLeft = _resendCooldownSeconds;
         });
+        if (newKey != null) _pollKey = newKey;
         _startTimer();
         _startResendCooldown();
+        _startPolling();
       }
     } catch (e) {
       if (mounted) {
@@ -116,8 +171,10 @@ class _EmailVerificationDialogState extends State<EmailVerificationDialog> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _cooldownTimer?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 

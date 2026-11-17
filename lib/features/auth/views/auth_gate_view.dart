@@ -175,7 +175,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
     super.dispose();
   }
 
-  void _switchTab(bool isLogin) {
+  void _switchTab(bool isLogin, {String? prefillEmail}) {
     if (_isLoginTab == isLogin) return;
     _fadeController.reverse().then((_) {
       setState(() {
@@ -184,6 +184,7 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
         _passwordController.clear();
         _confirmPasswordController.clear();
         _formKey.currentState?.reset();
+        if (prefillEmail != null) _emailController.text = prefillEmail;
       });
       _fadeController.forward();
     });
@@ -242,6 +243,28 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
     }
 
     return true;
+  }
+
+  void _showEmailVerifiedSnackBar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.verified_rounded, color: Colors.white, size: 20),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Email verified! Sign in to continue.',
+                style: TextStyle(fontFamily: 'Inter', fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: TeknoyTheme.successDark,
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 4),
+      ),
+    );
   }
 
   void _showErrorSnackBar(String message) {
@@ -427,16 +450,22 @@ class _AuthGateViewState extends ConsumerState<AuthGateView> with SingleTickerPr
             );
 
         if (mounted) {
+          final email = _emailController.text.trim();
+          var verified = false;
           await showDialog(
             context: context,
             barrierDismissible: false,
             builder: (ctx) => EmailVerificationDialog(
-              email: _emailController.text.trim(),
+              email: email,
               fullName: fullName,
               initialDeliveryError: signUpResult.verificationEmailError,
+              pollKey: signUpResult.verificationPollKey,
+              onVerified: () => verified = true,
             ),
           );
-          _switchTab(true); // go to login after dialog is dismissed
+          if (!mounted) return;
+          _switchTab(true, prefillEmail: email); // go to login after dialog is dismissed
+          if (verified) _showEmailVerifiedSnackBar();
         }
       } catch (e) {
         if (mounted) _showErrorSnackBar(e.toString());

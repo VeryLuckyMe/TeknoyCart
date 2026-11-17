@@ -13,6 +13,7 @@ import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:teknoycart/features/checkout/views/cart_view.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
+import 'package:teknoycart/features/feed/views/manage_listings_view.dart';
 import 'package:teknoycart/features/feed/views/widgets/product_reviews_section.dart';
 import 'package:teknoycart/features/feed/providers/review_provider.dart';
 import 'package:teknoycart/core/services/wishlist_service.dart';
@@ -50,6 +51,28 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   List<Map<String, dynamic>> _fetchedVariants = [];
 
   Product get product => widget.product;
+
+  bool get _isOwnListing {
+    final user = ref.read(authStateProvider).valueOrNull;
+    return user != null && user.id == product.sellerId;
+  }
+
+  void _showOwnListingNotice() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('You cannot buy your own listing.'),
+        backgroundColor: TeknoyTheme.citMaroon,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _openManageListings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ManageListingsView()),
+    );
+  }
 
   @override
   void initState() {
@@ -946,6 +969,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   }
 
   void _addToCart() {
+    if (_isOwnListing) {
+      _showOwnListingNotice();
+      return;
+    }
     if (_availableStock <= 0 && !product.isPreorderEnabled) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1005,6 +1032,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   }
 
   void _buyNow() {
+    if (_isOwnListing) {
+      _showOwnListingNotice();
+      return;
+    }
     final effectiveVariant = _getEffectiveVariantName();
     Navigator.push(
       context,
@@ -1527,6 +1558,8 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               onMakeOfferPressed: () => _showMakeAnOfferDialog(context),
               onBuyNowPressed: _buyNow,
               showMakeOffer: ref.watch(sellerAcceptsOffersProvider(product.sellerId)),
+              isOwnListing: ref.watch(authStateProvider).valueOrNull?.id == product.sellerId,
+              onManageListingPressed: _openManageListings,
             ),
           ),
         ],

@@ -16,6 +16,12 @@ class ProductPurchaseBar extends StatelessWidget {
   /// False for organisation/official stores, which sell at fixed prices.
   final bool showMakeOffer;
 
+  /// True when the signed-in user is the seller of this product. The buyer
+  /// actions (chat, cart, offer, buy) are replaced by a seller bar, like on
+  /// other marketplaces, so a seller can never buy their own listing.
+  final bool isOwnListing;
+  final VoidCallback? onManageListingPressed;
+
   const ProductPurchaseBar({
     super.key,
     required this.isDark,
@@ -29,6 +35,8 @@ class ProductPurchaseBar extends StatelessWidget {
     required this.onMakeOfferPressed,
     required this.onBuyNowPressed,
     this.showMakeOffer = true,
+    this.isOwnListing = false,
+    this.onManageListingPressed,
   });
 
   String get _actionButtonText {
@@ -76,7 +84,9 @@ class ProductPurchaseBar extends StatelessWidget {
               ),
             ],
           ),
-          child: Row(
+          child: isOwnListing
+              ? _buildOwnListingRow(isSmallScreen)
+              : Row(
             children: [
               // Chat Quick Action (48dp target)
               InkWell(
@@ -231,6 +241,75 @@ class ProductPurchaseBar extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildOwnListingRow(bool isSmallScreen) {
+    return Row(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: TeknoyTheme.citMaroon.withValues(alpha: isDark ? 0.25 : 0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            Icons.storefront_rounded,
+            color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This is your listing',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Buyers see Buy Now and Make Offer here.',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.white60 : Colors.black54,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: onManageListingPressed,
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: Text(isSmallScreen ? 'Manage' : 'Manage Listing'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: TeknoyTheme.citMaroon,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              textStyle: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 13.5,
+                fontWeight: FontWeight.bold,
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
