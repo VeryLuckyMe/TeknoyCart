@@ -44,6 +44,12 @@ class ProfileTab extends ConsumerStatefulWidget {
 }
 class _ProfileTabState extends ConsumerState<ProfileTab> {
 
+  /// Empty profile fields show 'Not Configured' instead of a made-up value.
+  static String _orNotConfigured(String? value) {
+    final v = value?.trim() ?? '';
+    return v.isEmpty ? 'Not Configured' : v;
+  }
+
   Future<void> _updateProfileMetadata(String dept, String contact, String gcashNumber, {String? storeName}) async {
     try {
       final currentUserId = SupabaseConfig.client.auth.currentUser?.id;
@@ -122,7 +128,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     String selectedDept = departments.contains(currentDept)
         ? currentDept
         : departments.first;
-    final contactController = TextEditingController(text: currentContact == '0912 345 6789' ? '' : currentContact);
+    final contactController = TextEditingController(text: currentContact == 'Not Configured' ? '' : currentContact);
     final gcashController = TextEditingController(text: currentGcash == 'Not Configured' ? '' : currentGcash);
     final storeNameController = TextEditingController(text: currentStoreName == 'Not Configured' ? '' : currentStoreName);
     final formKey = GlobalKey<FormState>();
@@ -743,8 +749,8 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     final email = user?.email ?? 'Pending verification';
     final rawId = user?.id ?? '';
     final dept = user?.department ?? 'College of Computer Studies';
-    final contact = user?.contact ?? '0912 345 6789';
-    final gcashNumber = user?.gcashNumber ?? 'Not Configured';
+    final contact = _orNotConfigured(user?.contact);
+    final gcashNumber = _orNotConfigured(user?.gcashNumber);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final productsAsync = ref.watch(productsListProvider);
@@ -890,7 +896,9 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                     _buildGroupedSettingRow(
                       icon: Icons.account_balance_wallet_outlined,
                       title: gcashNumber,
-                      subtitle: 'GCash Payout Mobile',
+                      subtitle: isSeller && gcashNumber == 'Not Configured'
+                          ? 'GCash Payout Mobile · add it so buyers can pay by GCash'
+                          : 'GCash Payout Mobile',
                       showDivider: isSeller,
                       onTap: () => _showEditProfileModal(
                         context,

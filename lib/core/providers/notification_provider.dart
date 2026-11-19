@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:teknoycart/core/providers/order_badge_provider.dart';
 import '../models/notification_item.dart';
 import '../services/notification_service.dart';
 import '../supabase_client.dart';
@@ -94,6 +95,7 @@ class NotificationNotifier extends AsyncNotifier<List<NotificationItem>> {
             if (!newItem.isRead) {
               ref.read(unreadCountNotifierProvider.notifier).increment();
             }
+            ref.read(orderBadgeProvider.notifier).refresh();
           }
         }
       },

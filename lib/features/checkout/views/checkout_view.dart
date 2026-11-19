@@ -6,6 +6,7 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/utils/motion.dart';
 import 'package:teknoycart/core/utils/order_ui_helper.dart';
 import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/core/providers/seller_gcash_provider.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
@@ -1236,9 +1237,24 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     );
   }
 
+  GcashAvailability _gcashAvailability() {
+    final sellerIds = _checkoutItems.map((i) => i.product.sellerId).toSet();
+    return combineGcashAvailability(
+      sellerIds.map((id) => ref.watch(sellerAcceptsGcashProvider(id))),
+    );
+  }
+
   Widget _buildPaymentMethodSelector(bool isDark) {
+    final gcash = _gcashAvailability();
+    final gcashBlocked = gcash != GcashAvailability.available;
+    if (gcashBlocked && _selectedPaymentMethod == 'GCash') {
+      // Never leave an unavailable method selected.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _selectedPaymentMethod = 'Cash on Pickup');
+      });
+    }
     final isCash = _selectedPaymentMethod == 'Cash on Pickup';
-    final isGcash = _selectedPaymentMethod == 'GCash';
+    final isGcash = _selectedPaymentMethod == 'GCash' && !gcashBlocked;
 
     return Column(
       children: [
@@ -1387,8 +1403,10 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         ),
         const SizedBox(height: 10),
 
-        // GCash Card
-        AnimatedContainer(
+        // GCash Card (disabled when the seller has no GCash payout number)
+        Opacity(
+          opacity: gcashBlocked ? 0.5 : 1,
+          child: AnimatedContainer(
           duration: Motion.duration(context, const Duration(milliseconds: 200)),
           decoration: BoxDecoration(
             color: isGcash
@@ -1415,10 +1433,12 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             type: MaterialType.transparency,
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _selectedPaymentMethod = 'GCash');
-              },
+              onTap: gcashBlocked
+                  ? null
+                  : () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _selectedPaymentMethod = 'GCash');
+                    },
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Row(
@@ -1460,7 +1480,14 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            'Direct e-wallet payment. Seller verification and reference receipt required.',
+                            switch (gcash) {
+                              GcashAvailability.sellerNotSetUp =>
+                                "This seller hasn't set up GCash payouts yet — Cash on Pickup only.",
+                              GcashAvailability.checking => 'Checking if this seller accepts GCash…',
+                              GcashAvailability.available =>
+                                'Direct e-wallet payment. Seller verification and reference receipt required.',
+                            },
+                            key: const ValueKey('gcash-subtitle'),
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 11.5,
@@ -1498,6 +1525,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               ),
             ),
           ),
+        ),
         ),
 
         // GCash Warning / Info Drawer

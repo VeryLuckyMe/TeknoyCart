@@ -29,6 +29,8 @@ String checkoutRejectionMessage(String? code) => switch (code) {
       'INVALID_QUANTITY' => 'One of the quantities is not valid.',
       'INVALID_LINES' => 'Your cart is empty or has too many items.',
       'INVALID_PAYMENT_METHOD' => 'Choose a payment method and try again.',
+      'SELLER_GCASH_NOT_SET' =>
+        "This seller hasn't set up GCash payouts yet. Choose Cash on Pickup.",
       'UNAUTHORIZED' => 'Your session expired. Please log in again.',
       _ => 'Could not place this order. Please refresh and try again.',
     };
@@ -51,6 +53,10 @@ String checkoutErrorMessage(Object error) {
   }
 
   if (error is PostgrestException) {
+    // Raised by the V21 orders trigger, re-thrown through place_orders_atomic.
+    if (error.message.contains('SELLER_GCASH_NOT_SET')) {
+      return checkoutRejectionMessage('SELLER_GCASH_NOT_SET');
+    }
     if (error.code == '42501') {
       return 'You are not allowed to place this order. Please log in again.';
     }
