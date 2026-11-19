@@ -1704,19 +1704,33 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Quantity',
+                'How many to buy',
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              if (_availableStock > 0 && !_isLoadingInventory) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '$_quantity × ₱${product.price.toStringAsFixed(0)} = '
+                  '₱${(product.price * _quantity).toStringAsFixed(0)}',
+                  key: const ValueKey('buy-quantity-total'),
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: TeknoyTheme.citMaroon,
+                  ),
+                ),
+              ],
               const SizedBox(height: 2),
               Text(
                 _isLoadingInventory
                     ? 'Checking stock...'
                     : (_availableStock > 0
-                        ? '$_availableStock units available in stock'
+                        ? '$_availableStock left from seller'
                         : 'Out of stock for this variant'),
                 style: TextStyle(
                   fontFamily: 'Inter',
@@ -1740,7 +1754,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  tooltip: 'Decrease quantity',
+                  tooltip: 'Buy one less',
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.remove_rounded, size: 18),
                   color: _quantity > 1 ? TeknoyTheme.citMaroon : Colors.grey,
@@ -1759,7 +1773,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Increase quantity',
+                  tooltip: 'Buy one more',
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.add_rounded, size: 18),
                   color: (_quantity < maxAllowed && _availableStock > 0)
