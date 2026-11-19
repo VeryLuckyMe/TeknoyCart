@@ -1567,6 +1567,50 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
     );
   }
 
+  /// One quiet line under "Quantity": stock, and the total once it differs
+  /// from the unit price shown above.
+  Widget _buildStockLine(bool isDark) {
+    final muted = isDark ? Colors.white60 : Colors.black54;
+    const base = TextStyle(fontFamily: 'Inter', fontSize: 12.5);
+
+    if (_isLoadingInventory) {
+      return Text('Checking stock…', style: base.copyWith(color: muted));
+    }
+    if (_availableStock <= 0) {
+      return Text(
+        'Out of stock',
+        style: base.copyWith(color: TeknoyTheme.error, fontWeight: FontWeight.w600),
+      );
+    }
+
+    final lowStock = _availableStock <= 3;
+    return Text.rich(
+      key: const ValueKey('buy-quantity-total'),
+      TextSpan(
+        children: [
+          TextSpan(
+            text: lowStock ? 'Only $_availableStock left' : '$_availableStock available',
+            style: lowStock
+                ? const TextStyle(color: TeknoyTheme.warningDark, fontWeight: FontWeight.w600)
+                : null,
+          ),
+          if (_quantity > 1) ...[
+            const TextSpan(text: '  ·  '),
+            TextSpan(
+              text: '₱${(product.price * _quantity).toStringAsFixed(0)}',
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const TextSpan(text: ' total'),
+          ],
+        ],
+      ),
+      style: base.copyWith(color: muted),
+    );
+  }
+
   Widget _buildVariantSection(bool isDark) {
     final variantAttrs = widget.product.categoryAttributes
         .where((a) =>
@@ -1704,43 +1748,15 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'How many to buy',
+                'Quantity',
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              if (_availableStock > 0 && !_isLoadingInventory) ...[
-                const SizedBox(height: 2),
-                Text(
-                  '$_quantity × ₱${product.price.toStringAsFixed(0)} = '
-                  '₱${(product.price * _quantity).toStringAsFixed(0)}',
-                  key: const ValueKey('buy-quantity-total'),
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: TeknoyTheme.citMaroon,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 2),
-              Text(
-                _isLoadingInventory
-                    ? 'Checking stock...'
-                    : (_availableStock > 0
-                        ? '$_availableStock left from seller'
-                        : 'Out of stock for this variant'),
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 12,
-                  color: _availableStock > 0
-                      ? (isDark ? Colors.white60 : Colors.black54)
-                      : TeknoyTheme.error,
-                  fontWeight: _availableStock <= 0 ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
+              const SizedBox(height: 3),
+              _buildStockLine(isDark),
             ],
           ),
           Container(
@@ -1754,7 +1770,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  tooltip: 'Buy one less',
+                  tooltip: 'Decrease quantity',
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.remove_rounded, size: 18),
                   color: _quantity > 1 ? TeknoyTheme.citMaroon : Colors.grey,
@@ -1773,7 +1789,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Buy one more',
+                  tooltip: 'Increase quantity',
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.add_rounded, size: 18),
                   color: (_quantity < maxAllowed && _availableStock > 0)
