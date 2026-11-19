@@ -67,13 +67,19 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
       );
 
       if (currentUserId != null) {
-        await SupabaseConfig.client
+        final updatedRows = await SupabaseConfig.client
             .from('users')
             .update({
               'gcash_number': gcashNumber,
               'contact': contact,
             })
-            .eq('user_id', currentUserId);
+            .eq('user_id', currentUserId)
+            .select('user_id');
+        // A blocked update changes 0 rows without an error; checkout reads
+        // this table, so never report success when it did not save.
+        if (updatedRows.isEmpty) {
+          throw Exception('Your contact and GCash number could not be saved. Please try again.');
+        }
 
         if (storeName != null && storeName.trim().isNotEmpty) {
           await SupabaseConfig.client.from('store_profiles').upsert(
