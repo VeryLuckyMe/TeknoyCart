@@ -90,18 +90,31 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
   bool get _isSingleProductCheckout => widget.isDirectBuy || widget.product != null;
 
-  /// Negotiated prices are agreed in chat, but `place_orders_atomic` always
-  /// charges the catalog price (no server-side offer record exists yet).
-  /// Until server-side offers ship, checkout must show exactly what the
-  /// server will charge, so the chat-agreed price is ignored here.
-  static const bool honorsNegotiatedPrice = false;
+  /// A buyer arriving from chat carries the price the seller accepted there.
+  /// `place_orders_atomic(p_lines, p_payment_method, p_client_request_id,
+  /// p_chat_id)` (migration V20) verifies that acceptance against the
+  /// server-side `negotiated_deals` record before applying the price.
+  ///
+  /// Only a real chat room can prove the acceptance. Demo/offline rooms have
+  /// no server-side deal, so checkout must show and charge the catalog price
+  /// instead of advertising a price the server will reject.
+  double? get _agreedPrice => _checkoutChatId == null ? null : widget.agreedPrice;
 
-  double? get _agreedPrice => honorsNegotiatedPrice ? widget.agreedPrice : null;
+  /// The real chat room whose accepted offer authorizes the negotiated price.
+  /// Demo rooms have no server-side deal, so they must not be sent as a UUID.
+  String? get _checkoutChatId {
+    final roomId = widget.roomId;
+    if (widget.agreedPrice == null || roomId == null || roomId.isEmpty) {
+      return null;
+    }
+    if (roomId == 'room-demo' || roomId.startsWith('demo-')) return null;
+    return roomId;
+  }
 
-  /// True when the buyer arrived from a chat deal whose price we cannot honour yet.
+  /// True when the buyer arrived from a chat deal the server cannot verify.
   bool get _hasUnhonouredNegotiatedPrice =>
-      !honorsNegotiatedPrice &&
       widget.agreedPrice != null &&
+      _checkoutChatId == null &&
       widget.product != null &&
       (widget.agreedPrice! - widget.product!.price).abs() >= 0.01;
 
@@ -305,13 +318,15 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           return; // Hard abort before any order is placed
         }
 
-        // Always pass authoritative catalog unit price to satisfy place_orders_atomic integrity check
-        final catalogUnitPrice = item.product.price + (_variantAdditionalPrices[item.product.id] ?? 0.0);
+        // Submit exactly the unit price shown in the UI. For a Tawad deal this
+        // is the seller-accepted price; the 4-argument RPC verifies it against
+        // the server-side deal before the order is priced.
+        final effectiveUnitPrice = _pricing.unitPrice(item);
         orderLines.add({
           'product_id': item.product.id,
           'variant_id': itemVariantId,
           'quantity': item.quantity,
-          'unit_price': catalogUnitPrice,
+          'unit_price': effectiveUnitPrice,
           'pickup_location': widget.isPreorder ? '[PRE-ORDER] $_selectedLocation' : _selectedLocation,
           'pickup_day': widget.isPreorder ? 'When Batch Ready (Est. 3-7 Days)' : _selectedDay,
           'pickup_time': _selectedTimeSlot,
@@ -329,6 +344,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         lines: orderLines,
         paymentMethod: dbPaymentMethod,
         clientRequestId: _clientRequestId,
+        chatId: _checkoutChatId,
       );
       if (!rpcResult.success) {
         throw CheckoutRejected(rpcResult.error);
@@ -519,8 +535,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           Expanded(
             child: Text(
               'This order uses the listed price of ₱${listPrice.toStringAsFixed(2)}. '
-              'Prices agreed in chat are not applied at checkout yet — '
-              'ask the seller to update the listing price before you order.',
+              'The chat-agreed price cannot be verified for this chat, so it is not applied.',
               style: TextStyle(
                 fontFamily: 'Inter',
                 fontSize: 12.5,

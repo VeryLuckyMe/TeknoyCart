@@ -26,6 +26,10 @@ class MockHttpOverrides extends HttpOverrides {
   /// before acting, because the overrides instance is shared per test file.
   final List<String> requestedPaths = [];
 
+  /// Raw request bodies, in the order the client closed its requests. Lets
+  /// tests prove the checkout RPC receives the negotiated price and chat id.
+  final List<String> requestBodies = [];
+
   @override
   HttpClient createHttpClient(SecurityContext? context) {
     return _MockHttpClient(this);
@@ -67,6 +71,15 @@ class _MockHttpClientRequest implements HttpClientRequest {
   final MockHttpOverrides overrides;
   _MockHttpClientRequest(this.method, this.url, this.overrides);
 
+  final StringBuffer _body = StringBuffer();
+  bool _bodyRecorded = false;
+
+  void _recordBody() {
+    if (_bodyRecorded) return;
+    _bodyRecorded = true;
+    overrides.requestBodies.add(_body.toString());
+  }
+
   @override
   late final HttpHeaders headers = _MockHttpHeaders(url, overrides);
 
@@ -74,24 +87,34 @@ class _MockHttpClientRequest implements HttpClientRequest {
   List<Cookie> get cookies => const [];
 
   @override
-  void add(List<int> data) {}
+  void add(List<int> data) {
+    _body.write(utf8.decode(data, allowMalformed: true));
+  }
 
   @override
-  void write(Object? obj) {}
+  void write(Object? obj) {
+    if (obj != null) _body.write(obj);
+  }
 
   @override
-  Future addStream(Stream<List<int>> stream) async {}
+  Future addStream(Stream<List<int>> stream) async {
+    await stream.forEach(add);
+  }
 
   @override
   Future flush() async {}
 
   @override
   Future<HttpClientResponse> close() async {
+    _recordBody();
     return _MockHttpClientResponse(method, url, overrides);
   }
 
   @override
-  Future<HttpClientResponse> get done async => _MockHttpClientResponse(method, url, overrides);
+  Future<HttpClientResponse> get done async {
+    _recordBody();
+    return _MockHttpClientResponse(method, url, overrides);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) {

@@ -22,6 +22,10 @@ String checkoutRejectionMessage(String? code) => switch (code) {
       'CANNOT_PURCHASE_OWN_PRODUCT' => 'You cannot purchase your own listing.',
       'PRICE_MISMATCH' =>
         'The price of a listing changed. Refresh the listing and try again.',
+      'INVALID_CHAT' =>
+        'This chat deal is no longer available. Reopen the chat and try again.',
+      'DEAL_NOT_FOUND' =>
+        'Your agreed Tawad price could not be verified. Ask the seller to accept your latest offer again.',
       'INVALID_QUANTITY' => 'One of the quantities is not valid.',
       'INVALID_LINES' => 'Your cart is empty or has too many items.',
       'INVALID_PAYMENT_METHOD' => 'Choose a payment method and try again.',

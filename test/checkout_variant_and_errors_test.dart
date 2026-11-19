@@ -73,6 +73,8 @@ void main() {
           contains('no longer available'));
       expect(checkoutErrorMessage(const CheckoutRejected('SOMETHING_NEW')),
           'Could not place this order. Please refresh and try again.');
+      expect(checkoutErrorMessage(const CheckoutRejected('DEAL_NOT_FOUND')),
+          contains('accept your latest offer'));
     });
 
     test('network failures warn that the order may have gone through', () {

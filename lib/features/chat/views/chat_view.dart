@@ -422,7 +422,10 @@ class _ChatViewState extends ConsumerState<ChatView> {
         if (price != null) {
           activeState = 'offered';
           activeOfferPrice = price;
-        } else if (msg.content == 'Offer Accepted!' || msg.content.contains('Deal! 🤝') || msg.content.contains('Deal!')) {
+        } else if (msg.senderId == widget.product.sellerId &&
+            (msg.content == 'Offer Accepted!' ||
+                msg.content.contains('Deal! 🤝') ||
+                msg.content.contains('Deal!'))) {
           activeState = 'agreed';
           if (activeOfferPrice > 0) {
             _agreedPrice = activeOfferPrice;
@@ -599,7 +602,10 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                   ],
                                 ),
                               ),
-                              if (!isMe && activeState == 'offered' && isLatestOffer) ...[
+                              if (!isMe &&
+                                  currentUser?.id == widget.product.sellerId &&
+                                  activeState == 'offered' &&
+                                  isLatestOffer) ...[
                                 Container(
                                   decoration: BoxDecoration(
                                     border: Border(
@@ -645,13 +651,34 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                       ),
                                       Expanded(
                                         child: TextButton(
-                                          onPressed: () {
+                                          onPressed: () async {
+                                            final messenger = ScaffoldMessenger.of(context);
+                                            final accepted = await ref
+                                                .read(chatServiceProvider)
+                                                .acceptNegotiatedDeal(
+                                                  roomId: widget.roomId,
+                                                  productId: widget.product.id,
+                                                  agreedPrice: offerPrice,
+                                                );
+                                            if (!mounted) return;
+                                            if (!accepted) {
+                                              messenger.showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Could not record the accepted price. Check your connection and try again.',
+                                                  ),
+                                                  backgroundColor: TeknoyTheme.error,
+                                                  behavior: SnackBarBehavior.floating,
+                                                ),
+                                              );
+                                              return;
+                                            }
                                             setState(() {
                                               _negotiationState = 'agreed';
                                               _agreedPrice = offerPrice;
                                             });
                                             _sendMessage(customContent: 'Offer Accepted!');
-                                            ScaffoldMessenger.of(context).showSnackBar(
+                                            messenger.showSnackBar(
                                               SnackBar(
                                                 content: Row(
                                                   children: [
