@@ -13,6 +13,7 @@ import 'package:teknoycart/features/checkout/views/checkout_view.dart';
 import 'package:teknoycart/features/checkout/views/cart_view.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
 import 'package:teknoycart/features/feed/views/seller_storefront_view.dart';
+import 'package:teknoycart/features/feed/views/manage_listings_view.dart';
 import 'package:teknoycart/features/feed/views/widgets/product_reviews_section.dart';
 import 'package:teknoycart/features/feed/providers/review_provider.dart';
 import 'package:teknoycart/core/services/wishlist_service.dart';
@@ -50,6 +51,28 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   List<Map<String, dynamic>> _fetchedVariants = [];
 
   Product get product => widget.product;
+
+  bool get _isOwnListing {
+    final user = ref.read(authStateProvider).valueOrNull;
+    return user != null && user.id == product.sellerId;
+  }
+
+  void _showOwnListingNotice() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('You cannot buy your own listing.'),
+        backgroundColor: TeknoyTheme.citMaroon,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _openManageListings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ManageListingsView()),
+    );
+  }
 
   @override
   void initState() {
@@ -946,6 +969,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   }
 
   void _addToCart() {
+    if (_isOwnListing) {
+      _showOwnListingNotice();
+      return;
+    }
     if (_availableStock <= 0 && !product.isPreorderEnabled) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1005,6 +1032,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   }
 
   void _buyNow() {
+    if (_isOwnListing) {
+      _showOwnListingNotice();
+      return;
+    }
     final effectiveVariant = _getEffectiveVariantName();
     Navigator.push(
       context,
@@ -1527,10 +1558,56 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               onMakeOfferPressed: () => _showMakeAnOfferDialog(context),
               onBuyNowPressed: _buyNow,
               showMakeOffer: ref.watch(sellerAcceptsOffersProvider(product.sellerId)),
+              isOwnListing: ref.watch(authStateProvider).valueOrNull?.id == product.sellerId,
+              onManageListingPressed: _openManageListings,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  /// One quiet line under "Quantity": stock, and the total once it differs
+  /// from the unit price shown above.
+  Widget _buildStockLine(bool isDark) {
+    final muted = isDark ? Colors.white60 : Colors.black54;
+    const base = TextStyle(fontFamily: 'Inter', fontSize: 12.5);
+
+    if (_isLoadingInventory) {
+      return Text('Checking stock…', style: base.copyWith(color: muted));
+    }
+    if (_availableStock <= 0) {
+      return Text(
+        'Out of stock',
+        style: base.copyWith(color: TeknoyTheme.error, fontWeight: FontWeight.w600),
+      );
+    }
+
+    final lowStock = _availableStock <= 3;
+    return Text.rich(
+      key: const ValueKey('buy-quantity-total'),
+      TextSpan(
+        children: [
+          TextSpan(
+            text: lowStock ? 'Only $_availableStock left' : '$_availableStock available',
+            style: lowStock
+                ? const TextStyle(color: TeknoyTheme.warningDark, fontWeight: FontWeight.w600)
+                : null,
+          ),
+          if (_quantity > 1) ...[
+            const TextSpan(text: '  ·  '),
+            TextSpan(
+              text: '₱${(product.price * _quantity).toStringAsFixed(0)}',
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const TextSpan(text: ' total'),
+          ],
+        ],
+      ),
+      style: base.copyWith(color: muted),
     );
   }
 
@@ -1678,22 +1755,8 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                _isLoadingInventory
-                    ? 'Checking stock...'
-                    : (_availableStock > 0
-                        ? '$_availableStock units available in stock'
-                        : 'Out of stock for this variant'),
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 12,
-                  color: _availableStock > 0
-                      ? (isDark ? Colors.white60 : Colors.black54)
-                      : TeknoyTheme.error,
-                  fontWeight: _availableStock <= 0 ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
+              const SizedBox(height: 3),
+              _buildStockLine(isDark),
             ],
           ),
           Container(

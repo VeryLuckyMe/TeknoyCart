@@ -6,6 +6,7 @@ import 'package:teknoycart/core/theme.dart';
 import 'package:teknoycart/core/utils/motion.dart';
 import 'package:teknoycart/core/utils/order_ui_helper.dart';
 import 'package:teknoycart/core/supabase_client.dart';
+import 'package:teknoycart/core/providers/seller_gcash_provider.dart';
 import 'package:teknoycart/features/auth/providers/auth_provider.dart';
 import 'package:teknoycart/features/chat/providers/chat_provider.dart';
 import 'package:teknoycart/features/checkout/providers/cart_provider.dart';
@@ -90,18 +91,31 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
   bool get _isSingleProductCheckout => widget.isDirectBuy || widget.product != null;
 
-  /// Negotiated prices are agreed in chat, but `place_orders_atomic` always
-  /// charges the catalog price (no server-side offer record exists yet).
-  /// Until server-side offers ship, checkout must show exactly what the
-  /// server will charge, so the chat-agreed price is ignored here.
-  static const bool honorsNegotiatedPrice = false;
+  /// A buyer arriving from chat carries the price the seller accepted there.
+  /// `place_orders_atomic(p_lines, p_payment_method, p_client_request_id,
+  /// p_chat_id)` (migration V20) verifies that acceptance against the
+  /// server-side `negotiated_deals` record before applying the price.
+  ///
+  /// Only a real chat room can prove the acceptance. Demo/offline rooms have
+  /// no server-side deal, so checkout must show and charge the catalog price
+  /// instead of advertising a price the server will reject.
+  double? get _agreedPrice => _checkoutChatId == null ? null : widget.agreedPrice;
 
-  double? get _agreedPrice => honorsNegotiatedPrice ? widget.agreedPrice : null;
+  /// The real chat room whose accepted offer authorizes the negotiated price.
+  /// Demo rooms have no server-side deal, so they must not be sent as a UUID.
+  String? get _checkoutChatId {
+    final roomId = widget.roomId;
+    if (widget.agreedPrice == null || roomId == null || roomId.isEmpty) {
+      return null;
+    }
+    if (roomId == 'room-demo' || roomId.startsWith('demo-')) return null;
+    return roomId;
+  }
 
-  /// True when the buyer arrived from a chat deal whose price we cannot honour yet.
+  /// True when the buyer arrived from a chat deal the server cannot verify.
   bool get _hasUnhonouredNegotiatedPrice =>
-      !honorsNegotiatedPrice &&
       widget.agreedPrice != null &&
+      _checkoutChatId == null &&
       widget.product != null &&
       (widget.agreedPrice! - widget.product!.price).abs() >= 0.01;
 
@@ -305,13 +319,15 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           return; // Hard abort before any order is placed
         }
 
-        // Always pass authoritative catalog unit price to satisfy place_orders_atomic integrity check
-        final catalogUnitPrice = item.product.price + (_variantAdditionalPrices[item.product.id] ?? 0.0);
+        // Submit exactly the unit price shown in the UI. For a Tawad deal this
+        // is the seller-accepted price; the 4-argument RPC verifies it against
+        // the server-side deal before the order is priced.
+        final effectiveUnitPrice = _pricing.unitPrice(item);
         orderLines.add({
           'product_id': item.product.id,
           'variant_id': itemVariantId,
           'quantity': item.quantity,
-          'unit_price': catalogUnitPrice,
+          'unit_price': effectiveUnitPrice,
           'pickup_location': widget.isPreorder ? '[PRE-ORDER] $_selectedLocation' : _selectedLocation,
           'pickup_day': widget.isPreorder ? 'When Batch Ready (Est. 3-7 Days)' : _selectedDay,
           'pickup_time': _selectedTimeSlot,
@@ -329,6 +345,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         lines: orderLines,
         paymentMethod: dbPaymentMethod,
         clientRequestId: _clientRequestId,
+        chatId: _checkoutChatId,
       );
       if (!rpcResult.success) {
         throw CheckoutRejected(rpcResult.error);
@@ -519,8 +536,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           Expanded(
             child: Text(
               'This order uses the listed price of ₱${listPrice.toStringAsFixed(2)}. '
-              'Prices agreed in chat are not applied at checkout yet — '
-              'ask the seller to update the listing price before you order.',
+              'The chat-agreed price cannot be verified for this chat, so it is not applied.',
               style: TextStyle(
                 fontFamily: 'Inter',
                 fontSize: 12.5,
@@ -1221,9 +1237,24 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     );
   }
 
+  GcashAvailability _gcashAvailability() {
+    final sellerIds = _checkoutItems.map((i) => i.product.sellerId).toSet();
+    return combineGcashAvailability(
+      sellerIds.map((id) => ref.watch(sellerAcceptsGcashProvider(id))),
+    );
+  }
+
   Widget _buildPaymentMethodSelector(bool isDark) {
+    final gcash = _gcashAvailability();
+    final gcashBlocked = gcash != GcashAvailability.available;
+    if (gcashBlocked && _selectedPaymentMethod == 'GCash') {
+      // Never leave an unavailable method selected.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _selectedPaymentMethod = 'Cash on Pickup');
+      });
+    }
     final isCash = _selectedPaymentMethod == 'Cash on Pickup';
-    final isGcash = _selectedPaymentMethod == 'GCash';
+    final isGcash = _selectedPaymentMethod == 'GCash' && !gcashBlocked;
 
     return Column(
       children: [
@@ -1372,8 +1403,10 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         ),
         const SizedBox(height: 10),
 
-        // GCash Card
-        AnimatedContainer(
+        // GCash Card (disabled when the seller has no GCash payout number)
+        Opacity(
+          opacity: gcashBlocked ? 0.5 : 1,
+          child: AnimatedContainer(
           duration: Motion.duration(context, const Duration(milliseconds: 200)),
           decoration: BoxDecoration(
             color: isGcash
@@ -1400,10 +1433,12 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             type: MaterialType.transparency,
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _selectedPaymentMethod = 'GCash');
-              },
+              onTap: gcashBlocked
+                  ? null
+                  : () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _selectedPaymentMethod = 'GCash');
+                    },
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Row(
@@ -1445,7 +1480,14 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            'Direct e-wallet payment. Seller verification and reference receipt required.',
+                            switch (gcash) {
+                              GcashAvailability.sellerNotSetUp =>
+                                "This seller hasn't set up GCash payouts yet — Cash on Pickup only.",
+                              GcashAvailability.checking => 'Checking if this seller accepts GCash…',
+                              GcashAvailability.available =>
+                                'Direct e-wallet payment. Seller verification and reference receipt required.',
+                            },
+                            key: const ValueKey('gcash-subtitle'),
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 11.5,
@@ -1483,6 +1525,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               ),
             ),
           ),
+        ),
         ),
 
         // GCash Warning / Info Drawer

@@ -255,7 +255,7 @@ class OrderUiHelper {
   static Widget buildStatusBadge({
     required String? status,
     bool isOutOfStock = false,
-    bool showIcon = true,
+    bool showIcon = false,
     double fontSize = 11.0,
     EdgeInsetsGeometry padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
   }) {

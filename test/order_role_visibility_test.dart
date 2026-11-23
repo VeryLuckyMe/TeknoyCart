@@ -1,4 +1,6 @@
 import 'support/test_harness.dart';
+import 'support/fake_order_badge_api.dart';
+import 'package:teknoycart/core/providers/order_badge_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,6 +36,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            orderBadgeApiProvider.overrideWithValue(const OfflineOrderBadgeApi()),
             authStateProvider.overrideWith((ref) => AsyncValue.data(buyerUser)),
           ],
           child: const MaterialApp(
@@ -73,6 +76,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            orderBadgeApiProvider.overrideWithValue(const OfflineOrderBadgeApi()),
             authStateProvider.overrideWith((ref) => AsyncValue.data(pendingSellerUser)),
           ],
           child: const MaterialApp(
@@ -109,6 +113,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            orderBadgeApiProvider.overrideWithValue(const OfflineOrderBadgeApi()),
             authStateProvider.overrideWith((ref) => AsyncValue.data(pendingSellerUser)),
           ],
           child: const MaterialApp(
@@ -151,6 +156,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            orderBadgeApiProvider.overrideWithValue(const OfflineOrderBadgeApi()),
             authStateProvider.overrideWith((ref) => AsyncValue.data(verifiedSellerUser)),
           ],
           child: const MaterialApp(
@@ -188,6 +194,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            orderBadgeApiProvider.overrideWithValue(const OfflineOrderBadgeApi()),
             authStateProvider.overrideWith((ref) => AsyncValue.data(buyerUser)),
           ],
           child: const MaterialApp(
@@ -229,6 +236,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            orderBadgeApiProvider.overrideWithValue(const OfflineOrderBadgeApi()),
             authStateProvider.overrideWith((ref) => AsyncValue.data(verifiedSeller)),
           ],
           child: const MaterialApp(
@@ -271,6 +279,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            orderBadgeApiProvider.overrideWithValue(const OfflineOrderBadgeApi()),
             authStateProvider.overrideWith((ref) => AsyncValue.data(verifiedSeller)),
           ],
           child: const MaterialApp(

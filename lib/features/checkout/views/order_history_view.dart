@@ -1,3 +1,5 @@
+import 'package:teknoycart/core/providers/order_badge_provider.dart';
+import 'package:teknoycart/core/providers/notification_provider.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
@@ -52,6 +54,26 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     super.initState();
     _fetchBuyerOrders();
     _resolveUserRole();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _markVisibleListSeen());
+  }
+
+  /// Embedded in the main shell, this view stays alive offstage, so a list
+  /// only counts as seen while the Orders tab is the one on screen.
+  bool get _onScreen => !widget.embedded || ref.read(ordersTabVisibleProvider);
+
+  OrderList get _visibleList =>
+      (_isSeller && (_tabController?.index ?? 0) == 1) ? OrderList.incoming : OrderList.purchases;
+
+  Future<void> _markVisibleListSeen() async {
+    if (!mounted || !_onScreen) return;
+    final confirmed = await ref.read(orderBadgeProvider.notifier).markSeen(_visibleList);
+    // The server also marked this list's order alerts read: sync the bell.
+    if (confirmed && mounted) ref.read(notificationProvider.notifier).refresh();
+  }
+
+  void _onOrdersTabChanged() {
+    if (_tabController?.indexIsChanging ?? true) return;
+    _markVisibleListSeen();
   }
 
   Future<void> _resolveUserRole() async {
@@ -93,13 +115,15 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     if (!mounted) return;
     setState(() {
       _isSeller = true;
-      _tabController = TabController(length: 2, vsync: this);
+      _tabController = TabController(length: 2, vsync: this)
+        ..addListener(_onOrdersTabChanged);
     });
     _fetchSellerOrders();
   }
 
   @override
   void dispose() {
+    _tabController?.removeListener(_onOrdersTabChanged);
     _tabController?.dispose();
     super.dispose();
   }
@@ -1019,10 +1043,17 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     );
   }
 
-  int get _pendingSellerCount => _sellerOrders.where((o) => o['status'] == 'PENDING_SELLER_ACCEPT').length;
-
   @override
   Widget build(BuildContext context) {
+    // Switching to the Orders tab counts as seeing the list shown there.
+    ref.listen<bool>(ordersTabVisibleProvider, (prev, visible) {
+      if (visible && prev != true) _markVisibleListSeen();
+    });
+    // News for the list already on screen is seen immediately.
+    ref.listen<OrderBadgeCounts>(orderBadgeProvider, (_, next) {
+      final shown = _visibleList == OrderList.incoming ? next.incoming : next.purchases;
+      if (shown > 0) _markVisibleListSeen();
+    });
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = ref.watch(authStateProvider).valueOrNull;
     final isSellerUser = _isSeller || (user?.isSeller ?? false);
@@ -1080,7 +1111,9 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
     }
 
     // Verified Campus Seller: Unified Orders Hub with both purchases and incoming customer orders
-    final pendingCount = _pendingSellerCount;
+    final badges = ref.watch(orderBadgeProvider);
+    final pendingCount = badges.incoming;
+    final purchasesCount = badges.purchases;
     final controller = _tabController ?? TabController(length: 2, vsync: this);
 
     final segmentedTabBar = Container(
@@ -1118,9 +1151,18 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
         labelColor: TeknoyTheme.citMaroon,
         unselectedLabelColor: isDark ? Colors.white60 : const Color(0xFF64748B),
         tabs: [
-          const Tab(
+          Tab(
             height: 38,
-            text: 'My Purchases',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('My Purchases'),
+                if (purchasesCount > 0) ...[
+                  const SizedBox(width: 6),
+                  _OrderTabBadge(count: purchasesCount),
+                ],
+              ],
+            ),
           ),
           Tab(
             height: 38,
@@ -1130,22 +1172,7 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
                 const Text('Incoming Orders'),
                 if (pendingCount > 0) ...[
                   const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.orange,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '$pendingCount',
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
+                  _OrderTabBadge(count: pendingCount),
                 ],
               ],
             ),
@@ -1277,6 +1304,33 @@ class _OrderHistoryViewState extends ConsumerState<OrderHistoryView>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// "+N" pill on the My Purchases / Incoming Orders tabs.
+class _OrderTabBadge extends StatelessWidget {
+  final int count;
+  const _OrderTabBadge({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('order-tab-badge'),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: TeknoyTheme.citMaroon,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        count > 99 ? '99+' : '$count',
+        style: const TextStyle(
+          fontFamily: 'Outfit',
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
       ),
     );
   }

@@ -75,4 +75,67 @@ void main() {
     expect(find.text('Link expires in'), findsNothing);
     expect(find.textContaining('sent to:'), findsOneWidget);
   });
+
+  testWidgets('closes by itself once the emailed link was clicked', (tester) async {
+    bool? result;
+    var verifiedCalls = 0;
+    var checks = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(builder: (context) {
+        return Scaffold(
+          body: ElevatedButton(
+            onPressed: () async {
+              result = await showDialog<bool>(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => EmailVerificationDialog(
+                  email: 'student@cit.edu',
+                  pollKey: 'key-123',
+                  onVerified: () => verifiedCalls++,
+                  statusChecker: (key) async {
+                    expect(key, 'key-123');
+                    checks++;
+                    return checks >= 2; // pending first, then verified
+                  },
+                ),
+              );
+            },
+            child: const Text('Open verification'),
+          ),
+        );
+      }),
+    ));
+
+    await tester.tap(find.text('Open verification'));
+    await tester.pump();
+    expect(find.byType(EmailVerificationDialog), findsOneWidget);
+
+    await tester.pump(EmailVerificationDialog.pollInterval);
+    await tester.pump();
+    expect(find.byType(EmailVerificationDialog), findsOneWidget);
+
+    await tester.pump(EmailVerificationDialog.pollInterval);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(EmailVerificationDialog), findsNothing);
+    expect(result, isTrue);
+    expect(verifiedCalls, 1);
+  });
+
+  testWidgets('does not poll without a pollKey', (tester) async {
+    var checks = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: EmailVerificationDialog(
+          email: 'student@cit.edu',
+          statusChecker: (_) async {
+            checks++;
+            return true;
+          },
+        ),
+      ),
+    ));
+    await tester.pump(EmailVerificationDialog.pollInterval * 3);
+    expect(checks, 0);
+    expect(find.byType(EmailVerificationDialog), findsOneWidget);
+  });
 }

@@ -518,6 +518,33 @@ class ChatService {
     }
   }
 
+  /// Persists the seller's accepted Tawad price for server-side checkout
+  /// verification (migration V20). Demo rooms stay local-only.
+  ///
+  /// Returns false instead of pretending the deal exists so the UI never
+  /// advertises a price the checkout cannot honour.
+  Future<bool> acceptNegotiatedDeal({
+    required String roomId,
+    required String productId,
+    required double agreedPrice,
+  }) async {
+    if (roomId == 'room-demo' || roomId.startsWith('demo-')) return true;
+    try {
+      final result = await _client.rpc(
+        'accept_negotiated_deal',
+        params: {
+          'p_chat_id': roomId,
+          'p_product_id': productId,
+          'p_agreed_price': agreedPrice,
+        },
+      );
+      return result is Map && result['success'] == true;
+    } catch (e) {
+      debugPrint('ACCEPT_NEGOTIATED_DEAL_ERROR: $e');
+      return false;
+    }
+  }
+
   /// Sends a message. For live chat rooms, inserts into Supabase messages table
   /// and triggers an automated assistant reply as the seller.
   /// For demo rooms, simulates an automated assistant response locally.

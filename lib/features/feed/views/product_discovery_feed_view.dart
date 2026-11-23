@@ -22,6 +22,7 @@ import 'tabs/browse_tab.dart';
 import 'tabs/sell_tab.dart';
 import 'tabs/profile_tab.dart';
 import 'notifications_view.dart';
+import 'package:teknoycart/core/providers/order_badge_provider.dart';
 import 'wishlist_view.dart';
 
 // Export for compatibility with other modules & tests
@@ -61,6 +62,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
       _activeTab = index;
       _loadedTabs.add(index);
     });
+    ref.read(ordersTabVisibleProvider.notifier).state = index == 3;
+    if (index == 3) ref.read(orderBadgeProvider.notifier).refresh();
   }
 
   Widget _getTabWidget(int index) {
@@ -540,6 +543,7 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final unreadChatCount = ref.watch(unreadChatCountProvider);
+    final orderBadgeTotal = ref.watch(orderBadgeProvider).total;
     final authProfile = ref.watch(authStateProvider).valueOrNull;
 
     // Security Gate: Non-@cit.edu Seller accounts (e.g. @gmail.com for Department/Org or personal store)
@@ -866,7 +870,8 @@ class _ProductDiscoveryFeedViewState extends ConsumerState<ProductDiscoveryFeedV
               activeIcon: Icons.receipt_long_rounded,
               label: 'Orders',
               isActive: _activeTab == 3,
-              hasBadge: false,
+              hasBadge: orderBadgeTotal > 0,
+              badgeCount: orderBadgeTotal,
               onTap: () => _onTabSelected(3),
             ),
             _buildBottomNavItem(

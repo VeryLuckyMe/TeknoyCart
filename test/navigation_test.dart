@@ -168,7 +168,7 @@ void main() {
       expect(find.text('Send ₱255 Offer & Open Chat'), findsOneWidget);
     });
 
-    testWidgets('CheckoutView charges and shows the catalog price when arriving from a chat deal (no server-side offer yet)', (WidgetTester tester) async {
+    testWidgets('CheckoutView honors the seller-accepted Tawad price from chat', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1080, 1920);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -197,21 +197,58 @@ void main() {
       // Verify Header
       expect(find.text('Confirm P2P Deal'), findsOneWidget);
 
-      // place_orders_atomic charges the catalog price, so checkout must not
-      // advertise the chat-agreed ₱255 anywhere (displayed == charged).
-      expect(find.text('Campus Meetup Handshake Deal'), findsNothing);
+      // The seller accepted ₱255, so checkout must show that price as the
+      // amount that will be charged — no "not applied" warning.
+      expect(find.text('Campus Meetup Handshake Deal'), findsOneWidget);
+      expect(find.text('AGREED PRICE • SAVE ₱45.00'), findsOneWidget);
+      expect(find.text('TAWAD DEAL'), findsOneWidget);
+      expect(find.textContaining('Save ₱45.00'), findsWidgets);
+      expect(find.text('₱255.00'), findsWidgets);
+
+      // The old catalog-price fallback notice must be gone.
+      expect(find.byKey(const Key('negotiated_price_notice')), findsNothing);
+      expect(find.textContaining('listed price of ₱300.00'), findsNothing);
+
+      // The struck-through catalog price and the final total both remain visible.
+      expect(find.text('Total Payable'), findsWidgets);
+      expect(find.text('Drawing Board Kit'), findsOneWidget);
+      expect(find.text('₱300.00'), findsWidgets);
+    });
+
+    testWidgets('CheckoutView charges catalog price when the chat cannot be verified',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => AsyncValue.data(mockUser)),
+            inertUnreadChatCountOverride,
+          ],
+          child: MaterialApp(
+            home: CheckoutView(
+              product: testProduct,
+              agreedPrice: 255.0,
+              isDirectBuy: true,
+              // Demo rooms have no server-side accepted deal.
+              roomId: 'room-demo',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Displayed price must equal what the server will charge.
       expect(find.text('AGREED PRICE • SAVE ₱45.00'), findsNothing);
       expect(find.text('TAWAD DEAL'), findsNothing);
-      expect(find.textContaining('Save ₱45.00'), findsNothing);
       expect(find.text('₱255.00'), findsNothing);
-
-      // The buyer is told why the agreed price is not applied.
       expect(find.byKey(const Key('negotiated_price_notice')), findsOneWidget);
       expect(find.textContaining('listed price of ₱300.00'), findsOneWidget);
-
-      // Product Spotlight Card still shows the item at the catalog price.
-      expect(find.text('Cart Items (0)'), findsNothing);
-      expect(find.text('Drawing Board Kit'), findsOneWidget);
       expect(find.text('₱300.00'), findsWidgets);
     });
   });
