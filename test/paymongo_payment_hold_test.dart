@@ -314,5 +314,64 @@ void main() {
       // Cash on pickup needs no online escrow; seller can schedule meetup right away
       expect(find.text('Schedule Meetup & Notify Buyer'), findsOneWidget);
     });
+
+    testWidgets("Seller Schedule Meetup preserves buyer's requested day/time/location for 1-tap confirm", (WidgetTester tester) async {
+      final sellerUser = Profile(
+        id: 'seller-456',
+        username: 'Verified Seller',
+        email: 'seller@cit.edu',
+        role: 'SELLER',
+        isSellerVerified: true,
+        createdAt: DateTime.now(),
+      );
+
+      final orderData = {
+        'order_id': 'ord-test-777',
+        'status': 'ESCROWED',
+        'total_amount': '500.00',
+        'payment_method': 'GCASH',
+        'buyer_id': 'buyer-123',
+        'seller_id': 'seller-456',
+        'buyer_name': 'Test Buyer',
+        'seller_name': 'Test Seller',
+        'created_at': DateTime.now().toIso8601String(),
+        'pickup_location': 'Canteen Area',
+        'pickup_day': 'Tomorrow',
+        'pickup_time': '03:00 PM - 04:30 PM',
+      };
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => AsyncValue.data(sellerUser)),
+          ],
+          child: MaterialApp(
+            home: OrderDetailView(order: orderData, isSeller: true),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final scheduleBtn = find.text('Schedule Meetup & Notify Buyer');
+      await tester.ensureVisible(scheduleBtn);
+      await tester.pumpAndSettle();
+      await tester.tap(scheduleBtn);
+      await tester.pumpAndSettle();
+
+      // Shows buyer's exact request (no forced re-entry, no reset to Today)
+      expect(find.text("Buyer's Requested Meetup"), findsOneWidget);
+      expect(find.text("Confirm Buyer's Meetup & Notify"), findsOneWidget);
+      expect(find.text('1. Meetup Day'), findsNothing);
+
+      // Tapping Change reveals selectors pre-populated with buyer's day/time/location
+      final changeBtn = find.byKey(const Key('change-meetup-schedule-btn'));
+      await tester.ensureVisible(changeBtn);
+      await tester.pumpAndSettle();
+      await tester.tap(changeBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('1. Meetup Day'), findsOneWidget);
+      expect(find.textContaining('Buyer requested: Canteen Area • Tomorrow • 03:00 PM - 04:30 PM'), findsOneWidget);
+    });
   });
 }

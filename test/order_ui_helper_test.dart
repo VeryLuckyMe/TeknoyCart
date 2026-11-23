@@ -73,12 +73,26 @@ void main() {
       expect(OrderUiHelper.formatCondition('Freshly Made Today'), 'Freshly Made Today');
     });
 
-    testWidgets('buildStatusBadge renders elegant UI/UX Pro Max pill with icon and label', (tester) async {
+    testWidgets('buildStatusBadge renders clean pill label by default and optional icon when requested', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: OrderUiHelper.buildStatusBadge(
               status: 'MEETUP_SCHEDULED',
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Meetup Scheduled'), findsOneWidget);
+      expect(find.byIcon(Icons.calendar_today_rounded), findsNothing);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: OrderUiHelper.buildStatusBadge(
+              status: 'MEETUP_SCHEDULED',
+              showIcon: true,
             ),
           ),
         ),

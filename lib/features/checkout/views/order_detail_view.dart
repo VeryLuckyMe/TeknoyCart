@@ -1362,10 +1362,21 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
     String rawTime = (_order['pickup_time'] as String? ?? '').trim();
     String selectedTime = timeSlots.contains(rawTime) ? rawTime : '12:00 PM - 01:30 PM';
 
-    String selectedDay = 'Today';
-    final dayOptions = ['Today', 'Tomorrow', 'Next Business Day'];
+    String rawDay = (_order['pickup_day'] as String? ?? '').trim();
+    final dayOptions = <String>[
+      'Today',
+      'Tomorrow',
+      rawDay == 'Next Business Day' ? 'Next Business Day' : 'Next Day',
+    ];
+    String selectedDay = dayOptions.contains(rawDay) ? rawDay : dayOptions.first;
 
     final isReschedule = _status == 'MEETUP_SCHEDULED';
+    final bool hasBuyerSchedule = !isPreorder &&
+        !isReschedule &&
+        landmarks.contains(rawLoc) &&
+        timeSlots.contains(rawTime) &&
+        dayOptions.contains(rawDay);
+    bool isEditingSchedule = !hasBuyerSchedule;
 
     String generateMessage(String landmark, String day, String time) {
       if (isReschedule) {
@@ -1483,134 +1494,203 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                   ),
                   const SizedBox(height: 16),
 
-                  // Buyer's requested preference highlight
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.12 : 0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.info_outline_rounded, color: TeknoyTheme.citGold, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Buyer requested: $rawLoc • $rawTime',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white70 : const Color(0xFF374151),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Advisory banner if physical stock is 0
-                  if (liveStockQty == 0) ...[
-                    const SizedBox(height: 10),
+                  if (!isEditingSchedule) ...[
+                    // Buyer's requested meetup already matches valid campus options: 1-tap confirm card
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
+                        color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.12 : 0.08),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.4)),
                       ),
-                      child: const Row(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.inventory_2_outlined, color: Colors.amber, size: 16),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Inventory notice: Listing currently shows 0 stock. Please ensure your received batch has been logged via Manage Listings so physical handoff deductions balance.',
-                              style: TextStyle(fontFamily: 'Inter', fontSize: 11.5, color: Colors.amber),
+                          Row(
+                            children: [
+                              const Icon(Icons.event_available_rounded, color: TeknoyTheme.citGold, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  "Buyer's Requested Meetup",
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13.5,
+                                    color: isDark ? Colors.white : TeknoyTheme.citMaroonDark,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          _detailRow('Location', selectedLandmark, isDark),
+                          _detailRow('Day', selectedDay, isDark),
+                          _detailRow('Time', selectedTime, isDark),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: OutlinedButton.icon(
+                              key: const Key('change-meetup-schedule-btn'),
+                              onPressed: () => setModalState(() => isEditingSchedule = true),
+                              icon: Icon(
+                                Icons.edit_calendar_rounded,
+                                size: 18,
+                                color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                              ),
+                              label: Text(
+                                'Change Day / Time / Location',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(
+                                  color: (isDark ? TeknoyTheme.citGold : TeknoyTheme.citMaroon).withValues(alpha: 0.4),
+                                ),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
+                  ] else ...[
+                    // Buyer's requested preference highlight
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: TeknoyTheme.citGold.withValues(alpha: isDark ? 0.12 : 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: TeknoyTheme.citGold.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded, color: TeknoyTheme.citGold, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Buyer requested: $rawLoc${rawDay.isNotEmpty ? ' • $rawDay' : ''} • $rawTime',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white70 : const Color(0xFF374151),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Advisory banner if physical stock is 0
+                    if (liveStockQty == 0) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.inventory_2_outlined, color: Colors.amber, size: 16),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Inventory notice: Listing currently shows 0 stock. Please ensure your received batch has been logged via Manage Listings so physical handoff deductions balance.',
+                                style: TextStyle(fontFamily: 'Inter', fontSize: 11.5, color: Colors.amber),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+
+                    // Meetup Day Selector
+                    const Text('1. Meetup Day', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: dayOptions.map((day) {
+                        final isSel = selectedDay == day;
+                        return ChoiceChip(
+                          label: Text(day, style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: isSel ? Colors.white : (isDark ? Colors.white70 : Colors.black87))),
+                          selected: isSel,
+                          selectedColor: TeknoyTheme.citMaroon,
+                          backgroundColor: isDark ? const Color(0xFF24242C) : const Color(0xFFF1F1F4),
+                          onSelected: (val) {
+                            if (val) {
+                              setModalState(() {
+                                selectedDay = day;
+                                updateTextIfNotCustomized();
+                              });
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Time Slot Selector
+                    const Text('2. Campus Time Window', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedTime,
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        prefixIcon: const Icon(Icons.schedule_rounded, size: 20),
+                      ),
+                      items: timeSlots.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontFamily: 'Inter', fontSize: 13)))).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setModalState(() {
+                            selectedTime = val;
+                            updateTextIfNotCustomized();
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Landmark Selector
+                    const Text('3. Campus Landmark', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedLandmark,
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        prefixIcon: const Icon(Icons.place_rounded, size: 20),
+                      ),
+                      items: landmarks.map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontFamily: 'Inter', fontSize: 13)))).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setModalState(() {
+                            selectedLandmark = val;
+                            updateTextIfNotCustomized();
+                          });
+                        }
+                      },
+                    ),
                   ],
-                  const SizedBox(height: 16),
-
-                  // Meetup Day Selector
-                  const Text('1. Meetup Day', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: dayOptions.map((day) {
-                      final isSel = selectedDay == day;
-                      return ChoiceChip(
-                        label: Text(day, style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: isSel ? Colors.white : (isDark ? Colors.white70 : Colors.black87))),
-                        selected: isSel,
-                        selectedColor: TeknoyTheme.citMaroon,
-                        backgroundColor: isDark ? const Color(0xFF24242C) : const Color(0xFFF1F1F4),
-                        onSelected: (val) {
-                          if (val) {
-                            setModalState(() {
-                              selectedDay = day;
-                              updateTextIfNotCustomized();
-                            });
-                          }
-                        },
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Time Slot Selector
-                  const Text('2. Campus Time Window', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedTime,
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      prefixIcon: const Icon(Icons.schedule_rounded, size: 20),
-                    ),
-                    items: timeSlots.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontFamily: 'Inter', fontSize: 13)))).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setModalState(() {
-                          selectedTime = val;
-                          updateTextIfNotCustomized();
-                        });
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Landmark Selector
-                  const Text('3. Campus Landmark', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedLandmark,
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      prefixIcon: const Icon(Icons.place_rounded, size: 20),
-                    ),
-                    items: landmarks.map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontFamily: 'Inter', fontSize: 13)))).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setModalState(() {
-                          selectedLandmark = val;
-                          updateTextIfNotCustomized();
-                        });
-                      }
-                    },
-                  ),
                   const SizedBox(height: 16),
 
                   // Automated Message Preview
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('4. Automated In-App Chat Notice', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text(
+                        isEditingSchedule ? '4. Automated In-App Chat Notice' : 'Automated In-App Chat Notice',
+                        style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
                       Text('(Editable)', style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: isDark ? Colors.white54 : Colors.black45)),
                     ],
                   ),
@@ -1716,7 +1796,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with WidgetsB
                     },
                     icon: Icon(isReschedule ? Icons.check_circle_rounded : Icons.send_rounded, size: 18, color: Colors.white),
                     label: Text(
-                      isReschedule ? 'Update Schedule & Generate Fresh Code' : 'Send Notice & Confirm Schedule',
+                      isReschedule
+                          ? 'Update Schedule & Generate Fresh Code'
+                          : (!isEditingSchedule && hasBuyerSchedule
+                              ? "Confirm Buyer's Meetup & Notify"
+                              : 'Send Notice & Confirm Schedule'),
                       style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
                     ),
                     style: ElevatedButton.styleFrom(
